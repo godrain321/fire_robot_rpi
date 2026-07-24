@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+.venv/
+
+# ROS2
+build/
+install/
+log/
+
+# VSCode
+.vscode/
+
+# SSH
+*.pem
+*.key
