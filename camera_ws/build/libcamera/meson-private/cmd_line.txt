@@ -1,0 +1,7 @@
+[options]
+prefix = /home/seeno04/camera_ws/install/libcamera
+libdir = lib
+buildtype = release
+
+[properties]
+

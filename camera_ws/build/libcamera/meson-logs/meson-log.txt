@@ -1,0 +1,1283 @@
+Build started at 2026-07-18T17:24:58.408341
+Main binary: /usr/bin/python3
+Build Options: -Dprefix=/home/seeno04/camera_ws/install/libcamera -Dlibdir=lib -Dbuildtype=release
+Python system: Linux
+The Meson build system
+Version: 1.3.2
+Source dir: /home/seeno04/camera_ws/src/libcamera
+Build dir: /home/seeno04/camera_ws/build/libcamera
+Build type: native build
+../../src/libcamera/meson_options.txt:76: WARNING: Keyword argument "value" defined multiple times.
+WARNING: This will be an error in future Meson releases.
+Project name: libcamera
+Project version: 0.7.1
+-----------
+Detecting compiler via: `cc --version` -> 0
+stdout:
+cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Copyright (C) 2023 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-----------
+Running command: cc -E -dM -
+-----
+-----------
+Detecting linker via: `cc -Wl,--version` -> 0
+stdout:
+GNU ld (GNU Binutils for Ubuntu) 2.42
+Copyright (C) 2024 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or (at your option) a later version.
+This program has absolutely no warranty.
+-----------
+stderr:
+collect2 version 13.3.0
+/usr/bin/ld -plugin /usr/libexec/gcc/aarch64-linux-gnu/13/liblto_plugin.so -plugin-opt=/usr/libexec/gcc/aarch64-linux-gnu/13/lto-wrapper -plugin-opt=-fresolution=/tmp/ccAgsHrd.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu --as-needed -dynamic-linker /lib/ld-linux-aarch64.so.1 -X -EL -maarch64linux --fix-cortex-a53-843419 -pie -z now -z relro /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/Scrt1.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crti.o /usr/lib/gcc/aarch64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../../lib -L/lib/aarch64-linux-gnu -L/lib/../lib -L/usr/lib/aarch64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/aarch64-linux-gnu/13/../../.. --version -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/aarch64-linux-gnu/13/crtendS.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crtn.o
+-----------
+Sanity testing C compiler: cc
+Is cross compiler: False.
+Sanity check compiler command line: cc sanitycheckc.c -o sanitycheckc.exe -D_FILE_OFFSET_BITS=64
+Sanity check compile stdout:
+
+-----
+Sanity check compile stderr:
+
+-----
+Running test binary command:  /home/seeno04/camera_ws/build/libcamera/meson-private/sanitycheckc.exe
+C compiler for the host machine: cc (gcc 13.3.0 "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C linker for the host machine: cc ld.bfd 2.42
+-----------
+Detecting archiver via: `gcc-ar --version` -> 0
+stdout:
+GNU ar (GNU Binutils for Ubuntu) 2.42
+Copyright (C) 2024 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or (at your option) any later version.
+This program has absolutely no warranty.
+-----------
+-----------
+Detecting compiler via: `c++ --version` -> 0
+stdout:
+c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Copyright (C) 2023 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-----------
+Running command: c++ -E -dM -
+-----
+-----------
+Detecting linker via: `c++ -Wl,--version` -> 0
+stdout:
+GNU ld (GNU Binutils for Ubuntu) 2.42
+Copyright (C) 2024 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or (at your option) a later version.
+This program has absolutely no warranty.
+-----------
+stderr:
+collect2 version 13.3.0
+/usr/bin/ld -plugin /usr/libexec/gcc/aarch64-linux-gnu/13/liblto_plugin.so -plugin-opt=/usr/libexec/gcc/aarch64-linux-gnu/13/lto-wrapper -plugin-opt=-fresolution=/tmp/ccXkvqm2.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr --hash-style=gnu --as-needed -dynamic-linker /lib/ld-linux-aarch64.so.1 -X -EL -maarch64linux --fix-cortex-a53-843419 -pie -z now -z relro /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/Scrt1.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crti.o /usr/lib/gcc/aarch64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../../lib -L/lib/aarch64-linux-gnu -L/lib/../lib -L/usr/lib/aarch64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/aarch64-linux-gnu/13/../../.. --version -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/aarch64-linux-gnu/13/crtendS.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crtn.o
+-----------
+Sanity testing C++ compiler: c++
+Is cross compiler: False.
+Sanity check compiler command line: c++ sanitycheckcpp.cc -o sanitycheckcpp.exe -D_FILE_OFFSET_BITS=64
+Sanity check compile stdout:
+
+-----
+Sanity check compile stderr:
+
+-----
+Running test binary command:  /home/seeno04/camera_ws/build/libcamera/meson-private/sanitycheckcpp.exe
+C++ compiler for the host machine: c++ (gcc 13.3.0 "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C++ linker for the host machine: c++ ld.bfd 2.42
+-----------
+Detecting compiler via: `cc --version` -> 0
+stdout:
+cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Copyright (C) 2023 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-----------
+Running command: cc -E -dM -
+-----
+-----------
+Detecting linker via: `cc -Wl,--version` -> 0
+stdout:
+GNU ld (GNU Binutils for Ubuntu) 2.42
+Copyright (C) 2024 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or (at your option) a later version.
+This program has absolutely no warranty.
+-----------
+stderr:
+collect2 version 13.3.0
+/usr/bin/ld -plugin /usr/libexec/gcc/aarch64-linux-gnu/13/liblto_plugin.so -plugin-opt=/usr/libexec/gcc/aarch64-linux-gnu/13/lto-wrapper -plugin-opt=-fresolution=/tmp/ccemIRyF.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu --as-needed -dynamic-linker /lib/ld-linux-aarch64.so.1 -X -EL -maarch64linux --fix-cortex-a53-843419 -pie -z now -z relro /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/Scrt1.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crti.o /usr/lib/gcc/aarch64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../../lib -L/lib/aarch64-linux-gnu -L/lib/../lib -L/usr/lib/aarch64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/aarch64-linux-gnu/13/../../.. --version -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/aarch64-linux-gnu/13/crtendS.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crtn.o
+-----------
+Sanity testing C compiler: cc
+Is cross compiler: False.
+Sanity check compiler command line: cc sanitycheckc.c -o sanitycheckc.exe -D_FILE_OFFSET_BITS=64
+Sanity check compile stdout:
+
+-----
+Sanity check compile stderr:
+
+-----
+Running test binary command:  /home/seeno04/camera_ws/build/libcamera/meson-private/sanitycheckc.exe
+C compiler for the build machine: cc (gcc 13.3.0 "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C linker for the build machine: cc ld.bfd 2.42
+-----------
+Detecting archiver via: `gcc-ar --version` -> 0
+stdout:
+GNU ar (GNU Binutils for Ubuntu) 2.42
+Copyright (C) 2024 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or (at your option) any later version.
+This program has absolutely no warranty.
+-----------
+-----------
+Detecting compiler via: `c++ --version` -> 0
+stdout:
+c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Copyright (C) 2023 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+-----------
+Running command: c++ -E -dM -
+-----
+-----------
+Detecting linker via: `c++ -Wl,--version` -> 0
+stdout:
+GNU ld (GNU Binutils for Ubuntu) 2.42
+Copyright (C) 2024 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or (at your option) a later version.
+This program has absolutely no warranty.
+-----------
+stderr:
+collect2 version 13.3.0
+/usr/bin/ld -plugin /usr/libexec/gcc/aarch64-linux-gnu/13/liblto_plugin.so -plugin-opt=/usr/libexec/gcc/aarch64-linux-gnu/13/lto-wrapper -plugin-opt=-fresolution=/tmp/ccjyMRzw.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr --hash-style=gnu --as-needed -dynamic-linker /lib/ld-linux-aarch64.so.1 -X -EL -maarch64linux --fix-cortex-a53-843419 -pie -z now -z relro /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/Scrt1.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crti.o /usr/lib/gcc/aarch64-linux-gnu/13/crtbeginS.o -L/usr/lib/gcc/aarch64-linux-gnu/13 -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu -L/usr/lib/gcc/aarch64-linux-gnu/13/../../../../lib -L/lib/aarch64-linux-gnu -L/lib/../lib -L/usr/lib/aarch64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/aarch64-linux-gnu/13/../../.. --version -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/aarch64-linux-gnu/13/crtendS.o /usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/crtn.o
+-----------
+Sanity testing C++ compiler: c++
+Is cross compiler: False.
+Sanity check compiler command line: c++ sanitycheckcpp.cc -o sanitycheckcpp.exe -D_FILE_OFFSET_BITS=64
+Sanity check compile stdout:
+
+-----
+Sanity check compile stderr:
+
+-----
+Running test binary command:  /home/seeno04/camera_ws/build/libcamera/meson-private/sanitycheckcpp.exe
+C++ compiler for the build machine: c++ (gcc 13.3.0 "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C++ linker for the build machine: c++ ld.bfd 2.42
+Build machine cpu family: aarch64
+Build machine cpu: aarch64
+Host machine cpu family: aarch64
+Host machine cpu: aarch64
+Target machine cpu family: aarch64
+Target machine cpu: aarch64
+Running command: /home/seeno04/camera_ws/src/libcamera/utils/gen-version.sh /home/seeno04/camera_ws/build/libcamera /home/seeno04/camera_ws/src/libcamera
+--- stdout ---
+0.7.1+rpt20260609
+
+--- stderr ---
+
+
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp6n5ypchn
+Code:
+ #define _GNU_SOURCE
+        #include <unistd.h>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef close_range
+                close_range;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmp6n5ypchn/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp6n5ypchn/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 0
+Header "unistd.h" has symbol "close_range" : YES 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp_58xgq6o
+Code:
+ #define _GNU_SOURCE
+        #include <fcntl.h>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef F_ADD_SEALS
+                F_ADD_SEALS;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmp_58xgq6o/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp_58xgq6o/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 0
+Header "fcntl.h" has symbol "F_ADD_SEALS" : YES 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp_9yyyj7f
+Code:
+ 
+        #include <unistd.h>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef issetugid
+                issetugid;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmp_9yyyj7f/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp_9yyyj7f/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 1
+stderr:
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmp_9yyyj7f/testfile.c: In function 'main':
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmp_9yyyj7f/testfile.c:6:17: error: 'issetugid' undeclared (first use in this function); did you mean 'setegid'?
+    6 |                 issetugid;
+      |                 ^~~~~~~~~
+      |                 setegid
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmp_9yyyj7f/testfile.c:6:17: note: each undeclared identifier is reported only once for each function it appears in
+-----------
+Header "unistd.h" has symbol "issetugid" : NO 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmptr3te3hb
+Code:
+ #define _GNU_SOURCE
+        #include <locale.h>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef locale_t
+                locale_t;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmptr3te3hb/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmptr3te3hb/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 0
+stderr:
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmptr3te3hb/testfile.c: In function 'main':
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmptr3te3hb/testfile.c:6:17: warning: useless type name in empty declaration
+    6 |                 locale_t;
+      |                 ^~~~~~~~
+-----------
+Header "locale.h" has symbol "locale_t" : YES 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp31yaxrmw
+Code:
+ #define _GNU_SOURCE
+        #include <sys/mman.h>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef memfd_create
+                memfd_create;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmp31yaxrmw/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp31yaxrmw/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 0
+Header "sys/mman.h" has symbol "memfd_create" : YES 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmpzwnxi9_2
+Code:
+ 
+#include <sys/ioctl.h>
+int ioctl (int, int, ...);
+
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmpzwnxi9_2/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmpzwnxi9_2/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 1
+stderr:
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmpzwnxi9_2/testfile.c:3:5: error: conflicting types for 'ioctl'; have 'int(int,  int, ...)'
+    3 | int ioctl (int, int, ...);
+      |     ^~~~~
+In file included from /home/seeno04/camera_ws/build/libcamera/meson-private/tmpzwnxi9_2/testfile.c:2:
+/usr/include/aarch64-linux-gnu/sys/ioctl.h:42:12: note: previous declaration of 'ioctl' with type 'int(int,  long unsigned int, ...)'
+   42 | extern int ioctl (int __fd, unsigned long int __request, ...) __THROW;
+      |            ^~~~~
+-----------
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp4w00gf45
+Code:
+ #define _GNU_SOURCE
+        #include <stdlib.h>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef secure_getenv
+                secure_getenv;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmp4w00gf45/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp4w00gf45/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 0
+Header "stdlib.h" has symbol "secure_getenv" : YES 
+Running compile:
+Working directory:  /tmp/tmp9_hx_5rh
+Code:
+ int i = static_cast<int>(0);
+-----------
+Command line: `c++ /tmp/tmp9_hx_5rh/testfile.cpp -o /tmp/tmp9_hx_5rh/output.obj -D_FILE_OFFSET_BITS=64 -c -std=c++20` -> 0
+Compiler accepts -std=c++20: YES
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmpj_a1qhku
+Code:
+ 
+        #include <version>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef _LIBCPP_VERSION
+                _LIBCPP_VERSION;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmpj_a1qhku/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmpj_a1qhku/output.obj -c -D_FILE_OFFSET_BITS=64 -O0 -fpermissive -std=c++20` -> 1
+stderr:
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmpj_a1qhku/testfile.cpp: In function 'int main()':
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmpj_a1qhku/testfile.cpp:6:17: error: '_LIBCPP_VERSION' was not declared in this scope
+    6 |                 _LIBCPP_VERSION;
+      |                 ^~~~~~~~~~~~~~~
+-----------
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp8_zwiiqf
+Code:
+ 
+        #include <version>
+        using _LIBCPP_VERSION;
+        int main(void) { return 0; }
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmp8_zwiiqf/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp8_zwiiqf/output.obj -c -D_FILE_OFFSET_BITS=64 -O0 -fpermissive -std=c++20` -> 1
+stderr:
+/home/seeno04/camera_ws/build/libcamera/meson-private/tmp8_zwiiqf/testfile.cpp:3:15: error: expected nested-name-specifier before '_LIBCPP_VERSION'
+    3 |         using _LIBCPP_VERSION;
+      |               ^~~~~~~~~~~~~~~
+-----------
+Header "version" has symbol "_LIBCPP_VERSION" : NO 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp38rtqo79
+Code:
+ 
+        #include <version>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef __GLIBCXX__
+                __GLIBCXX__;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmp38rtqo79/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp38rtqo79/output.obj -c -D_FILE_OFFSET_BITS=64 -O0 -fpermissive -std=c++20` -> 0
+Header "version" has symbol "__GLIBCXX__" : YES 
+Message: Detected C++ standard library: libstdc++
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmplevf9x4u
+Code:
+ extern int i;
+int i;
+
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmplevf9x4u/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmplevf9x4u/output.obj -c -D_FILE_OFFSET_BITS=64 -O0 -Wc99-designator -Wno-c99-designator` -> 1
+stderr:
+cc: error: unrecognized command-line option '-Wc99-designator'
+-----------
+Compiler for C supports arguments -Wno-c99-designator: NO 
+Pkg-config binary missing from cross or native file, or env var undefined.
+Trying a default Pkg-config fallback at pkg-config
+Found pkg-config: YES (/usr/bin/pkg-config) 1.8.1
+Determining dependency 'lttng-ust' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion lttng-ust` -> 0
+stdout:
+2.13.7
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags lttng-ust` -> 0
+stdout:
+-I/usr/include/aarch64-linux-gnu
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs lttng-ust` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -llttng-ust -llttng-ust-common -ldl
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs lttng-ust` -> 0
+stdout:
+-llttng-ust -llttng-ust-common -ldl
+-----------
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmptzdpvaf3
+Code:
+ 
+        #include<stddef.h>
+        #include<stdio.h>
+        int main(void) {
+            printf("%ld\n", (long)(sizeof(void *)));
+            return 0;
+        }
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmptzdpvaf3/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmptzdpvaf3/output.exe -D_FILE_OFFSET_BITS=64 -O0 -fpermissive` -> 0
+Program stdout:
+
+8
+
+Program stderr:
+
+
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmptj1pdjlg
+Code:
+ 
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmptj1pdjlg/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmptj1pdjlg/output.obj -c -D_FILE_OFFSET_BITS=64 -O0 -fpermissive --print-search-dirs` -> 0
+stdout:
+install: /usr/lib/gcc/aarch64-linux-gnu/13/
+programs: =/usr/libexec/gcc/aarch64-linux-gnu/13/:/usr/libexec/gcc/aarch64-linux-gnu/13/:/usr/libexec/gcc/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/bin/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/bin/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/bin/
+libraries: =/usr/lib/gcc/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/../lib/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../lib/:/lib/aarch64-linux-gnu/13/:/lib/aarch64-linux-gnu/:/lib/../lib/:/usr/lib/aarch64-linux-gnu/13/:/usr/lib/aarch64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../:/lib/:/usr/lib/
+-----------
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp62shvgk_
+Code:
+ int main(void) { return 0; }
+
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmp62shvgk_/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmp62shvgk_/output.exe -D_FILE_OFFSET_BITS=64 -O0 -fpermissive -Wl,--start-group -ldl -Wl,--end-group -Wl,--allow-shlib-undefined` -> 0
+Run-time dependency lttng-ust found: YES 2.13.7
+Program ./parser.py found: YES (/home/seeno04/camera_ws/src/libcamera/utils/codegen/ipc/./parser.py)
+Program ./generate.py found: YES (/home/seeno04/camera_ws/src/libcamera/utils/codegen/ipc/./generate.py)
+Program ./extract-docs.py found: YES (/home/seeno04/camera_ws/src/libcamera/utils/codegen/ipc/./extract-docs.py)
+Configuring version.h using configuration
+Program openssl found: YES (/usr/bin/openssl)
+Determining dependency 'libyuv' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libyuv` -> 1
+stderr:
+Package libyuv was not found in the pkg-config search path.
+Perhaps you should add the directory containing `libyuv.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'libyuv', required by 'virtual:world', not found
+-----------
+CMake binary for host machine is not cached
+CMake binary missing from cross or native file, or env var undefined.
+Trying a default CMake fallback at cmake
+Found CMake: /usr/bin/cmake (3.28.3)
+Extracting basic cmake information
+CMake Toolchain: Calling CMake once to generate the compiler state
+Calling CMake (['/usr/bin/cmake']) in /home/seeno04/camera_ws/build/libcamera/meson-private/__CMake_compiler_info__ with:
+  - "--trace-expand"
+  - "--trace-format=json-v1"
+  - "--no-warn-unused-cli"
+  - "--trace-redirect=cmake_trace.txt"
+  - "-G"
+  - "Ninja"
+  - "-DCMAKE_TOOLCHAIN_FILE=/home/seeno04/camera_ws/build/libcamera/meson-private/__CMake_compiler_info__/CMakeMesonTempToolchainFile.cmake"
+  - "."
+  - "-DCMAKE_PREFIX_PATH=/home/seeno04/inno_ws/install/sllidar_ros2;/opt/ros/jazzy/opt/gz_math_vendor;/opt/ros/jazzy/opt/gz_utils_vendor;/opt/ros/jazzy/opt/gz_cmake_vendor"
+CMake trace warning: add_executable() non imported executables are not supported
+CMake TRACE: /home/seeno04/camera_ws/build/libcamera/meson-private/__CMake_compiler_info__/CMakeFiles/CMakeScratch/TryCompile-WJAZ1T/CMakeLists.txt:21 add_executable(['cmTC_89b9d'])
+CMake trace warning: target_link_options() TARGET cmTC_89b9d not found
+CMake TRACE: /home/seeno04/camera_ws/build/libcamera/meson-private/__CMake_compiler_info__/CMakeFiles/CMakeScratch/TryCompile-WJAZ1T/CMakeLists.txt:27 target_link_libraries(['cmTC_89b9d', ''])
+CMake trace warning: add_executable() non imported executables are not supported
+CMake TRACE: /home/seeno04/camera_ws/build/libcamera/meson-private/__CMake_compiler_info__/CMakeFiles/CMakeScratch/TryCompile-B3VCbG/CMakeLists.txt:21 add_executable(['cmTC_5cb05'])
+CMake trace warning: target_link_options() TARGET cmTC_5cb05 not found
+CMake TRACE: /home/seeno04/camera_ws/build/libcamera/meson-private/__CMake_compiler_info__/CMakeFiles/CMakeScratch/TryCompile-B3VCbG/CMakeLists.txt:27 target_link_libraries(['cmTC_5cb05', ''])
+Try CMake generator: auto
+Calling CMake (['/usr/bin/cmake']) in /home/seeno04/camera_ws/build/libcamera/meson-private/cmake_libyuv with:
+  - "--trace-expand"
+  - "--trace-format=json-v1"
+  - "--no-warn-unused-cli"
+  - "--trace-redirect=cmake_trace.txt"
+  - "-DCMAKE_TOOLCHAIN_FILE=/home/seeno04/camera_ws/build/libcamera/meson-private/cmake_libyuv/CMakeMesonToolchainFile.cmake"
+  - "."
+  - "-DCMAKE_PREFIX_PATH=/home/seeno04/inno_ws/install/sllidar_ros2;/opt/ros/jazzy/opt/gz_math_vendor;/opt/ros/jazzy/opt/gz_utils_vendor;/opt/ros/jazzy/opt/gz_cmake_vendor"
+  -- Module search paths:    ['/', '/home/seeno04/inno_ws/install/sllidar_ros2', '/opt', '/opt/ros/jazzy/opt/gz_cmake_vendor', '/opt/ros/jazzy/opt/gz_math_vendor', '/opt/ros/jazzy/opt/gz_utils_vendor', '/usr', '/usr/local']
+  -- CMake root:             /usr/share/cmake-3.28
+  -- CMake architectures:    ['aarch64-linux-gnu']
+  -- CMake lib search paths: ['lib', 'lib32', 'lib64', 'libx32', 'share', '', 'lib/aarch64-linux-gnu']
+Preliminary CMake check failed. Aborting.
+Run-time dependency libyuv found: NO (tried pkgconfig and cmake)
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmp3lqcdep1
+Code:
+ 
+        #ifdef __has_include
+         #if !__has_include("libyuv.h")
+          #error "Header 'libyuv.h' could not be found"
+         #endif
+        #else
+         #include <libyuv.h>
+        #endif
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmp3lqcdep1/testfile.cpp -E -P -D_FILE_OFFSET_BITS=64 -P -O0 -fpermissive -std=c++20` -> 0
+Has header "libyuv.h" : YES 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmplr9mj0qo
+Code:
+ int main(void) { return 0; }
+
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmplr9mj0qo/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmplr9mj0qo/output.exe -D_FILE_OFFSET_BITS=64 -O0 -fpermissive -Wl,--start-group -lyuv -Wl,--end-group -Wl,--allow-shlib-undefined` -> 0
+Library yuv found: YES
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmpo_7hcxyv
+Code:
+ int main(void) { return 0; }
+
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmpo_7hcxyv/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmpo_7hcxyv/output.exe -D_FILE_OFFSET_BITS=64 -O0 -Wl,--start-group -latomic -Wl,--end-group -Wl,--allow-shlib-undefined` -> 0
+Library atomic found: YES
+Run-time dependency threads found: YES
+Determining dependency 'libdw' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libdw` -> 0
+stdout:
+0.190
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags libdw` -> 0
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libdw` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -ldw -lelf
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libdw` -> 0
+stdout:
+-ldw -lelf
+-----------
+Run-time dependency libdw found: YES 0.190
+Determining dependency 'libunwind' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libunwind` -> 0
+stdout:
+1.6.2
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags libunwind` -> 0
+stdout:
+-I/usr/include/aarch64-linux-gnu
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libunwind` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -lunwind
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libunwind` -> 0
+stdout:
+-lunwind
+-----------
+Run-time dependency libunwind found: YES 1.6.2
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmpnlogg243
+Code:
+ 
+        #include <execinfo.h>
+        int main(void) {
+            /* If it's not defined as a macro, try to use as a symbol */
+            #ifndef backtrace
+                backtrace;
+            #endif
+            return 0;
+        }
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmpnlogg243/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmpnlogg243/output.obj -c -D_FILE_OFFSET_BITS=64 -O0` -> 0
+Header "execinfo.h" has symbol "backtrace" : YES 
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmpaekwdx0u
+Code:
+ int main(void) { return 0; }
+
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmpaekwdx0u/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmpaekwdx0u/output.exe -D_FILE_OFFSET_BITS=64 -O0 -Wl,--start-group -lrt -Wl,--end-group -Wl,--allow-shlib-undefined` -> 0
+Library rt found: YES
+Determining dependency 'libpisp' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libpisp` -> 1
+stderr:
+Package libpisp was not found in the pkg-config search path.
+Perhaps you should add the directory containing `libpisp.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'libpisp', required by 'virtual:world', not found
+-----------
+CMake binary for host machine is cached.
+Preliminary CMake check failed. Aborting.
+Run-time dependency libpisp found: NO (tried pkgconfig and cmake)
+Looking for a fallback subproject for the dependency libpisp
+
+Executing subproject libpisp 
+
+Project name: libpisp
+Project version: 1.5.0
+C compiler for the host machine: cc (gcc 13.3.0 "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C linker for the host machine: cc ld.bfd 2.42
+C++ compiler for the host machine: c++ (gcc 13.3.0 "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C++ linker for the host machine: c++ ld.bfd 2.42
+C compiler for the build machine: cc (gcc 13.3.0 "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C linker for the build machine: cc ld.bfd 2.42
+C++ compiler for the build machine: c++ (gcc 13.3.0 "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C++ linker for the build machine: c++ ld.bfd 2.42
+Configuring pisp_build_config.h using configuration
+Determining dependency 'nlohmann_json' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion nlohmann_json` -> 1
+stderr:
+Package nlohmann_json was not found in the pkg-config search path.
+Perhaps you should add the directory containing `nlohmann_json.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'nlohmann_json', required by 'virtual:world', not found
+-----------
+CMake binary for host machine is cached.
+Preliminary CMake check failed. Aborting.
+Run-time dependency nlohmann_json found: NO (tried pkgconfig and cmake)
+Looking for a fallback subproject for the dependency nlohmann_json
+Using subprojects/libpisp/subprojects/nlohmann_json.wrap
+Downloading nlohmann_json source from https://github.com/nlohmann/json/releases/download/v3.12.0/include.zip
+
+Executing subproject libpisp:nlohmann_json 
+
+Project name: nlohmann_json
+Project version: 3.12.0
+C++ compiler for the host machine: c++ (gcc 13.3.0 "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C++ linker for the host machine: c++ ld.bfd 2.42
+C++ compiler for the build machine: c++ (gcc 13.3.0 "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C++ linker for the build machine: c++ ld.bfd 2.42
+Build targets in project: 25
+Subproject nlohmann_json finished.
+
+Dependency nlohmann_json from subproject subprojects/nlohmann_json-3.12.0 found: YES 3.12.0
+Dependency threads found: YES unknown (cached)
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmpy21la8hb
+Code:
+ int main(void) { return 0; }
+
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmpy21la8hb/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmpy21la8hb/output.exe -D_FILE_OFFSET_BITS=64 -O0 -Wl,--start-group -ldl -Wl,--end-group -Wl,--allow-shlib-undefined` -> 0
+Library dl found: YES
+Determining dependency 'boost' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion boost` -> 1
+stderr:
+Package boost was not found in the pkg-config search path.
+Perhaps you should add the directory containing `boost.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'boost', required by 'virtual:world', not found
+-----------
+Checking potential boost root /usr/include/c++
+Checking potential boost root /usr/include/aarch64-linux-gnu/c++
+Checking potential boost root /usr/include/c++/13
+Checking potential boost root /usr/lib/gcc/aarch64-linux-gnu/13
+Checking potential boost root /usr/local
+Checking potential boost root /usr/include
+  - potential library dirs: ['/usr/include/libde265', '/usr/include/libdecor-0', '/usr/include/libdrm', '/usr/include/libexif', '/usr/include/libltdl', '/usr/include/libmount', '/usr/include/libnl3', '/usr/include/libpng', '/usr/include/libpng16', '/usr/include/libraw1394', '/usr/include/libwmf', '/usr/include/libxml2', '/usr/include/libyuv']
+  - potential include dirs: ['/usr/include']
+  - found boost 1.83.0 include dir: /usr/include
+  - filtered library list:
+  - found:
+  - NOT found:
+    - boost_log
+    - boost_log_setup
+    - boost_thread
+    - boost_system
+Checking potential boost root /usr
+  - potential library dirs: ['/usr/lib/gcc/aarch64-linux-gnu/13', '/usr/lib/aarch64-linux-gnu', '/usr/lib']
+  - potential include dirs: ['/usr/include']
+  - found boost library dir: /usr/lib/aarch64-linux-gnu
+  - found boost 1.83.0 include dir: /usr/include
+  - filtered library list:
+    - <LIB: -M ------ ??? ? 1_83 boost_atomic                     /usr/lib/aarch64-linux-gnu/libboost_atomic.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_chrono                     /usr/lib/aarch64-linux-gnu/libboost_chrono.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_container                  /usr/lib/aarch64-linux-gnu/libboost_container.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_context                    /usr/lib/aarch64-linux-gnu/libboost_context.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_coroutine                  /usr/lib/aarch64-linux-gnu/libboost_coroutine.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_date_time                  /usr/lib/aarch64-linux-gnu/libboost_date_time.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_fiber                      /usr/lib/aarch64-linux-gnu/libboost_fiber.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_filesystem                 /usr/lib/aarch64-linux-gnu/libboost_filesystem.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_graph                      /usr/lib/aarch64-linux-gnu/libboost_graph.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_graph_parallel             /usr/lib/aarch64-linux-gnu/libboost_graph_parallel.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_iostreams                  /usr/lib/aarch64-linux-gnu/libboost_iostreams.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_json                       /usr/lib/aarch64-linux-gnu/libboost_json.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_locale                     /usr/lib/aarch64-linux-gnu/libboost_locale.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_log                        /usr/lib/aarch64-linux-gnu/libboost_log.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_log_setup                  /usr/lib/aarch64-linux-gnu/libboost_log_setup.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_math_c99                   /usr/lib/aarch64-linux-gnu/libboost_math_c99.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_math_c99f                  /usr/lib/aarch64-linux-gnu/libboost_math_c99f.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_math_tr1                   /usr/lib/aarch64-linux-gnu/libboost_math_tr1.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_math_tr1f                  /usr/lib/aarch64-linux-gnu/libboost_math_tr1f.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_mpi                        /usr/lib/aarch64-linux-gnu/libboost_mpi.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_mpi_python312              /usr/lib/aarch64-linux-gnu/libboost_mpi_python312.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_nowide                     /usr/lib/aarch64-linux-gnu/libboost_nowide.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_numpy312                   /usr/lib/aarch64-linux-gnu/libboost_numpy312.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_prg_exec_monitor           /usr/lib/aarch64-linux-gnu/libboost_prg_exec_monitor.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_program_options            /usr/lib/aarch64-linux-gnu/libboost_program_options.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_python312                  /usr/lib/aarch64-linux-gnu/libboost_python312.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_random                     /usr/lib/aarch64-linux-gnu/libboost_random.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_regex                      /usr/lib/aarch64-linux-gnu/libboost_regex.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_serialization              /usr/lib/aarch64-linux-gnu/libboost_serialization.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_stacktrace_addr2line       /usr/lib/aarch64-linux-gnu/libboost_stacktrace_addr2line.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_stacktrace_backtrace       /usr/lib/aarch64-linux-gnu/libboost_stacktrace_backtrace.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_stacktrace_basic           /usr/lib/aarch64-linux-gnu/libboost_stacktrace_basic.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_stacktrace_noop            /usr/lib/aarch64-linux-gnu/libboost_stacktrace_noop.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_system                     /usr/lib/aarch64-linux-gnu/libboost_system.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_thread                     /usr/lib/aarch64-linux-gnu/libboost_thread.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_timer                      /usr/lib/aarch64-linux-gnu/libboost_timer.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_type_erasure               /usr/lib/aarch64-linux-gnu/libboost_type_erasure.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_unit_test_framework        /usr/lib/aarch64-linux-gnu/libboost_unit_test_framework.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_url                        /usr/lib/aarch64-linux-gnu/libboost_url.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_wave                       /usr/lib/aarch64-linux-gnu/libboost_wave.so.1.83.0>
+    - <LIB: -M ------ ??? ? 1_83 boost_wserialization             /usr/lib/aarch64-linux-gnu/libboost_wserialization.so.1.83.0>
+  - found:
+    - boost_log                link=['/usr/lib/aarch64-linux-gnu/libboost_log.so.1.83.0'] comp=['-DBOOST_LOG_DYN_LINK=1']
+    - boost_log_setup          link=['/usr/lib/aarch64-linux-gnu/libboost_log_setup.so.1.83.0'] comp=['-DBOOST_LOG_SETUP_DYN_LINK=1']
+    - boost_thread             link=['/usr/lib/aarch64-linux-gnu/libboost_thread.so.1.83.0'] comp=['-DBOOST_THREAD_BUILD_DLL=1', '-DBOOST_THREAD_USE_DLL=1']
+    - boost_system             link=['/usr/lib/aarch64-linux-gnu/libboost_system.so.1.83.0'] comp=['-DBOOST_SYSTEM_DYN_LINK=1']
+  - final compile args: ['-I/usr/include', '-DBOOST_LOG_DYN_LINK=1', '-DBOOST_LOG_SETUP_DYN_LINK=1', '-DBOOST_THREAD_BUILD_DLL=1', '-DBOOST_THREAD_USE_DLL=1', '-DBOOST_SYSTEM_DYN_LINK=1', '-DBOOST_ALL_NO_LIB']
+  - final link args:    ['/usr/lib/aarch64-linux-gnu/libboost_log.so.1.83.0', '/usr/lib/aarch64-linux-gnu/libboost_log_setup.so.1.83.0', '/usr/lib/aarch64-linux-gnu/libboost_thread.so.1.83.0', '/usr/lib/aarch64-linux-gnu/libboost_system.so.1.83.0']
+Run-time dependency Boost (found: log, log_setup, system, thread) found: YES 1.83.0 (/usr)
+Dependency gstreamer-1.0 skipped: feature gstreamer disabled
+Dependency gstreamer-base-1.0 skipped: feature gstreamer disabled
+Dependency gstreamer-video-1.0 skipped: feature gstreamer disabled
+Dependency gstreamer-allocators-1.0 skipped: feature gstreamer disabled
+Build targets in project: 27
+Subproject libpisp finished.
+
+Dependency libpisp from subproject subprojects/libpisp found: YES 1.5.0
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmps52oaomq
+Code:
+ #include <dlfcn.h>
+#include <limits.h>
+
+        #if defined __stub_dlopen || defined __stub___dlopen
+        fail fail fail this function is not going to work
+        #endif
+        
+int main(void) {
+            void *a = (void*) &dlopen;
+            long long b = (long long) a;
+            return (int) b;
+        }
+-----------
+Command line: `c++ /home/seeno04/camera_ws/build/libcamera/meson-private/tmps52oaomq/testfile.cpp -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmps52oaomq/output.exe -D_FILE_OFFSET_BITS=64 -O0 -fpermissive` -> 0
+Run-time dependency dl found: YES
+Determining dependency 'libudev' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libudev` -> 0
+stdout:
+255
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags libudev` -> 0
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libudev` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -ludev
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libudev` -> 0
+stdout:
+-ludev
+-----------
+Run-time dependency libudev found: YES 255
+Determining dependency 'yaml-0.1' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion yaml-0.1` -> 0
+stdout:
+0.2.5
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags yaml-0.1` -> 0
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs yaml-0.1` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -lyaml
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs yaml-0.1` -> 0
+stdout:
+-lyaml
+-----------
+Run-time dependency yaml-0.1 found: YES 0.2.5
+Determining dependency 'gnutls' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion gnutls` -> 0
+stdout:
+3.8.3
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags gnutls` -> 0
+stdout:
+-I/usr/include/p11-kit-1
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gnutls` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -lgnutls
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gnutls` -> 0
+stdout:
+-lgnutls
+-----------
+Run-time dependency gnutls found: YES 3.8.3
+Header "uchar.h" has symbol "mbrtoc16" skipped: feature android disabled
+Determining dependency 'tensorflow-lite' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion tensorflow-lite` -> 1
+stderr:
+Package tensorflow-lite was not found in the pkg-config search path.
+Perhaps you should add the directory containing `tensorflow-lite.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'tensorflow-lite', required by 'virtual:world', not found
+-----------
+CMake binary for host machine is cached.
+Preliminary CMake check failed. Aborting.
+Run-time dependency tensorflow-lite found: NO (tried pkgconfig and cmake)
+Dependency libevent_pthreads skipped: feature cam disabled
+Dependency libevent_pthreads skipped: feature lc-compliance disabled
+Determining dependency 'libtiff-4' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion libtiff-4` -> 0
+stdout:
+4.5.1
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags libtiff-4` -> 0
+stdout:
+-I/usr/include/aarch64-linux-gnu -I/usr/include/webp
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libtiff-4` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -ltiff
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs libtiff-4` -> 0
+stdout:
+-ltiff
+-----------
+Run-time dependency libtiff-4 found: YES 4.5.1
+Dependency gtest skipped: feature lc-compliance disabled
+Dependency qt6 (modules: Core, Gui, OpenGL, OpenGLWidgets, Widgets) skipped: feature qcam disabled
+Determining dependency 'glib-2.0' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion glib-2.0` -> 0
+stdout:
+2.80.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags glib-2.0` -> 0
+stdout:
+-I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs glib-2.0` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs glib-2.0` -> 0
+stdout:
+-lglib-2.0
+-----------
+Run-time dependency glib-2.0 found: YES 2.80.0
+Determining dependency 'gstreamer-video-1.0' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion gstreamer-video-1.0` -> 0
+stdout:
+1.24.2
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags gstreamer-video-1.0` -> 0
+stdout:
+-I/usr/include/gstreamer-1.0 -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -I/usr/include/aarch64-linux-gnu -pthread -I/usr/include/orc-0.4
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gstreamer-video-1.0` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -lgstvideo-1.0 -lgstbase-1.0 -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gstreamer-video-1.0` -> 0
+stdout:
+-lgstvideo-1.0 -lgstbase-1.0 -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0
+-----------
+Run-time dependency gstreamer-video-1.0 found: YES 1.24.2
+Determining dependency 'gstreamer-allocators-1.0' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion gstreamer-allocators-1.0` -> 0
+stdout:
+1.24.2
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags gstreamer-allocators-1.0` -> 0
+stdout:
+-I/usr/include/gstreamer-1.0 -I/usr/include/libdrm -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -pthread -I/usr/include/aarch64-linux-gnu
+-----------
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gstreamer-allocators-1.0` -> 0
+stdout:
+-L/usr/lib/aarch64-linux-gnu -lgstallocators-1.0 -ldrm -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs gstreamer-allocators-1.0` -> 0
+stdout:
+-lgstallocators-1.0 -ldrm -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0
+-----------
+Run-time dependency gstreamer-allocators-1.0 found: YES 1.24.2
+Program python3 found: YES (/usr/bin/python3)
+Determining dependency 'pybind11' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion pybind11` -> 0
+stdout:
+2.11.1
+-----------
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags pybind11` -> 0
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs pybind11` -> 0
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs pybind11` -> 0
+Run-time dependency pybind11 found: YES 2.11.1
+Searching for 'python-3.12' via pkgconfig lookup in LIBPC
+Determining dependency 'python-3.12' with pkg-config executable '/usr/bin/pkg-config'
+env[PKG_CONFIG_LIBDIR]: /usr/lib/aarch64-linux-gnu/pkgconfig
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --modversion python-3.12` -> 0
+stdout:
+3.12
+-----------
+env[PKG_CONFIG_LIBDIR]: /usr/lib/aarch64-linux-gnu/pkgconfig
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --cflags python-3.12` -> 0
+stdout:
+-I/usr/include/python3.12 -I/usr/include/aarch64-linux-gnu/python3.12
+-----------
+env[PKG_CONFIG_LIBDIR]: /usr/lib/aarch64-linux-gnu/pkgconfig
+env[PKG_CONFIG_ALLOW_SYSTEM_LIBS]: 1
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs python-3.12` -> 0
+env[PKG_CONFIG_LIBDIR]: /usr/lib/aarch64-linux-gnu/pkgconfig
+env[PKG_CONFIG_PATH]: 
+env[PKG_CONFIG]: /usr/bin/pkg-config
+-----------
+Called: `/usr/bin/pkg-config --libs python-3.12` -> 0
+Run-time dependency python found: YES 3.12
+Running command: /usr/bin/ln -fsrT /home/seeno04/camera_ws/src/libcamera/src/py/libcamera/__init__.py /home/seeno04/camera_ws/build/libcamera/src/py/libcamera/__init__.py
+--- stdout ---
+
+--- stderr ---
+
+
+Running command: /usr/bin/ln -fsrT /home/seeno04/camera_ws/src/libcamera/src/py/libcamera/utils /home/seeno04/camera_ws/build/libcamera/src/py/libcamera/utils
+--- stdout ---
+
+--- stderr ---
+
+
+Configuring libcamerify using configuration
+Program doxygen skipped: feature documentation disabled
+Program dot skipped: feature documentation disabled
+Program sphinx-build-3 sphinx-build skipped: feature documentation disabled
+Running command: /usr/bin/uname -r
+--- stdout ---
+6.8.0-1060-raspi
+
+--- stderr ---
+
+
+Running command: /usr/bin/ln -fsT /home/seeno04/camera_ws/src/libcamera /home/seeno04/camera_ws/build/libcamera/source
+--- stdout ---
+
+--- stderr ---
+
+
+Configuring config.h using configuration
+Running command: /usr/bin/python3 -c 'import jinja2'
+--- stdout disabled ---
+--- stderr ---
+
+
+Running command: /usr/bin/python3 -c 'import yaml'
+--- stdout disabled ---
+--- stderr ---
+
+
+Running command: /usr/bin/python3 -c 'import jinja2'
+--- stdout disabled ---
+--- stderr ---
+
+
+Running command: /usr/bin/python3 -c 'import ply'
+--- stdout disabled ---
+--- stderr ---
+
+
+Build targets in project: 53
+
+libcamera 0.7.1
+
+  Versions
+    Sources                  : 0.7.1+rpt20260609
+
+  Paths
+    LIBCAMERA_DATA_DIR       : "/home/seeno04/camera_ws/install/libcamera/share/libcamera"
+    LIBCAMERA_SYSCONF_DIR    : "/home/seeno04/camera_ws/install/libcamera/etc/libcamera"
+    IPA_PROXY_DIR            : "/home/seeno04/camera_ws/install/libcamera/libexec/libcamera"
+    IPA_CONFIG_DIR           : "/home/seeno04/camera_ws/install/libcamera/etc/libcamera/ipa:/home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa"
+    IPA_MODULE_DIR           : "/home/seeno04/camera_ws/install/libcamera/lib/libcamera/ipa"
+
+  Configuration
+    SoftISP support          : NO
+    IPA modules signed with  : gnutls
+    Enabled pipelines        : rpi/pisp
+                               rpi/vc4
+    Enabled IPA modules      : rpi/pisp
+                               rpi/vc4
+    Controls files           : control_ids_core.yaml
+                               control_ids_debug.yaml
+                               control_ids_draft.yaml
+                               control_ids_rpi.yaml
+    Properties files         : property_ids_draft.yaml
+                               property_ids_core.yaml
+    Hotplug support          : YES
+    Tracing support          : YES
+    Android support          : NO
+    GStreamer support        : YES
+    Python bindings          : YES
+    V4L2 emulation support   : YES
+    Unit tests               : NO
+
+  Applications
+    cam application          : NO
+    cam options              :
+    DNG output support       : YES
+    qcam application         : NO
+    lc-compliance application: NO
+
+  Subprojects
+    libpisp                  : YES
+    nlohmann_json            : YES (from libpisp)
+
+  User defined options
+    buildtype                : release
+    libdir                   : lib
+    prefix                   : /home/seeno04/camera_ws/install/libcamera
+
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libpisp/backend_default_config.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/pipeline/rpi/pisp/example.yaml
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx219.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx219_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx283.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx290.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx296.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx296_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx335.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx378.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx415.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx415_b0569.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx462.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477_scientific.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx500.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx519.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_wide.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_wide_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov5647.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov5647_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov64a40.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov9281_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/se327m12.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/uncalibrated.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd55g1.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd55g1_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd56g3.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd56g3_mono.json
+Found ninja-1.11.1 at /usr/bin/ninja
+Running compile:
+Working directory:  /home/seeno04/camera_ws/build/libcamera/meson-private/tmpq_exyq1_
+Code:
+ 
+-----------
+Command line: `cc /home/seeno04/camera_ws/build/libcamera/meson-private/tmpq_exyq1_/testfile.c -o /home/seeno04/camera_ws/build/libcamera/meson-private/tmpq_exyq1_/output.obj -c -D_FILE_OFFSET_BITS=64 -O0 --print-search-dirs` -> 0
+stdout:
+install: /usr/lib/gcc/aarch64-linux-gnu/13/
+programs: =/usr/libexec/gcc/aarch64-linux-gnu/13/:/usr/libexec/gcc/aarch64-linux-gnu/13/:/usr/libexec/gcc/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/bin/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/bin/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/bin/
+libraries: =/usr/lib/gcc/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/../lib/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/13/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../aarch64-linux-gnu/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../lib/:/lib/aarch64-linux-gnu/13/:/lib/aarch64-linux-gnu/:/lib/../lib/:/usr/lib/aarch64-linux-gnu/13/:/usr/lib/aarch64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/lib/:/usr/lib/gcc/aarch64-linux-gnu/13/../../../:/lib/:/usr/lib/
+-----------
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libpisp/backend_default_config.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/pipeline/rpi/pisp/example.yaml
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx219.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx219_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx283.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx290.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx296.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx296_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx335.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx378.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx415.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx415_b0569.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx462.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477_scientific.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx500.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx519.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_wide.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_wide_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov5647.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov5647_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov64a40.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov9281_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/se327m12.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/uncalibrated.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd55g1.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd55g1_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd56g3.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd56g3_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libpisp/backend_default_config.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/pipeline/rpi/pisp/example.yaml
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx219.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx219_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx283.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx290.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx296.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx296_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx335.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx378.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx415.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx415_b0569.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx462.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx477_scientific.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx500.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx519.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_wide.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/imx708_wide_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov5647.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov5647_noir.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov64a40.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/ov9281_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/se327m12.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/uncalibrated.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd55g1.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd55g1_mono.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd56g3.json
+Failed to guess install tag for /home/seeno04/camera_ws/install/libcamera/share/libcamera/ipa/rpi/pisp/vd56g3_mono.json

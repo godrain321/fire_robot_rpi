@@ -1,0 +1,10 @@
+prefix=/home/seeno04/camera_ws/build/libcamera
+includedir=${prefix}/include
+libdir=${prefix}/lib
+srcdir=/home/seeno04/camera_ws/src/libcamera
+
+Name: libcamera-base
+Description: Camera support base utility library
+Version: 0.7.1
+Libs: -L${prefix}/src/libcamera/base -lcamera-base
+Cflags: -I${prefix}/include -I${srcdir}/include -I${prefix}/src/libcamera/base -I${srcdir}/src/libcamera/base

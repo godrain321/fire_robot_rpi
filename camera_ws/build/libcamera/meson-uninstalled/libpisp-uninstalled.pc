@@ -1,0 +1,11 @@
+prefix=/home/seeno04/camera_ws/build/libcamera
+includedir=${prefix}/include
+libdir=${prefix}/lib
+srcdir=/home/seeno04/camera_ws/src/libcamera
+
+Name: libpisp
+Description: PiSP Library
+Version: 1.5.0
+Libs: -L${prefix}/subprojects/libpisp/src -lpisp
+Libs.private: -pthread -ldl /usr/lib/aarch64-linux-gnu/libboost_log.so.1.83.0 /usr/lib/aarch64-linux-gnu/libboost_log_setup.so.1.83.0 /usr/lib/aarch64-linux-gnu/libboost_thread.so.1.83.0 /usr/lib/aarch64-linux-gnu/libboost_system.so.1.83.0
+Cflags: -I${prefix}/subprojects/libpisp/src -I${srcdir}/subprojects/libpisp/src -I${prefix}/subprojects/libpisp/src/libpisp -I${srcdir}/subprojects/libpisp/src/libpisp -I${prefix}/subprojects/nlohmann_json-3.12.0/single_include -I${srcdir}/subprojects/nlohmann_json-3.12.0/single_include -I${prefix}/subprojects/libpisp/src -I${srcdir}/subprojects/libpisp/src

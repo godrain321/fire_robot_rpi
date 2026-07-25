@@ -1,0 +1,6 @@
+Invoking command in '/home/seeno04/camera_ws/build/libcamera': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/meson setup --libdir=lib --prefix=/home/seeno04/camera_ws/install/libcamera --buildtype=release /home/seeno04/camera_ws/build/libcamera /home/seeno04/camera_ws/src/libcamera
+Invoked command in '/home/seeno04/camera_ws/build/libcamera' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/meson setup --libdir=lib --prefix=/home/seeno04/camera_ws/install/libcamera --buildtype=release /home/seeno04/camera_ws/build/libcamera /home/seeno04/camera_ws/src/libcamera
+Invoking command in '/home/seeno04/camera_ws/build/libcamera': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/meson compile
+Invoked command in '/home/seeno04/camera_ws/build/libcamera' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/meson compile
+Invoking command in '/home/seeno04/camera_ws/build/libcamera': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/meson install
+Invoked command in '/home/seeno04/camera_ws/build/libcamera' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/meson install

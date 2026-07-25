@@ -1,0 +1,1 @@
+/home/seeno04/inno_ws/src/sllidar_ros2/launch/sllidar_s2_launch.py
