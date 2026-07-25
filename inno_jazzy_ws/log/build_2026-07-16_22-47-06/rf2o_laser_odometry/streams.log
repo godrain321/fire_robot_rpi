@@ -1,0 +1,69 @@
+[0.061s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/rf2o_laser_odometry -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry
+[1.065s] -- The C compiler identification is GNU 13.3.0
+[1.613s] -- The CXX compiler identification is GNU 13.3.0
+[1.683s] -- Detecting C compiler ABI info
+[1.960s] -- Detecting C compiler ABI info - done
+[1.977s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.979s] -- Detecting C compile features
+[1.983s] -- Detecting C compile features - done
+[2.006s] -- Detecting CXX compiler ABI info
+[2.308s] -- Detecting CXX compiler ABI info - done
+[2.330s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.330s] -- Detecting CXX compile features
+[2.330s] -- Detecting CXX compile features - done
+[2.333s] -- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[2.617s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[2.855s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[2.995s] -- Found rclcpp: 28.1.21 (/opt/ros/jazzy/share/rclcpp/cmake)
+[3.144s] -- Found rosidl_generator_c: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[3.196s] -- Found rosidl_generator_cpp: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[3.266s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[3.339s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[3.582s] -- Found rmw_implementation_cmake: 7.3.3 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+[3.590s] -- Found rmw_fastrtps_cpp: 8.4.4 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+[3.885s] -- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.13")  
+[3.932s] -- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+[3.993s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[4.236s] -- Found std_msgs: 5.3.8 (/opt/ros/jazzy/share/std_msgs/cmake)
+[4.293s] -- Found geometry_msgs: 5.3.8 (/opt/ros/jazzy/share/geometry_msgs/cmake)
+[4.387s] -- Found tf2_geometry_msgs: 0.36.21 (/opt/ros/jazzy/share/tf2_geometry_msgs/cmake)
+[4.444s] -- Found eigen3_cmake_module: 0.3.1 (/opt/ros/jazzy/share/eigen3_cmake_module/cmake)
+[4.449s] -- Found Eigen3: TRUE (found version "3.4.0") 
+[4.449s] -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+[5.036s] -- Found sensor_msgs: 5.3.8 (/opt/ros/jazzy/share/sensor_msgs/cmake)
+[5.088s] -- Found nav_msgs: 5.3.8 (/opt/ros/jazzy/share/nav_msgs/cmake)
+[5.195s] -- Found Boost: /usr/lib/aarch64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0")  
+[5.457s] -- Configuring done (5.2s)
+[5.503s] -- Generating done (0.0s)
+[5.513s] -- Build files have been written to: /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry
+[5.551s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/rf2o_laser_odometry -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry
+[5.553s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry -- -j4 -l4
+[5.686s] [ 20%] Building CXX object CMakeFiles/rf2o_laser_odometry_node.dir/src/CLaserOdometry2DNode.cpp.o
+[40.539s] [ 40%] Building CXX object CMakeFiles/rf2o_laser_odometry_node.dir/src/CLaserOdometry2D.cpp.o
+[85.233s] [ 60%] Linking CXX executable rf2o_laser_odometry_node
+[89.893s] [ 60%] Built target rf2o_laser_odometry_node
+[89.951s] [ 80%] Building CXX object CMakeFiles/rf2o_laser_odometry.dir/src/CLaserOdometry2D.cpp.o
+[131.938s] [100%] Linking CXX static library librf2o_laser_odometry.a
+[133.515s] [100%] Built target rf2o_laser_odometry
+[133.539s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry -- -j4 -l4
+[133.546s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry
+[133.566s] -- Install configuration: ""
+[133.567s] -- Execute custom install script
+[133.567s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/lib/rf2o_laser_odometry/rf2o_laser_odometry_node
+[133.596s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/launch/rf2o_laser_odometry.launch.py
+[133.614s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/ament_index/resource_index/package_run_dependencies/rf2o_laser_odometry
+[133.647s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/ament_index/resource_index/parent_prefix_path/rf2o_laser_odometry
+[133.666s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/environment/ament_prefix_path.sh
+[133.684s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/environment/ament_prefix_path.dsv
+[133.711s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/environment/path.sh
+[133.729s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/environment/path.dsv
+[133.758s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/local_setup.bash
+[133.783s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/local_setup.sh
+[133.802s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/local_setup.zsh
+[133.828s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/local_setup.dsv
+[133.848s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.dsv
+[133.872s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/ament_index/resource_index/packages/rf2o_laser_odometry
+[133.903s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/cmake/rf2o_laser_odometryConfig.cmake
+[133.920s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/cmake/rf2o_laser_odometryConfig-version.cmake
+[133.938s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.xml
+[133.971s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry

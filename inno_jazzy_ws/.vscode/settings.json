@@ -1,0 +1,19 @@
+{
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+  "C_Cpp.default.configurationProvider": null,
+  "cmake.configureOnOpen": false,
+  "files.associations": { "*.launch.py": "python" },
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/src",
+    "${workspaceFolder}/install/inno_camera_tools/lib/python3.12/site-packages",
+    "${workspaceFolder}/install/inno_robot_bringup/lib/python3.12/site-packages"
+  ],
+  "python.defaultInterpreterPath": "/usr/bin/python3",
+  "terminal.integrated.defaultProfile.linux": "ROS 2 Jazzy",
+  "terminal.integrated.profiles.linux": {
+    "ROS 2 Jazzy": {
+      "path": "/bin/bash",
+      "args": ["--init-file", "${workspaceFolder}/.vscode/ros2.bash"]
+    }
+  }
+}

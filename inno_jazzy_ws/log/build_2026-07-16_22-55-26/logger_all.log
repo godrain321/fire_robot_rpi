@@ -1,0 +1,267 @@
+[0.211s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build', '--symlink-install', '--packages-select', 'inno_camera_tools', 'inno_robot_bringup']
+[0.211s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=True, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=4, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=['inno_camera_tools', 'inno_robot_bringup'], packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, allow_overriding=[], cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, mixin_files=None, mixin=None, verb_parser=<colcon_mixin.mixin.mixin_argument.MixinArgumentDecorator object at 0xffffa762ee40>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0xffffa77e37d0>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0xffffa77e37d0>>, mixin_verb=('build',))
+[0.291s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.291s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.291s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.291s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.291s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[0.291s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.291s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/home/seeno04/inno_jazzy_ws'
+[0.291s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[0.292s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[0.347s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['ignore', 'ignore_ament_install']
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'ignore'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'ignore_ament_install'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['colcon_pkg']
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'colcon_pkg'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['colcon_meta']
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'colcon_meta'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['ros']
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'ros'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['cmake', 'python']
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'cmake'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'python'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['python_setup_py']
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'python_setup_py'
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['ignore', 'ignore_ament_install']
+[0.348s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'ignore'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'ignore_ament_install'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['colcon_pkg']
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'colcon_pkg'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['colcon_meta']
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'colcon_meta'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['ros']
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'ros'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['cmake', 'python']
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'cmake'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'python'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['python_setup_py']
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'python_setup_py'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[0.349s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['ignore', 'ignore_ament_install']
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'ignore'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'ignore_ament_install'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['colcon_pkg']
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'colcon_pkg'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['colcon_meta']
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'colcon_meta'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['ros']
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'ros'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['cmake', 'python']
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'cmake'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'python'
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['python_setup_py']
+[0.350s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'python_setup_py'
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['ignore', 'ignore_ament_install']
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ignore'
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ignore_ament_install'
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['colcon_pkg']
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'colcon_pkg'
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['colcon_meta']
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'colcon_meta'
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['ros']
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ros'
+[0.351s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['cmake', 'python']
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'cmake'
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'python'
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['python_setup_py']
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'python_setup_py'
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ignore', 'ignore_ament_install']
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore'
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore_ament_install'
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_pkg']
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_pkg'
+[0.352s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_meta']
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_meta'
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ros']
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ros'
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['cmake', 'python']
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'cmake'
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python'
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['python_setup_py']
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python_setup_py'
+[0.353s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['ignore', 'ignore_ament_install']
+[0.354s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'ignore'
+[0.354s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'ignore_ament_install'
+[0.354s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['colcon_pkg']
+[0.355s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'colcon_pkg'
+[0.355s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['colcon_meta']
+[0.355s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'colcon_meta'
+[0.355s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['ros']
+[0.356s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'ros'
+[0.361s] DEBUG:colcon.colcon_core.package_identification:Package 'src/inno_camera_tools' with type 'ros.ament_python' and name 'inno_camera_tools'
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['ignore', 'ignore_ament_install']
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'ignore'
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'ignore_ament_install'
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['colcon_pkg']
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'colcon_pkg'
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['colcon_meta']
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'colcon_meta'
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['ros']
+[0.362s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'ros'
+[0.363s] DEBUG:colcon.colcon_core.package_identification:Package 'src/inno_robot_bringup' with type 'ros.ament_python' and name 'inno_robot_bringup'
+[0.363s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['ignore', 'ignore_ament_install']
+[0.363s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'ignore'
+[0.364s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'ignore_ament_install'
+[0.364s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['colcon_pkg']
+[0.364s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'colcon_pkg'
+[0.364s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['colcon_meta']
+[0.364s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'colcon_meta'
+[0.364s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['ros']
+[0.364s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'ros'
+[0.365s] DEBUG:colcon.colcon_core.package_identification:Package 'src/rf2o_laser_odometry' with type 'ros.ament_cmake' and name 'rf2o_laser_odometry'
+[0.365s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['ignore', 'ignore_ament_install']
+[0.365s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'ignore'
+[0.365s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'ignore_ament_install'
+[0.366s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['colcon_pkg']
+[0.366s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'colcon_pkg'
+[0.366s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['colcon_meta']
+[0.366s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'colcon_meta'
+[0.366s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['ros']
+[0.366s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'ros'
+[0.367s] DEBUG:colcon.colcon_core.package_identification:Package 'src/sllidar_ros2' with type 'ros.ament_cmake' and name 'sllidar_ros2'
+[0.367s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.367s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[0.367s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[0.367s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[0.367s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[0.401s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'rf2o_laser_odometry' in 'src/rf2o_laser_odometry'
+[0.401s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'sllidar_ros2' in 'src/sllidar_ros2'
+[0.402s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) check parameters
+[0.402s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) discover
+[0.405s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 1 installed packages in /home/seeno04/inno_ws/install
+[0.407s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 229 installed packages in /opt/ros/jazzy
+[0.408s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) using defaults
+[0.477s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'cmake_args' from command line to 'None'
+[0.477s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'cmake_target' from command line to 'None'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'cmake_clean_cache' from command line to 'False'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'cmake_clean_first' from command line to 'False'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'cmake_force_configure' from command line to 'False'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'ament_cmake_args' from command line to 'None'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'catkin_cmake_args' from command line to 'None'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_camera_tools' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.478s] DEBUG:colcon.colcon_core.verb:Building package 'inno_camera_tools' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools', 'merge_install': False, 'path': '/home/seeno04/inno_jazzy_ws/src/inno_camera_tools', 'symlink_install': True, 'test_result_base': None}
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'cmake_args' from command line to 'None'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'cmake_target' from command line to 'None'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'cmake_clean_cache' from command line to 'False'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'cmake_clean_first' from command line to 'False'
+[0.478s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'cmake_force_configure' from command line to 'False'
+[0.479s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'ament_cmake_args' from command line to 'None'
+[0.479s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'catkin_cmake_args' from command line to 'None'
+[0.479s] Level 5:colcon.colcon_core.verb:set package 'inno_robot_bringup' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.479s] DEBUG:colcon.colcon_core.verb:Building package 'inno_robot_bringup' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup', 'merge_install': False, 'path': '/home/seeno04/inno_jazzy_ws/src/inno_robot_bringup', 'symlink_install': True, 'test_result_base': None}
+[0.479s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.480s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[0.481s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/home/seeno04/inno_jazzy_ws/src/inno_camera_tools' with build type 'ament_python'
+[0.484s] Level 1:colcon.colcon_core.shell:create_environment_hook('inno_camera_tools', 'ament_prefix_path')
+[0.490s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.490s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/hook/ament_prefix_path.ps1'
+[0.491s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/hook/ament_prefix_path.dsv'
+[0.492s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/hook/ament_prefix_path.sh'
+[0.493s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.493s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.949s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/home/seeno04/inno_jazzy_ws/src/inno_camera_tools'
+[0.949s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.949s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[2.108s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: install_headers, test, rotate, symlink_data, egg_info, build, upload, build_clib, bdist_rpm, install, editable_wheel, build_scripts, register, update_catalog, alias, setopt, upload_docs, clean, build_py, check, init_catalog, dist_info, bdist_egg, install_data, compile_catalog, bdist_wheel, install_lib, install_scripts, develop, extract_messages, saveopts, install_egg_info, sdist, bdist, build_ext, bdist_dumb, easy_install
+[2.755s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --no-deps, --script-dir, --no-user-cfg, --upgrade, --zip-ok, --install-layout, --uninstall, --force-installation-into-system-dir, --no-find-links, --version, --record, --site-dirs, --install-dir, --local-snapshots-ok, --exclude-scripts, --help, --allow-hosts, --always-copy, --index-url, --build-directory, --verbose, --dry-run, --multi-version, --optimize, --user, --editable, --prefix, --egg-path, --always-unzip, --quiet, --find-links
+[2.757s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_camera_tools/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_camera_tools/build --no-deps symlink_data
+[3.967s] Level 1:colcon.colcon_core.shell:create_environment_hook('inno_camera_tools', 'pythonpath_develop')
+[3.967s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools/share/inno_camera_tools/hook/pythonpath_develop.ps1'
+[3.968s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools/share/inno_camera_tools/hook/pythonpath_develop.dsv'
+[3.969s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_camera_tools/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_camera_tools/build --no-deps symlink_data
+[3.970s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools/share/inno_camera_tools/hook/pythonpath_develop.sh'
+[3.976s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools' for CMake module files
+[3.977s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools' for CMake config files
+[3.978s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib'
+[3.980s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/bin'
+[3.981s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/pkgconfig/inno_camera_tools.pc'
+[3.981s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages'
+[3.981s] Level 1:colcon.colcon_core.shell:create_environment_hook('inno_camera_tools', 'pythonpath')
+[3.981s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/hook/pythonpath.ps1'
+[3.982s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/hook/pythonpath.dsv'
+[3.984s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/hook/pythonpath.sh'
+[3.989s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/bin'
+[3.989s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(inno_camera_tools)
+[3.990s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/package.ps1'
+[3.996s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/package.dsv'
+[3.997s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/package.sh'
+[3.998s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/package.bash'
+[3.999s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/inno_camera_tools/package.zsh'
+[4.000s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/share/colcon-core/packages/inno_camera_tools)
+[4.001s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/home/seeno04/inno_jazzy_ws/src/inno_robot_bringup' with build type 'ament_python'
+[4.002s] Level 1:colcon.colcon_core.shell:create_environment_hook('inno_robot_bringup', 'ament_prefix_path')
+[4.002s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/hook/ament_prefix_path.ps1'
+[4.003s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/hook/ament_prefix_path.dsv'
+[4.004s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/hook/ament_prefix_path.sh'
+[4.005s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[4.005s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[4.497s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/home/seeno04/inno_jazzy_ws/src/inno_robot_bringup'
+[4.497s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[4.497s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[5.747s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: install_headers, test, rotate, symlink_data, egg_info, build, upload, build_clib, bdist_rpm, install, editable_wheel, build_scripts, register, update_catalog, alias, setopt, upload_docs, clean, build_py, check, init_catalog, dist_info, bdist_egg, install_data, compile_catalog, bdist_wheel, install_lib, install_scripts, develop, extract_messages, saveopts, install_egg_info, sdist, bdist, build_ext, bdist_dumb, easy_install
+[6.408s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --no-deps, --script-dir, --no-user-cfg, --upgrade, --zip-ok, --install-layout, --uninstall, --force-installation-into-system-dir, --no-find-links, --version, --record, --site-dirs, --install-dir, --local-snapshots-ok, --exclude-scripts, --help, --allow-hosts, --always-copy, --index-url, --build-directory, --verbose, --dry-run, --multi-version, --optimize, --user, --editable, --prefix, --egg-path, --always-unzip, --quiet, --find-links
+[6.412s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup': AMENT_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:${CMAKE_PREFIX_PATH} DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib/python3.12/site-packages:/home/seeno04/inno_jazzy_ws/build/inno_camera_tools:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/build --no-deps symlink_data
+[7.620s] Level 1:colcon.colcon_core.shell:create_environment_hook('inno_robot_bringup', 'pythonpath_develop')
+[7.621s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath_develop.ps1'
+[7.622s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup' returned '0': AMENT_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:${CMAKE_PREFIX_PATH} DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib/python3.12/site-packages:/home/seeno04/inno_jazzy_ws/build/inno_camera_tools:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/build --no-deps symlink_data
+[7.622s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath_develop.dsv'
+[7.625s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath_develop.sh'
+[7.629s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup' for CMake module files
+[7.630s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup' for CMake config files
+[7.631s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib'
+[7.631s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/bin'
+[7.631s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib/pkgconfig/inno_robot_bringup.pc'
+[7.632s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib/python3.12/site-packages'
+[7.632s] Level 1:colcon.colcon_core.shell:create_environment_hook('inno_robot_bringup', 'pythonpath')
+[7.632s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath.ps1'
+[7.633s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath.dsv'
+[7.638s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath.sh'
+[7.641s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/bin'
+[7.641s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(inno_robot_bringup)
+[7.641s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/package.ps1'
+[7.643s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/package.dsv'
+[7.645s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/package.sh'
+[7.651s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/package.bash'
+[7.656s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/inno_robot_bringup/package.zsh'
+[7.659s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/share/colcon-core/packages/inno_robot_bringup)
+[7.662s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[7.662s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[7.662s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[7.663s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[7.674s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[7.675s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[7.675s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[7.717s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[7.718s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.ps1'
+[7.722s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/seeno04/inno_jazzy_ws/install/_local_setup_util_ps1.py'
+[7.724s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.ps1'
+[7.727s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.sh'
+[7.731s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/seeno04/inno_jazzy_ws/install/_local_setup_util_sh.py'
+[7.734s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.sh'
+[7.740s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.bash'
+[7.742s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.bash'
+[7.747s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.zsh'
+[7.750s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.zsh'

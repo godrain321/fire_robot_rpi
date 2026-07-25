@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>inno_robot_bringup</name>
+  <version>0.1.0</version>
+  <description>Bringup for Camera Module 3, RPLIDAR C1, and RF2O odometry.</description>
+  <maintainer email="seeno04@example.com">seeno04</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>inno_camera_tools</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rf2o_laser_odometry</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>sllidar_ros2</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

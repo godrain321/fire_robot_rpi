@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ROS: build workspace",
+      "type": "shell",
+      "command": "source /opt/ros/jazzy/setup.bash && colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && python3 .vscode/merge_compile_commands.py",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": { "executable": "/bin/bash", "args": ["-lc"] }
+      },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "ROS: clean generated files",
+      "type": "shell",
+      "command": "rm -rf build install log compile_commands.json",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

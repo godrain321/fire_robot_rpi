@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: inno-camera-tools
+Version: 0.1.0
+Summary: Camera Module 3 launch and calibration helpers for the INNO robot.
+Maintainer: seeno04
+Maintainer-email: seeno04@example.com
+License: Apache-2.0

@@ -1,0 +1,9 @@
+build/
+install/
+log/
+compile_commands.json
+*.bag
+*.db3
+*.mcap
+__pycache__/
+*.pyc

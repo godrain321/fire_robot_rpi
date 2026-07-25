@@ -1,0 +1,525 @@
+[0.019s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/sllidar_ros2 -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2
+[1.016s] -- The C compiler identification is GNU 13.3.0
+[1.561s] -- The CXX compiler identification is GNU 13.3.0
+[1.629s] -- Detecting C compiler ABI info
+[1.923s] -- Detecting C compiler ABI info - done
+[1.946s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.946s] -- Detecting C compile features
+[1.946s] -- Detecting C compile features - done
+[1.983s] -- Detecting CXX compiler ABI info
+[2.239s] -- Detecting CXX compiler ABI info - done
+[2.258s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.258s] -- Detecting CXX compile features
+[2.259s] -- Detecting CXX compile features - done
+[2.268s] -- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[2.568s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[2.805s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[2.946s] -- Found rclcpp: 28.1.21 (/opt/ros/jazzy/share/rclcpp/cmake)
+[3.095s] -- Found rosidl_generator_c: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[3.146s] -- Found rosidl_generator_cpp: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[3.218s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[3.287s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[3.534s] -- Found rmw_implementation_cmake: 7.3.3 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+[3.542s] -- Found rmw_fastrtps_cpp: 8.4.4 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+[3.848s] -- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.13")  
+[3.888s] -- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+[3.936s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[4.188s] -- Found sensor_msgs: 5.3.8 (/opt/ros/jazzy/share/sensor_msgs/cmake)
+[4.399s] -- Found std_srvs: 5.3.8 (/opt/ros/jazzy/share/std_srvs/cmake)
+[4.855s] -- Configuring done (4.7s)
+[4.911s] -- Generating done (0.0s)
+[4.928s] -- Build files have been written to: /home/seeno04/inno_jazzy_ws/build/sllidar_ros2
+[4.947s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/sllidar_ros2 -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2
+[4.950s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/sllidar_ros2 -- -j4 -l4
+[5.119s] [  5%] Building CXX object CMakeFiles/sllidar_node.dir/src/sllidar_node.cpp.o
+[11.842s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:41,
+[11.842s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_driver.h:54,
+[11.842s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar.h:36,
+[11.842s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/src/sllidar_node.cpp:38:
+[11.843s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[11.843s]    66 |     sl_u8 data[0];
+[11.843s]       |                ^
+[11.849s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[11.849s]   324 |     sl_u8  payload[0];
+[11.849s]       |                    ^
+[19.986s] [ 10%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/arch/linux/net_socket.cpp.o
+[20.859s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[20.860s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[20.860s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/sdkcommon.h:49,
+[20.860s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_socket.cpp:10:
+[20.860s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[20.860s]    66 |     sl_u8 data[0];
+[20.860s]       |                ^
+[20.861s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[20.861s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[20.861s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[20.861s]   324 |     sl_u8  payload[0];
+[20.861s]       |                    ^
+[20.942s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/arch/linux/arch_linux.h:42,
+[20.942s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/sdkcommon.h:41:
+[20.942s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_socket.cpp: In member function ‘virtual u_result rp::arch::net::DGramSocketImpl::sendTo(const rp::net::SocketAddress*, const void*, size_t)’:
+[20.942s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_socket.cpp:733:24: warning: comparison of integer expressions of different signedness: ‘int’ and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+[20.942s]   733 |             assert(ans == len);
+[20.943s]       |                    ~~~~^~~~~~
+[21.279s] [ 15%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/arch/linux/timer.cpp.o
+[22.200s] [ 20%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/dataunpacker/dataunpacker.cpp.o
+[23.042s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[23.042s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[23.042s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/sdkcommon.h:49,
+[23.042s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunnpacker_commondef.h:41,
+[23.042s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.cpp:39:
+[23.042s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[23.043s]    66 |     sl_u8 data[0];
+[23.043s]       |                ^
+[23.043s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[23.043s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[23.043s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[23.043s]   324 |     sl_u8  payload[0];
+[23.043s]       |                    ^
+[23.242s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.cpp:40:
+[23.242s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onCustomSampleDataDecoded(_u8, _u32, const void*, size_t)’:
+[23.242s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:52: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[23.242s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[23.242s]       |                                                ~~~~^~~~~~~
+[23.242s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:66: warning: unused parameter ‘customCode’ [-Wunused-parameter]
+[23.243s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[23.243s]       |                                                             ~~~~~^~~~~~~~~~
+[23.243s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:90: warning: unused parameter ‘data’ [-Wunused-parameter]
+[23.243s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[23.243s]       |                                                                              ~~~~~~~~~~~~^~~~
+[23.243s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:103: warning: unused parameter ‘size’ [-Wunused-parameter]
+[23.243s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[23.243s]       |                                                                                                ~~~~~~~^~~~
+[23.243s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onDecodingError(int, _u8, const void*, size_t)’:
+[23.243s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:42: warning: unused parameter ‘errMsg’ [-Wunused-parameter]
+[23.244s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[23.244s]       |                                      ~~~~^~~~~~
+[23.244s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:54: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[23.244s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[23.244s]       |                                                  ~~~~^~~~~~~
+[23.244s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:75: warning: unused parameter ‘payload’ [-Wunused-parameter]
+[23.244s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[23.244s]       |                                                               ~~~~~~~~~~~~^~~~~~~
+[23.244s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:91: warning: unused parameter ‘size’ [-Wunused-parameter]
+[23.244s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[23.244s]       |                                                                                    ~~~~~~~^~~~
+[23.717s] [ 25%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/dataunpacker/unpacker/handler_capsules.cpp.o
+[24.669s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[24.669s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[24.669s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/sdkcommon.h:49,
+[24.669s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunnpacker_commondef.h:41,
+[24.669s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_capsules.cpp:39:
+[24.669s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[24.669s]    66 |     sl_u8 data[0];
+[24.670s]       |                ^
+[24.670s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[24.670s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[24.670s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[24.670s]   324 |     sl_u8  payload[0];
+[24.670s]       |                    ^
+[24.820s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_capsules.cpp:40:
+[24.820s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onCustomSampleDataDecoded(_u8, _u32, const void*, size_t)’:
+[24.820s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:52: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[24.820s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[24.820s]       |                                                ~~~~^~~~~~~
+[24.820s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:66: warning: unused parameter ‘customCode’ [-Wunused-parameter]
+[24.820s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[24.821s]       |                                                             ~~~~~^~~~~~~~~~
+[24.821s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:90: warning: unused parameter ‘data’ [-Wunused-parameter]
+[24.821s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[24.821s]       |                                                                              ~~~~~~~~~~~~^~~~
+[24.821s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:103: warning: unused parameter ‘size’ [-Wunused-parameter]
+[24.821s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[24.821s]       |                                                                                                ~~~~~~~^~~~
+[24.822s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onDecodingError(int, _u8, const void*, size_t)’:
+[24.822s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:42: warning: unused parameter ‘errMsg’ [-Wunused-parameter]
+[24.822s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[24.822s]       |                                      ~~~~^~~~~~
+[24.822s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:54: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[24.822s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[24.822s]       |                                                  ~~~~^~~~~~~
+[24.822s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:75: warning: unused parameter ‘payload’ [-Wunused-parameter]
+[24.822s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[24.822s]       |                                                               ~~~~~~~~~~~~^~~~~~~
+[24.822s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:91: warning: unused parameter ‘size’ [-Wunused-parameter]
+[24.822s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[24.826s]       |                                                                                    ~~~~~~~^~~~
+[24.837s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_capsules.cpp: In member function ‘void sl::internal::unpacker::UnpackerHandler_DenseCapsuleNode::_onScanNodeDenseCapsuleData(rplidar_response_dense_capsule_measurement_nodes_t&, sl::internal::LIDARSampleDataUnpackerInner*)’:
+[24.837s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_capsules.cpp:763:30: warning: type qualifiers ignored on cast result type [-Wignored-qualifiers]
+[24.837s]   763 |             const int dist = static_cast<const int>(_cached_previous_dense_capsuledata.cabins[pos].distance);
+[24.837s]       |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[25.180s] [ 30%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/dataunpacker/unpacker/handler_hqnode.cpp.o
+[26.143s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[26.143s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[26.144s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/sdkcommon.h:49,
+[26.144s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunnpacker_commondef.h:41,
+[26.144s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_hqnode.cpp:39:
+[26.144s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[26.144s]    66 |     sl_u8 data[0];
+[26.144s]       |                ^
+[26.146s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[26.146s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[26.146s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[26.146s]   324 |     sl_u8  payload[0];
+[26.146s]       |                    ^
+[26.357s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_hqnode.cpp:40:
+[26.357s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onCustomSampleDataDecoded(_u8, _u32, const void*, size_t)’:
+[26.357s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:52: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[26.357s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[26.357s]       |                                                ~~~~^~~~~~~
+[26.358s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:66: warning: unused parameter ‘customCode’ [-Wunused-parameter]
+[26.358s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[26.358s]       |                                                             ~~~~~^~~~~~~~~~
+[26.358s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:90: warning: unused parameter ‘data’ [-Wunused-parameter]
+[26.358s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[26.358s]       |                                                                              ~~~~~~~~~~~~^~~~
+[26.359s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:103: warning: unused parameter ‘size’ [-Wunused-parameter]
+[26.359s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[26.359s]       |                                                                                                ~~~~~~~^~~~
+[26.359s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onDecodingError(int, _u8, const void*, size_t)’:
+[26.359s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:42: warning: unused parameter ‘errMsg’ [-Wunused-parameter]
+[26.359s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[26.359s]       |                                      ~~~~^~~~~~
+[26.360s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:54: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[26.360s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[26.360s]       |                                                  ~~~~^~~~~~~
+[26.361s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:75: warning: unused parameter ‘payload’ [-Wunused-parameter]
+[26.361s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[26.361s]       |                                                               ~~~~~~~~~~~~^~~~~~~
+[26.361s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:91: warning: unused parameter ‘size’ [-Wunused-parameter]
+[26.361s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[26.361s]       |                                                                                    ~~~~~~~^~~~
+[26.623s] [ 35%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/dataunpacker/unpacker/handler_normalnode.cpp.o
+[27.625s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[27.625s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[27.625s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/sdkcommon.h:49,
+[27.625s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunnpacker_commondef.h:41,
+[27.625s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_normalnode.cpp:39:
+[27.625s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[27.625s]    66 |     sl_u8 data[0];
+[27.625s]       |                ^
+[27.629s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[27.629s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[27.629s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[27.629s]   324 |     sl_u8  payload[0];
+[27.629s]       |                    ^
+[27.870s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/handler_normalnode.cpp:40:
+[27.870s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onCustomSampleDataDecoded(_u8, _u32, const void*, size_t)’:
+[27.870s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:52: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[27.870s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[27.870s]       |                                                ~~~~^~~~~~~
+[27.870s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:66: warning: unused parameter ‘customCode’ [-Wunused-parameter]
+[27.870s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[27.871s]       |                                                             ~~~~~^~~~~~~~~~
+[27.871s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:90: warning: unused parameter ‘data’ [-Wunused-parameter]
+[27.871s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[27.871s]       |                                                                              ~~~~~~~~~~~~^~~~
+[27.871s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:54:103: warning: unused parameter ‘size’ [-Wunused-parameter]
+[27.871s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[27.872s]       |                                                                                                ~~~~~~~^~~~
+[27.872s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onDecodingError(int, _u8, const void*, size_t)’:
+[27.872s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:42: warning: unused parameter ‘errMsg’ [-Wunused-parameter]
+[27.872s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[27.872s]       |                                      ~~~~^~~~~~
+[27.873s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:54: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[27.873s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[27.873s]       |                                                  ~~~~^~~~~~~
+[27.873s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:75: warning: unused parameter ‘payload’ [-Wunused-parameter]
+[27.873s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[27.873s]       |                                                               ~~~~~~~~~~~~^~~~~~~
+[27.873s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/unpacker/../dataunpacker.h:56:91: warning: unused parameter ‘size’ [-Wunused-parameter]
+[27.873s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[27.874s]       |                                                                                    ~~~~~~~^~~~
+[28.155s] [ 40%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/hal/thread.cpp.o
+[29.126s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[29.126s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[29.126s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/sdkcommon.h:49,
+[29.126s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/hal/thread.cpp:35:
+[29.126s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[29.126s]    66 |     sl_u8 data[0];
+[29.127s]       |                ^
+[29.127s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[29.127s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[29.127s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[29.127s]   324 |     sl_u8  payload[0];
+[29.127s]       |                    ^
+[29.187s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/hal/thread.cpp:43:
+[29.187s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/arch/linux/thread.hpp: In static member function ‘static rp::hal::Thread rp::hal::Thread::create(thread_proc_t, void*)’:
+[29.187s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/arch/linux/thread.hpp:52:57: warning: cast between incompatible function types from ‘thread_proc_t’ {aka ‘long unsigned int (*)(void*)’} to ‘void* (*)(void*)’ [-Wcast-function-type]
+[29.187s]    52 |     pthread_create((pthread_t *)&newborn._handle, NULL, (void * (*)(void *))proc, data);
+[29.187s]       |                                                         ^~~~~~~~~~~~~~~~~~~~~~~~
+[29.190s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/arch/linux/thread.hpp: In member function ‘u_result rp::hal::Thread::join(long unsigned int)’:
+[29.190s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/src/arch/linux/thread.hpp:176:37: warning: unused parameter ‘timeout’ [-Wunused-parameter]
+[29.190s]   176 | u_result Thread::join(unsigned long timeout)
+[29.190s]       |                       ~~~~~~~~~~~~~~^~~~~~~
+[29.386s] [ 45%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/rplidar_driver.cpp.o
+[30.408s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[30.408s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[30.408s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sdkcommon.h:49,
+[30.408s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp:33:
+[30.408s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[30.408s]    66 |     sl_u8 data[0];
+[30.408s]       |                ^
+[30.413s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[30.413s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[30.413s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[30.413s]   324 |     sl_u8  payload[0];
+[30.414s]       |                    ^
+[30.512s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp: In member function ‘u_result rp::standalone::rplidar::RPlidarDriver::connect(const char*, _u32, _u32)’:
+[30.513s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp:67:77: warning: unused parameter ‘flag’ [-Wunused-parameter]
+[30.514s]    67 |     u_result RPlidarDriver::connect(const char *path, _u32 portOrBaud, _u32 flag)
+[30.514s]       |                                                                        ~~~~~^~~~
+[30.515s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp: In member function ‘u_result rp::standalone::rplidar::RPlidarDriver::reset(_u32)’:
+[30.516s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp:101:40: warning: unused parameter ‘timeout’ [-Wunused-parameter]
+[30.516s]   101 |     u_result RPlidarDriver::reset(_u32 timeout)
+[30.517s]       |                                   ~~~~~^~~~~~~
+[30.520s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp: In member function ‘u_result rp::standalone::rplidar::RPlidarDriver::getScanDataWithInterval(rplidar_response_measurement_node_t*, size_t&)’:
+[30.520s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp:180:91: warning: unused parameter ‘nodebuffer’ [-Wunused-parameter]
+[30.521s]   180 |     u_result RPlidarDriver::getScanDataWithInterval(rplidar_response_measurement_node_t * nodebuffer, size_t & count)
+[30.521s]       |                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~
+[30.521s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/rplidar_driver.cpp:180:112: warning: unused parameter ‘count’ [-Wunused-parameter]
+[30.521s]   180 |     u_result RPlidarDriver::getScanDataWithInterval(rplidar_response_measurement_node_t * nodebuffer, size_t & count)
+[30.522s]       |                                                                                                       ~~~~~~~~~^~~~~
+[30.762s] [ 50%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/sl_async_transceiver.cpp.o
+[31.797s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[31.797s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[31.797s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sdkcommon.h:49,
+[31.797s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.cpp:35:
+[31.797s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[31.797s]    66 |     sl_u8 data[0];
+[31.800s]       |                ^
+[31.800s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[31.800s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[31.800s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[31.800s]   324 |     sl_u8  payload[0];
+[31.800s]       |                    ^
+[32.014s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.cpp:44:
+[32.014s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.h: In member function ‘virtual void sl::internal::IAsyncProtocolCodec::onChannelError(u_result)’:
+[32.014s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.h:90:48: warning: unused parameter ‘errCode’ [-Wunused-parameter]
+[32.014s]    90 |         virtual void   onChannelError(u_result errCode) {}
+[32.014s]       |                                       ~~~~~~~~~^~~~~~~
+[32.345s] [ 55%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/sl_crc.cpp.o
+[32.389s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:41,
+[32.389s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_crc.h:36,
+[32.389s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_crc.cpp:33:
+[32.389s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[32.389s]    66 |     sl_u8 data[0];
+[32.389s]       |                ^
+[32.392s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[32.392s]   324 |     sl_u8  payload[0];
+[32.392s]       |                    ^
+[32.445s] [ 60%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/sl_lidar_driver.cpp.o
+[33.459s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[33.460s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[33.460s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sdkcommon.h:49,
+[33.460s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:33:
+[33.460s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[33.460s]    66 |     sl_u8 data[0];
+[33.461s]       |                ^
+[33.465s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[33.465s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[33.465s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[33.465s]   324 |     sl_u8  payload[0];
+[33.465s]       |                    ^
+[33.758s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:50:
+[33.758s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onCustomSampleDataDecoded(_u8, _u32, const void*, size_t)’:
+[33.758s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:52: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[33.758s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[33.759s]       |                                                ~~~~^~~~~~~
+[33.759s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:66: warning: unused parameter ‘customCode’ [-Wunused-parameter]
+[33.759s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[33.759s]       |                                                             ~~~~~^~~~~~~~~~
+[33.759s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:90: warning: unused parameter ‘data’ [-Wunused-parameter]
+[33.759s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[33.760s]       |                                                                              ~~~~~~~~~~~~^~~~
+[33.760s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:54:103: warning: unused parameter ‘size’ [-Wunused-parameter]
+[33.760s]    54 |         virtual void onCustomSampleDataDecoded(_u8 ansType, _u32 customCode, const void* data, size_t size) {}
+[33.760s]       |                                                                                                ~~~~~~~^~~~
+[33.760s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h: In member function ‘virtual void sl::internal::LIDARSampleDataListener::onDecodingError(int, _u8, const void*, size_t)’:
+[33.760s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:42: warning: unused parameter ‘errMsg’ [-Wunused-parameter]
+[33.760s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[33.760s]       |                                      ~~~~^~~~~~
+[33.768s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:54: warning: unused parameter ‘ansType’ [-Wunused-parameter]
+[33.768s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[33.768s]       |                                                  ~~~~^~~~~~~
+[33.768s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:75: warning: unused parameter ‘payload’ [-Wunused-parameter]
+[33.768s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[33.768s]       |                                                               ~~~~~~~~~~~~^~~~~~~
+[33.769s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/dataunpacker/dataunpacker.h:56:91: warning: unused parameter ‘size’ [-Wunused-parameter]
+[33.769s]    56 |         virtual void onDecodingError(int errMsg, _u8 ansType, const void* payload, size_t size) {}
+[33.769s]       |                                                                                    ~~~~~~~^~~~
+[33.778s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:51:
+[33.778s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.h: In member function ‘virtual void sl::internal::IAsyncProtocolCodec::onChannelError(u_result)’:
+[33.778s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.h:90:48: warning: unused parameter ‘errCode’ [-Wunused-parameter]
+[33.778s]    90 |         virtual void   onChannelError(u_result errCode) {}
+[33.778s]       |                                       ~~~~~~~~~^~~~~~~
+[33.840s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: In member function ‘virtual sl_result sl::SlamtecLidarDriver::reset(sl_u32)’:
+[33.840s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:511:32: warning: unused parameter ‘timeoutInMs’ [-Wunused-parameter]
+[33.840s]   511 |         sl_result reset(sl_u32 timeoutInMs = DEFAULT_TIMEOUT)
+[33.840s]       |                         ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[33.848s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: In member function ‘virtual sl_result sl::SlamtecLidarDriver::startScan(bool, bool, sl_u32, sl::LidarScanMode*)’:
+[33.848s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:586:69: warning: unused parameter ‘options’ [-Wunused-parameter]
+[33.848s]   586 |         sl_result startScan(bool force, bool useTypicalScan, sl_u32 options = 0, LidarScanMode* outUsedScanMode = nullptr)
+[33.848s]       |                                                              ~~~~~~~^~~~~~~~~~~
+[33.850s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: In member function ‘virtual sl_result sl::SlamtecLidarDriver::stop(sl_u32)’:
+[33.850s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:763:31: warning: unused parameter ‘timeout’ [-Wunused-parameter]
+[33.850s]   763 |         sl_result stop(sl_u32 timeout = DEFAULT_TIMEOUT)
+[33.850s]       |                        ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~
+[33.854s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: In member function ‘virtual sl_result sl::SlamtecLidarDriver::getFrequency(const sl::LidarScanMode&, const sl_lidar_response_measurement_node_hq_t*, size_t, float&)’:
+[33.855s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:880:110: warning: unused parameter ‘nodes’ [-Wunused-parameter]
+[33.855s]   880 |         sl_result getFrequency(const LidarScanMode& scanMode, const sl_lidar_response_measurement_node_hq_t* nodes, size_t count, float& frequency)
+[33.855s]       |                                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~
+[33.860s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: In member function ‘virtual sl_result sl::SlamtecLidarDriver::getMotorInfo(sl::LidarMotorInfo&, sl_u32)’:
+[33.860s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:1023:66: warning: unused parameter ‘timeoutInMs’ [-Wunused-parameter]
+[33.860s]  1023 |         sl_result getMotorInfo(LidarMotorInfo &motorInfo, sl_u32 timeoutInMs)
+[33.860s]       |                                                           ~~~~~~~^~~~~~~~~~~
+[33.866s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: In member function ‘u_result sl::SlamtecLidarDriver::getScanModeCount(sl_u16&, sl_u32)’:
+[33.866s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:1199:61: warning: unused parameter ‘timeoutInMs’ [-Wunused-parameter]
+[33.866s]  1199 |         u_result getScanModeCount(sl_u16& modeCount, sl_u32 timeoutInMs = DEFAULT_TIMEOUT)
+[33.866s]       |                                                      ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[33.947s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: In instantiation of ‘void sl::RawSampleNodeHolder<T>::pushNode(_u64, const T*) [with T = sl_lidar_response_measurement_node_hq_t; _u64 = long unsigned int]’:
+[33.947s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:1648:42:   required from here
+[33.947s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:202:28: warning: unused parameter ‘timestamp_uS’ [-Wunused-parameter]
+[33.947s]   202 |         void pushNode(_u64 timestamp_uS, const T* node)
+[33.947s]       |                       ~~~~~^~~~~~~~~~~~
+[34.184s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp: At global scope:
+[34.184s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:83:17: warning: ‘void sl::convert(const sl_lidar_response_measurement_node_hq_t&, sl_lidar_response_measurement_node_t&)’ defined but not used [-Wunused-function]
+[34.184s]    83 |     static void convert(const sl_lidar_response_measurement_node_hq_t& from, sl_lidar_response_measurement_node_t& to)
+[34.184s]       |                 ^~~~~~~
+[34.185s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:75:17: warning: ‘void sl::convert(const sl_lidar_response_measurement_node_t&, sl_lidar_response_measurement_node_hq_t&)’ defined but not used [-Wunused-function]
+[34.185s]    75 |     static void convert(const sl_lidar_response_measurement_node_t& from, sl_lidar_response_measurement_node_hq_t& to)
+[34.185s]       |                 ^~~~~~~
+[34.185s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidar_driver.cpp:70:17: warning: ‘void sl::printDeprecationWarn(const char*, const char*)’ defined but not used [-Wunused-function]
+[34.185s]    70 |     static void printDeprecationWarn(const char* fn, const char* replacement)
+[34.185s]       |                 ^~~~~~~~~~~~~~~~~~~~
+[35.059s] [ 65%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/sl_lidarprotocol_codec.cpp.o
+[36.017s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_protocol.h:36,
+[36.017s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:39,
+[36.017s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sdkcommon.h:49,
+[36.017s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidarprotocol_codec.cpp:35:
+[36.017s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[36.018s]    66 |     sl_u8 data[0];
+[36.019s]       |                ^
+[36.019s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar_cmd.h:36,
+[36.019s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/rplidar.h:40:
+[36.019s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[36.019s]   324 |     sl_u8  payload[0];
+[36.019s]       |                    ^
+[36.257s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_lidarprotocol_codec.cpp:49:
+[36.257s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.h: In member function ‘virtual void sl::internal::IAsyncProtocolCodec::onChannelError(u_result)’:
+[36.257s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_async_transceiver.h:90:48: warning: unused parameter ‘errCode’ [-Wunused-parameter]
+[36.257s]    90 |         virtual void   onChannelError(u_result errCode) {}
+[36.257s]       |                                       ~~~~~~~~~^~~~~~~
+[36.510s] [ 70%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/sl_serial_channel.cpp.o
+[37.053s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:41,
+[37.053s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_driver.h:54,
+[37.053s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_serial_channel.cpp:33:
+[37.053s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[37.054s]    66 |     sl_u8 data[0];
+[37.054s]       |                ^
+[37.057s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[37.057s]   324 |     sl_u8  payload[0];
+[37.057s]       |                    ^
+[37.204s] [ 75%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/sl_tcp_channel.cpp.o
+[37.722s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:41,
+[37.722s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_driver.h:54,
+[37.722s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_tcp_channel.cpp:33:
+[37.722s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[37.722s]    66 |     sl_u8 data[0];
+[37.722s]       |                ^
+[37.724s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[37.724s]   324 |     sl_u8  payload[0];
+[37.724s]       |                    ^
+[37.734s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_tcp_channel.cpp: In member function ‘void sl::TcpChannel::setStatus(_u32)’:
+[37.734s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_tcp_channel.cpp:109:29: warning: unused parameter ‘flag’ [-Wunused-parameter]
+[37.734s]   109 |         void setStatus(_u32 flag){}
+[37.735s]       |                        ~~~~~^~~~
+[37.849s] [ 80%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/sl_udp_channel.cpp.o
+[38.899s] In file included from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:41,
+[38.899s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_driver.h:54,
+[38.900s]                  from /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_udp_channel.cpp:33:
+[38.900s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_protocol.h:66:16: warning: ISO C++ forbids zero-size array ‘data’ [-Wpedantic]
+[38.900s]    66 |     sl_u8 data[0];
+[38.900s]       |                ^
+[38.900s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/./sdk/include/sl_lidar_cmd.h:324:20: warning: ISO C++ forbids zero-size array ‘payload’ [-Wpedantic]
+[38.900s]   324 |     sl_u8  payload[0];
+[38.900s]       |                    ^
+[38.900s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_udp_channel.cpp: In member function ‘void sl::UdpChannel::setStatus(_u32)’:
+[38.900s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/sl_udp_channel.cpp:112:29: warning: unused parameter ‘flag’ [-Wunused-parameter]
+[38.900s]   112 |         void setStatus(_u32 flag){}
+[38.900s]       |                        ~~~~~^~~~
+[38.974s] [ 85%] Building CXX object CMakeFiles/sllidar_node.dir/sdk/src/arch/linux/net_serial.cpp.o
+[39.953s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp: In member function ‘bool rp::arch::net::raw_serial::open(const char*, uint32_t, uint32_t)’:
+[39.953s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp:97:74: warning: unused parameter ‘flags’ [-Wunused-parameter]
+[39.953s]    97 | bool raw_serial::open(const char * portname, uint32_t baudrate, uint32_t flags)
+[39.954s]       |                                                                 ~~~~~~~~~^~~~~
+[39.955s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp: In member function ‘virtual void rp::arch::net::raw_serial::flush(_u32)’:
+[39.955s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp:281:30: warning: unused parameter ‘flags’ [-Wunused-parameter]
+[39.955s]   281 | void raw_serial::flush( _u32 flags)
+[39.955s]       |                         ~~~~~^~~~~
+[39.955s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp: In member function ‘virtual int rp::arch::net::raw_serial::waitforsent(_u32, size_t*)’:
+[39.955s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp:286:34: warning: unused parameter ‘timeout’ [-Wunused-parameter]
+[39.955s]   286 | int raw_serial::waitforsent(_u32 timeout, size_t * returned_size)
+[39.955s]       |                             ~~~~~^~~~~~~
+[39.959s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp: In member function ‘virtual int rp::arch::net::raw_serial::waitforrecv(_u32, size_t*)’:
+[39.959s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp:292:34: warning: unused parameter ‘timeout’ [-Wunused-parameter]
+[39.959s]   292 | int raw_serial::waitforrecv(_u32 timeout, size_t * returned_size)
+[39.959s]       |                             ~~~~~^~~~~~~
+[39.959s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp: In member function ‘virtual void rp::arch::net::raw_serial::cancelOperation()’:
+[39.959s] /home/seeno04/inno_jazzy_ws/src/sllidar_ros2/sdk/src/arch/linux/net_serial.cpp:427:5: warning: value computed is not used [-Wunused-value]
+[39.959s]   427 |     (int)::write(_selfpipe[1], "x", 1);
+[39.960s]       |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[40.233s] [ 90%] Linking CXX executable sllidar_node
+[41.575s] [ 90%] Built target sllidar_node
+[41.647s] [ 95%] Building CXX object CMakeFiles/sllidar_client.dir/src/sllidar_client.cpp.o
+[60.022s] [100%] Linking CXX executable sllidar_client
+[61.084s] [100%] Built target sllidar_client
+[61.114s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/sllidar_ros2 -- -j4 -l4
+[61.147s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/sllidar_ros2
+[61.180s] -- Install configuration: ""
+[61.180s] -- Execute custom install script
+[61.180s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_a1_launch.py
+[61.216s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_a2m12_launch .py
+[61.254s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_a2m7_launch.py
+[61.281s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_a2m8_launch.py
+[61.300s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_a3_launch.py
+[61.319s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_c1_launch.py
+[61.349s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_s1_launch.py
+[61.378s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_s1_tcp_launch.py
+[61.399s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_s2_launch.py
+[61.421s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_s2e_launch.py
+[61.453s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_s3_launch.py
+[61.474s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/sllidar_t1_launch.py
+[61.494s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_a1_launch.py
+[61.524s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_a2m12_launch.py
+[61.550s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_a2m7_launch.py
+[61.570s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_a2m8_launch.py
+[61.609s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_a3_launch.py
+[61.636s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_c1_launch.py
+[61.656s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_s1_launch.py
+[61.682s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_s1_tcp_launch.py
+[61.706s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_s2_launch.py
+[61.725s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_s2e_launch.py
+[61.759s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_s3_launch.py
+[61.781s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/launch/view_sllidar_t1_launch.py
+[61.829s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/rviz/sllidar_ros2.rviz
+[61.857s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib/sllidar_ros2/sllidar_node
+[61.876s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib/sllidar_ros2/sllidar_client
+[61.896s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/ament_index/resource_index/package_run_dependencies/sllidar_ros2
+[61.933s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/ament_index/resource_index/parent_prefix_path/sllidar_ros2
+[61.951s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/environment/ament_prefix_path.sh
+[61.972s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/environment/ament_prefix_path.dsv
+[62.004s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/environment/path.sh
+[62.022s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/environment/path.dsv
+[62.043s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/local_setup.bash
+[62.070s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/local_setup.sh
+[62.090s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/local_setup.zsh
+[62.116s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/local_setup.dsv
+[62.142s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.dsv
+[62.163s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/ament_index/resource_index/packages/sllidar_ros2
+[62.187s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/cmake/ament_cmake_export_dependencies-extras.cmake
+[62.213s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/cmake/ament_cmake_export_include_directories-extras.cmake
+[62.237s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/cmake/sllidar_ros2Config.cmake
+[62.254s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/cmake/sllidar_ros2Config-version.cmake
+[62.280s] -- Symlinking: /home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.xml
+[62.303s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/sllidar_ros2

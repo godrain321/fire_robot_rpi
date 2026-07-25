@@ -1,0 +1,9 @@
+source;share/inno_robot_bringup/hook/pythonpath.ps1
+source;share/inno_robot_bringup/hook/pythonpath.dsv
+source;share/inno_robot_bringup/hook/pythonpath.sh
+source;share/inno_robot_bringup/hook/ament_prefix_path.ps1
+source;share/inno_robot_bringup/hook/ament_prefix_path.dsv
+source;share/inno_robot_bringup/hook/ament_prefix_path.sh
+source;../../build/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath_develop.ps1
+source;../../build/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath_develop.dsv
+source;../../build/inno_robot_bringup/share/inno_robot_bringup/hook/pythonpath_develop.sh

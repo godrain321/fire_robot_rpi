@@ -1,0 +1,15 @@
+[2.315s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup': AMENT_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:${CMAKE_PREFIX_PATH} DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib/python3.12/site-packages:/home/seeno04/inno_jazzy_ws/build/inno_camera_tools:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/build --no-deps symlink_data
+[2.915s] running develop
+[3.235s] running egg_info
+[3.274s] writing inno_robot_bringup.egg-info/PKG-INFO
+[3.276s] writing dependency_links to inno_robot_bringup.egg-info/dependency_links.txt
+[3.276s] writing requirements to inno_robot_bringup.egg-info/requires.txt
+[3.277s] writing top-level names to inno_robot_bringup.egg-info/top_level.txt
+[3.346s] reading manifest file 'inno_robot_bringup.egg-info/SOURCES.txt'
+[3.346s] writing manifest file 'inno_robot_bringup.egg-info/SOURCES.txt'
+[3.386s] running build_ext
+[3.387s] Creating /home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib/python3.12/site-packages/inno-robot-bringup.egg-link (link to .)
+[3.387s] 
+[3.387s] Installed /home/seeno04/inno_jazzy_ws/build/inno_robot_bringup
+[3.388s] running symlink_data
+[3.525s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup' returned '0': AMENT_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2:/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry:${CMAKE_PREFIX_PATH} DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_robot_bringup/lib/python3.12/site-packages:/home/seeno04/inno_jazzy_ws/build/inno_camera_tools:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_robot_bringup/build --no-deps symlink_data

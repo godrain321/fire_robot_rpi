@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: inno-robot-bringup
+Version: 0.1.0
+Summary: Bringup for Camera Module 3, RPLIDAR C1, and RF2O odometry.
+Maintainer: seeno04
+Maintainer-email: seeno04@example.com
+License: Apache-2.0

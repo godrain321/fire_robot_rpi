@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    camera: 0
+    width: 1280
+    height: 720
+    format: RGB888
+    frame_id: camera_optical_frame

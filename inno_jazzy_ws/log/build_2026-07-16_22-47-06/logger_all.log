@@ -1,0 +1,419 @@
+[0.337s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build', '--symlink-install']
+[0.337s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=True, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=4, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=None, packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, allow_overriding=[], cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, mixin_files=None, mixin=None, verb_parser=<colcon_mixin.mixin.mixin_argument.MixinArgumentDecorator object at 0xffff928a6960>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0xffff92a5b200>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0xffff92a5b200>>, mixin_verb=('build',))
+[0.436s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.436s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.437s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.437s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.437s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[0.437s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.437s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/home/seeno04/inno_jazzy_ws'
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[0.437s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['ignore', 'ignore_ament_install']
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'ignore'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'ignore_ament_install'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['colcon_pkg']
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'colcon_pkg'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['colcon_meta']
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'colcon_meta'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['ros']
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'ros'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['cmake', 'python']
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'cmake'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'python'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extensions ['python_setup_py']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(calibration_results) by extension 'python_setup_py'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['ignore', 'ignore_ament_install']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'ignore'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'ignore_ament_install'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['colcon_pkg']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'colcon_pkg'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['colcon_meta']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'colcon_meta'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['ros']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'ros'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['cmake', 'python']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'cmake'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'python'
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extensions ['python_setup_py']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(docs) by extension 'python_setup_py'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['ignore', 'ignore_ament_install']
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'ignore'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'ignore_ament_install'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['colcon_pkg']
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'colcon_pkg'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['colcon_meta']
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'colcon_meta'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['ros']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'ros'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['cmake', 'python']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'cmake'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'python'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extensions ['python_setup_py']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(reference_humble) by extension 'python_setup_py'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['ignore', 'ignore_ament_install']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ignore'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ignore_ament_install'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['colcon_pkg']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'colcon_pkg'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['colcon_meta']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'colcon_meta'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['ros']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ros'
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['cmake', 'python']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'cmake'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'python'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['python_setup_py']
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'python_setup_py'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ignore', 'ignore_ament_install']
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore_ament_install'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_pkg']
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_pkg'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_meta']
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_meta'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ros']
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ros'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['cmake', 'python']
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'cmake'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python'
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['python_setup_py']
+[0.504s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python_setup_py'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['ignore', 'ignore_ament_install']
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'ignore'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'ignore_ament_install'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['colcon_pkg']
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'colcon_pkg'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['colcon_meta']
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'colcon_meta'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['ros']
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'ros'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['cmake', 'python']
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'cmake'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'python'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extensions ['python_setup_py']
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools) by extension 'python_setup_py'
+[0.505s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extensions ['ignore', 'ignore_ament_install']
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'ignore'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'ignore_ament_install'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extensions ['colcon_pkg']
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'colcon_pkg'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extensions ['colcon_meta']
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'colcon_meta'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extensions ['ros']
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'ros'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extensions ['cmake', 'python']
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'cmake'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'python'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extensions ['python_setup_py']
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/config) by extension 'python_setup_py'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extensions ['ignore', 'ignore_ament_install']
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'ignore'
+[0.506s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'ignore_ament_install'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extensions ['colcon_pkg']
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'colcon_pkg'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extensions ['colcon_meta']
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'colcon_meta'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extensions ['ros']
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'ros'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extensions ['cmake', 'python']
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'cmake'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'python'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extensions ['python_setup_py']
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/inno_camera_tools) by extension 'python_setup_py'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extensions ['ignore', 'ignore_ament_install']
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'ignore'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'ignore_ament_install'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extensions ['colcon_pkg']
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'colcon_pkg'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extensions ['colcon_meta']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'colcon_meta'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extensions ['ros']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'ros'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extensions ['cmake', 'python']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'cmake'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'python'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extensions ['python_setup_py']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/launch) by extension 'python_setup_py'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extensions ['ignore', 'ignore_ament_install']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'ignore'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'ignore_ament_install'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extensions ['colcon_pkg']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'colcon_pkg'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extensions ['colcon_meta']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'colcon_meta'
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extensions ['ros']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'ros'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extensions ['cmake', 'python']
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'cmake'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'python'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extensions ['python_setup_py']
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_camera_tools/resource) by extension 'python_setup_py'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['ignore', 'ignore_ament_install']
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'ignore'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'ignore_ament_install'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['colcon_pkg']
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'colcon_pkg'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['colcon_meta']
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'colcon_meta'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['ros']
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'ros'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['cmake', 'python']
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'cmake'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'python'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extensions ['python_setup_py']
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup) by extension 'python_setup_py'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extensions ['ignore', 'ignore_ament_install']
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'ignore'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'ignore_ament_install'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extensions ['colcon_pkg']
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'colcon_pkg'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extensions ['colcon_meta']
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'colcon_meta'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extensions ['ros']
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'ros'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extensions ['cmake', 'python']
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'cmake'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'python'
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extensions ['python_setup_py']
+[0.510s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/config) by extension 'python_setup_py'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extensions ['ignore', 'ignore_ament_install']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'ignore'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'ignore_ament_install'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extensions ['colcon_pkg']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'colcon_pkg'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extensions ['colcon_meta']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'colcon_meta'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extensions ['ros']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'ros'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extensions ['cmake', 'python']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'cmake'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'python'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extensions ['python_setup_py']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/inno_robot_bringup) by extension 'python_setup_py'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extensions ['ignore', 'ignore_ament_install']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'ignore'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'ignore_ament_install'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extensions ['colcon_pkg']
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'colcon_pkg'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extensions ['colcon_meta']
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'colcon_meta'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extensions ['ros']
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'ros'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extensions ['cmake', 'python']
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'cmake'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'python'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extensions ['python_setup_py']
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/launch) by extension 'python_setup_py'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extensions ['ignore', 'ignore_ament_install']
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'ignore'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'ignore_ament_install'
+[0.512s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extensions ['colcon_pkg']
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'colcon_pkg'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extensions ['colcon_meta']
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'colcon_meta'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extensions ['ros']
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'ros'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extensions ['cmake', 'python']
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'cmake'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'python'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extensions ['python_setup_py']
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/resource) by extension 'python_setup_py'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extensions ['ignore', 'ignore_ament_install']
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'ignore'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'ignore_ament_install'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extensions ['colcon_pkg']
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'colcon_pkg'
+[0.513s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extensions ['colcon_meta']
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'colcon_meta'
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extensions ['ros']
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'ros'
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extensions ['cmake', 'python']
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'cmake'
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'python'
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extensions ['python_setup_py']
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/inno_robot_bringup/rviz) by extension 'python_setup_py'
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['ignore', 'ignore_ament_install']
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'ignore'
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'ignore_ament_install'
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['colcon_pkg']
+[0.514s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'colcon_pkg'
+[0.515s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['colcon_meta']
+[0.515s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'colcon_meta'
+[0.515s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extensions ['ros']
+[0.515s] Level 1:colcon.colcon_core.package_identification:_identify(src/rf2o_laser_odometry) by extension 'ros'
+[0.523s] DEBUG:colcon.colcon_core.package_identification:Package 'src/rf2o_laser_odometry' with type 'ros.ament_cmake' and name 'rf2o_laser_odometry'
+[0.524s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['ignore', 'ignore_ament_install']
+[0.524s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'ignore'
+[0.524s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'ignore_ament_install'
+[0.525s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['colcon_pkg']
+[0.525s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'colcon_pkg'
+[0.525s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['colcon_meta']
+[0.526s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'colcon_meta'
+[0.526s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extensions ['ros']
+[0.526s] Level 1:colcon.colcon_core.package_identification:_identify(src/sllidar_ros2) by extension 'ros'
+[0.528s] DEBUG:colcon.colcon_core.package_identification:Package 'src/sllidar_ros2' with type 'ros.ament_cmake' and name 'sllidar_ros2'
+[0.529s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.529s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[0.530s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[0.530s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[0.530s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[0.593s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) check parameters
+[0.593s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) discover
+[0.606s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 1 installed packages in /home/seeno04/inno_ws/install
+[0.609s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 229 installed packages in /opt/ros/jazzy
+[0.610s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) using defaults
+[0.684s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'cmake_args' from command line to 'None'
+[0.684s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'cmake_target' from command line to 'None'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'cmake_clean_cache' from command line to 'False'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'cmake_clean_first' from command line to 'False'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'cmake_force_configure' from command line to 'False'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'ament_cmake_args' from command line to 'None'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'catkin_cmake_args' from command line to 'None'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'rf2o_laser_odometry' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.685s] DEBUG:colcon.colcon_core.verb:Building package 'rf2o_laser_odometry' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry', 'merge_install': False, 'path': '/home/seeno04/inno_jazzy_ws/src/rf2o_laser_odometry', 'symlink_install': True, 'test_result_base': None}
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'cmake_args' from command line to 'None'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'cmake_target' from command line to 'None'
+[0.685s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.686s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'cmake_clean_cache' from command line to 'False'
+[0.686s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'cmake_clean_first' from command line to 'False'
+[0.686s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'cmake_force_configure' from command line to 'False'
+[0.686s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'ament_cmake_args' from command line to 'None'
+[0.686s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'catkin_cmake_args' from command line to 'None'
+[0.686s] Level 5:colcon.colcon_core.verb:set package 'sllidar_ros2' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.686s] DEBUG:colcon.colcon_core.verb:Building package 'sllidar_ros2' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2', 'merge_install': False, 'path': '/home/seeno04/inno_jazzy_ws/src/sllidar_ros2', 'symlink_install': True, 'test_result_base': None}
+[0.686s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.692s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[0.696s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/home/seeno04/inno_jazzy_ws/src/rf2o_laser_odometry' with build type 'ament_cmake'
+[0.696s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/home/seeno04/inno_jazzy_ws/src/rf2o_laser_odometry'
+[0.738s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.738s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.739s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.745s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/home/seeno04/inno_jazzy_ws/src/sllidar_ros2' with build type 'ament_cmake'
+[0.746s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/home/seeno04/inno_jazzy_ws/src/sllidar_ros2'
+[0.746s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.746s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.761s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/rf2o_laser_odometry -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry
+[0.764s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/sllidar_ros2 -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2
+[5.692s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/sllidar_ros2 -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/sllidar_ros2
+[5.695s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/sllidar_ros2 -- -j4 -l4
+[6.248s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/seeno04/inno_jazzy_ws/src/rf2o_laser_odometry -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry
+[6.249s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry -- -j4 -l4
+[61.860s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/sllidar_ros2 -- -j4 -l4
+[61.892s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/sllidar_ros2
+[63.048s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(sllidar_ros2)
+[63.048s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/sllidar_ros2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/sllidar_ros2
+[63.071s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2' for CMake module files
+[63.072s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2' for CMake config files
+[63.073s] Level 1:colcon.colcon_core.shell:create_environment_hook('sllidar_ros2', 'cmake_prefix_path')
+[63.073s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/hook/cmake_prefix_path.ps1'
+[63.077s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/hook/cmake_prefix_path.dsv'
+[63.078s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/hook/cmake_prefix_path.sh'
+[63.080s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib'
+[63.080s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/bin'
+[63.080s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib/pkgconfig/sllidar_ros2.pc'
+[63.081s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib/python3.12/site-packages'
+[63.082s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/bin'
+[63.083s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.ps1'
+[63.090s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.dsv'
+[63.092s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.sh'
+[63.094s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.bash'
+[63.096s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.zsh'
+[63.098s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/colcon-core/packages/sllidar_ros2)
+[63.099s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(sllidar_ros2)
+[63.100s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2' for CMake module files
+[63.101s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2' for CMake config files
+[63.101s] Level 1:colcon.colcon_core.shell:create_environment_hook('sllidar_ros2', 'cmake_prefix_path')
+[63.102s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/hook/cmake_prefix_path.ps1'
+[63.102s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/hook/cmake_prefix_path.dsv'
+[63.106s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/hook/cmake_prefix_path.sh'
+[63.107s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib'
+[63.108s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/bin'
+[63.108s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib/pkgconfig/sllidar_ros2.pc'
+[63.108s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/lib/python3.12/site-packages'
+[63.109s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/bin'
+[63.109s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.ps1'
+[63.110s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.dsv'
+[63.111s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.sh'
+[63.113s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.bash'
+[63.114s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/sllidar_ros2/package.zsh'
+[63.116s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/seeno04/inno_jazzy_ws/install/sllidar_ros2/share/colcon-core/packages/sllidar_ros2)
+[134.235s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry -- -j4 -l4
+[134.243s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry
+[134.666s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(rf2o_laser_odometry)
+[134.666s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry' for CMake module files
+[134.667s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/seeno04/inno_jazzy_ws/build/rf2o_laser_odometry
+[134.668s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry' for CMake config files
+[134.668s] Level 1:colcon.colcon_core.shell:create_environment_hook('rf2o_laser_odometry', 'cmake_prefix_path')
+[134.668s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/hook/cmake_prefix_path.ps1'
+[134.669s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/hook/cmake_prefix_path.dsv'
+[134.670s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/hook/cmake_prefix_path.sh'
+[134.671s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/lib'
+[134.671s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/bin'
+[134.671s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/lib/pkgconfig/rf2o_laser_odometry.pc'
+[134.671s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/lib/python3.12/site-packages'
+[134.672s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/bin'
+[134.672s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.ps1'
+[134.673s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.dsv'
+[134.674s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.sh'
+[134.674s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.bash'
+[134.675s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.zsh'
+[134.676s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/colcon-core/packages/rf2o_laser_odometry)
+[134.676s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(rf2o_laser_odometry)
+[134.677s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry' for CMake module files
+[134.677s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry' for CMake config files
+[134.678s] Level 1:colcon.colcon_core.shell:create_environment_hook('rf2o_laser_odometry', 'cmake_prefix_path')
+[134.678s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/hook/cmake_prefix_path.ps1'
+[134.679s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/hook/cmake_prefix_path.dsv'
+[134.682s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/hook/cmake_prefix_path.sh'
+[134.685s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/lib'
+[134.686s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/bin'
+[134.686s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/lib/pkgconfig/rf2o_laser_odometry.pc'
+[134.686s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/lib/python3.12/site-packages'
+[134.688s] Level 1:colcon.colcon_core.environment:checking '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/bin'
+[134.689s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.ps1'
+[134.691s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.dsv'
+[134.694s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.sh'
+[134.698s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.bash'
+[134.701s] INFO:colcon.colcon_core.shell:Creating package script '/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/rf2o_laser_odometry/package.zsh'
+[134.703s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/seeno04/inno_jazzy_ws/install/rf2o_laser_odometry/share/colcon-core/packages/rf2o_laser_odometry)
+[134.706s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[134.708s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[134.708s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[134.709s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[134.730s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[134.730s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[134.730s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[134.793s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[134.794s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.ps1'
+[134.796s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/seeno04/inno_jazzy_ws/install/_local_setup_util_ps1.py'
+[134.798s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.ps1'
+[134.800s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.sh'
+[134.801s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/seeno04/inno_jazzy_ws/install/_local_setup_util_sh.py'
+[134.802s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.sh'
+[134.805s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.bash'
+[134.810s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.bash'
+[134.813s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/seeno04/inno_jazzy_ws/install/local_setup.zsh'
+[134.814s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/seeno04/inno_jazzy_ws/install/setup.zsh'

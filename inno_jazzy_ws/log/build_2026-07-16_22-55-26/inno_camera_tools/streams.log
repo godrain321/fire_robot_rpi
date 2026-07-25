@@ -1,0 +1,15 @@
+[2.276s] Invoking command in '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_camera_tools/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_camera_tools/build --no-deps symlink_data
+[2.875s] running develop
+[3.200s] running egg_info
+[3.235s] writing inno_camera_tools.egg-info/PKG-INFO
+[3.236s] writing dependency_links to inno_camera_tools.egg-info/dependency_links.txt
+[3.236s] writing requirements to inno_camera_tools.egg-info/requires.txt
+[3.239s] writing top-level names to inno_camera_tools.egg-info/top_level.txt
+[3.313s] reading manifest file 'inno_camera_tools.egg-info/SOURCES.txt'
+[3.316s] writing manifest file 'inno_camera_tools.egg-info/SOURCES.txt'
+[3.350s] running build_ext
+[3.350s] Creating /home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages/inno-camera-tools.egg-link (link to .)
+[3.354s] 
+[3.354s] Installed /home/seeno04/inno_jazzy_ws/build/inno_camera_tools
+[3.355s] running symlink_data
+[3.488s] Invoked command in '/home/seeno04/inno_jazzy_ws/build/inno_camera_tools' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/seeno04/inno_jazzy_ws/build/inno_camera_tools/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/seeno04/inno_jazzy_ws/install/inno_camera_tools/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/seeno04/inno_jazzy_ws/build/inno_camera_tools/build --no-deps symlink_data
