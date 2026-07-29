@@ -1,0 +1,7 @@
+image: fire_demo_20260729_182054.pgm
+mode: trinary
+resolution: 0.050
+origin: [-7.521, -17.712, 0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
