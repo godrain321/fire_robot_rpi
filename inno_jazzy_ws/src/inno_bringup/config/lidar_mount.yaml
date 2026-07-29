@@ -1,0 +1,8 @@
+base_frame: base_link
+laser_frame: laser
+lidar_x: 0.00
+lidar_y: 0.00
+lidar_z: 0.35
+lidar_roll: 0.0
+lidar_pitch: 0.0
+lidar_yaw: 0.0

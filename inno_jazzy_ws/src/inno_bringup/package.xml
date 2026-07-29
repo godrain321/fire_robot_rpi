@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>inno_bringup</name>
+  <version>0.1.0</version>
+  <description>RPLIDAR C1 bringup and mounting TF for the fire evacuation robot.</description>
+  <maintainer email="seeno04@example.com">seeno04</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rosbag2_transport</exec_depend>
+  <exec_depend>sllidar_ros2</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
