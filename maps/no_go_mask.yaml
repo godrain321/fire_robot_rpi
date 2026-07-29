@@ -1,0 +1,10 @@
+image: no_go_mask.pgm
+resolution: 0.05
+origin:
+- -7.521
+- -17.712
+- 0
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196
+mode: trinary

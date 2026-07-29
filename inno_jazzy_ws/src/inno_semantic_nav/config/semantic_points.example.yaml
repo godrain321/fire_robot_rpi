@@ -1,0 +1,24 @@
+version: 1
+site_id: test_map
+frame_id: map
+
+poses:
+  E1:
+    category: exit
+    description: main_exit
+    x: 0.0
+    y: 0.0
+    yaw: 0.0
+  E2:
+    category: exit
+    description: emergency_exit
+    x: 0.0
+    y: 0.0
+    yaw: 0.0
+
+landmarks:
+  MACHINE_01:
+    category: machine
+    description: fixed_factory_machine
+    x: 0.0
+    y: 0.0

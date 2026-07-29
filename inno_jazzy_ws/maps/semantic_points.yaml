@@ -1,0 +1,17 @@
+version: 1
+site_id: test_map
+frame_id: map
+poses:
+  E1:
+    category: exit
+    description: main_exit
+    x: 0.5912706255912781
+    y: 1.493399739265442
+    yaw: 0.0
+  E2:
+    category: exit
+    description: emergency_exit
+    x: 2.478487014770508
+    y: -0.9519913196563721
+    yaw: -0.8541284818825529
+landmarks: {}
