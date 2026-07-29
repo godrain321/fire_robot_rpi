@@ -1,0 +1,52 @@
+planning_grid_publisher:
+  ros__parameters:
+    map_yaml: /home/gosunwoo/fire_robot_rpi/maps/inno_map_nav.yaml
+    map_frame: map
+    publish_rate_hz: 1.0
+
+dynamic_obstacle_layer:
+  ros__parameters:
+    scan_topic: /scan
+    map_frame: map
+    base_frame: base_link
+    min_range: 0.15
+    max_range: 4.0
+    obstacle_confirm_count: 3
+    persistent_obstacles: true
+    obstacle_timeout_sec: 10.0
+    inflation_radius: 0.30
+    publish_rate_hz: 5.0
+
+astar_replanner:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    unknown_is_occupied: true
+    replan_rate_hz: 1.0
+    path_block_check_radius: 0.20
+    allow_diagonal: true
+
+skid_path_follower:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    cmd_vel_topic: /cmd_vel
+    lookahead_distance: 0.35
+    goal_tolerance: 0.12
+    yaw_tolerance: 0.25
+    rotate_in_place_threshold: 0.45
+    max_linear_speed: 0.06
+    max_angular_speed: 0.45
+    k_linear: 0.5
+    k_angular: 1.2
+    emergency_stop_distance: 0.28
+    emergency_front_angle_deg: 35.0
+    control_rate_hz: 10.0
+
+mission_commander:
+  ros__parameters:
+    semantic_yaml: /home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/src/inno_autonav/config/semantic_points.yaml
+    map_frame: map
+    base_frame: base_link
+    use_source_if_no_tf: false
