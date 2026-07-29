@@ -1,0 +1,30 @@
+keyboard_cmdvel_demo:
+  ros__parameters:
+    linear_speed: 0.08
+    angular_speed: 0.35
+    publish_rate_hz: 10.0
+
+cmdvel_to_esp32_serial:
+  ros__parameters:
+    serial_port: /dev/ttyUSB0
+    baudrate: 115200
+    wheel_radius: 0.04
+    wheel_separation: 0.30
+    motor_full_steps_per_rev: 200
+    microsteps: 8
+    gear_ratio: 1.0
+    max_steps_per_sec: 1600
+    left_sign: 1
+    right_sign: 1
+    cmd_timeout_sec: 0.5
+
+step_count_to_odom:
+  ros__parameters:
+    wheel_radius: 0.04
+    wheel_separation: 0.30
+    motor_full_steps_per_rev: 200
+    microsteps: 8
+    gear_ratio: 1.0
+    odom_frame: wheel_odom
+    base_frame: base_link
+    publish_tf: false
