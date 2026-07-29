@@ -17,6 +17,15 @@ export ROS_LOCALHOST_ONLY=0
 ros2 launch inno_bringup lidar_with_tf.launch.py
 ```
 
+## Waypoint 용 최신 SLAM 지도
+
+가장 최근에 생성한 SLAM 지도는 다음 두 파일이다.
+
+- `inno_jazzy_ws/maps/fire_demo_20260729_182054.yaml`: 지도 해상도, 원점, 이미지 경로 등의 메타데이터
+- `inno_jazzy_ws/maps/fire_demo_20260729_182054.pgm`: SLAM으로 생성한 occupancy grid 지도 이미지
+
+이 두 파일을 한 쌍으로 유지하며, 향후 로컬 노트북에서 AMCL 위치 추정과 A1/A2 웨이포인트를 지정할 때 사용할 기준 지도다.
+
 ## Git
 
 ROS 2 빌드 산출물(`build/`, `install/`, `log/`)과 rosbag(`bags/`, `*.db3`, `*.mcap`, `*.sqlite3`)은 루트 `.gitignore`에서 제외한다.
