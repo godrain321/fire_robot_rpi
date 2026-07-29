@@ -1,0 +1,31 @@
+description: Initial guess for laser_frame to camera_optical_frame
+lidar_frame: laser_frame
+camera_frame: camera_optical_frame
+camera_position_in_laser_frame_m:
+  x_forward: 0.0
+  y_left: 0.0
+  z_up: 0.15
+correction_rotation_deg_in_camera_optical:
+  roll: 0.0
+  pitch: 0.0
+  yaw: 0.0
+T_camera_lidar:
+  R_row_major:
+  - 0.0
+  - -1.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - -1.0
+  - 1.0
+  - 0.0
+  - 0.0
+  t_xyz:
+  - 0.0
+  - 0.15
+  - 0.0
+scan_filter:
+  min_range_m: 0.3
+  max_range_m: 4.0
+  angle_min_deg: -70.0
+  angle_max_deg: 70.0

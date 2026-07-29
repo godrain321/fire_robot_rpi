@@ -1,3 +1,0 @@
-[console_scripts]
-odom_to_path = inno_robot_bringup.odom_to_path_node:main
-slam_keyboard_runner = inno_robot_bringup.slam_keyboard_runner:main

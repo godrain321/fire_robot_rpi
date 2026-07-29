@@ -1,1 +1,0 @@
-{"version": "0.7.1", "descriptive_name": "libcamera", "subproject_dir": "subprojects", "subprojects": [{"name": "nlohmann_json", "version": "3.12.0", "descriptive_name": "nlohmann_json"}, {"name": "libpisp", "version": "1.5.0", "descriptive_name": "libpisp"}]}

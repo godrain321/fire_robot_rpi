@@ -1,1 +1,0 @@
-/home/seeno04/inno_jazzy_ws/src/inno_robot_bringup/launch/slam.launch.py
