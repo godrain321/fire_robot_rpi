@@ -148,6 +148,9 @@ class CmdVelToEsp32Serial(Node):
 
     def _parse_line(self, line):
         fields = line.split(',')
+        if not fields:
+            return
+
         message_type = fields[0]
         if message_type == 'ENC' and len(fields) == 4:
             try:
@@ -159,12 +162,26 @@ class CmdVelToEsp32Serial(Node):
             message = Int64MultiArray()
             message.data = [left_count, right_count]
             self.ticks_publisher.publish(message)
-        elif message_type in ('ACK', 'STAT', 'ERR'):
+            return
+
+        if message_type == 'ENC_ABS' and len(fields) >= 8:
+            # Accept the new absolute-encoder message format and keep the status stream quiet.
+            self._publish_status(line)
+            return
+
+        if message_type in ('ACK', 'STAT', 'ERR'):
             self._publish_status(line)
             if message_type == 'ERR':
                 self.get_logger().error(f'ESP32: {line}')
-        else:
-            self.get_logger().warning(f'Unknown or malformed ESP32 message: {line}')
+            return
+
+        # Some firmware versions emit a fragmented/garbled line when the serial link is busy.
+        # Ignore those rather than spamming warnings.
+        if line.startswith('ACK,') or line.startswith('STAT,') or line.startswith('ERR,'):
+            self._publish_status(line)
+            return
+
+        self.get_logger().debug(f'Ignoring unexpected ESP32 line: {line}')
 
     def _publish_status(self, text):
         message = String()

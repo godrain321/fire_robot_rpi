@@ -70,10 +70,10 @@ Visualization Manager:
       Position Tolerance: 0.1
       Angle Tolerance: 0.1
     - Class: rviz_default_plugins/Path
-      Name: RF2O Path (Green)
+      Name: LiDAR Localized Path (Green)
       Enabled: true
       Topic:
-        Value: /rf2o_path
+        Value: /lidar_path
         Reliability Policy: Reliable
         Durability Policy: Volatile
         History Policy: Keep Last
@@ -81,6 +81,42 @@ Visualization Manager:
       Color: 0; 255; 0
       Line Style: Lines
       Line Width: 0.05
+    - Class: rviz_default_plugins/Path
+      Name: Autonomous Planned Path (Blue)
+      Enabled: true
+      Topic:
+        Value: /planned_path
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+      Color: 0; 100; 255
+      Line Style: Lines
+      Line Width: 0.07
+    - Class: rviz_default_plugins/Path
+      Name: Recorded Waypoints (Yellow)
+      Enabled: true
+      Topic:
+        Value: /waypoint_queue
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+      Color: 255; 220; 0
+      Line Style: Lines
+      Line Width: 0.10
+    - Class: rviz_default_plugins/PoseArray
+      Name: Recorded Waypoint Arrows (Yellow)
+      Enabled: true
+      Topic:
+        Value: /waypoint_poses
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+      Shape: Arrow (Flat)
+      Color: 255; 220; 0
+      Alpha: 1
   Enabled: true
   Name: root
   Tools:
@@ -94,7 +130,7 @@ Visualization Manager:
         Value: /initialpose
     - Class: rviz_default_plugins/SetGoal
       Topic:
-        Value: /goal_pose
+        Value: /waypoint_click
   Transformation:
     Current:
       Class: rviz_default_plugins/TF

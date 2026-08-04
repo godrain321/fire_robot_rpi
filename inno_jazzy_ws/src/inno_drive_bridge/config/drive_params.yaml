@@ -3,6 +3,7 @@ keyboard_cmdvel_demo:
     linear_speed: 0.08
     angular_speed: 0.35
     publish_rate_hz: 10.0
+    cmd_vel_topic: /cmd_vel_keyboard
 
 cmdvel_to_esp32_serial:
   ros__parameters:
@@ -14,7 +15,9 @@ cmdvel_to_esp32_serial:
     microsteps: 8
     gear_ratio: 1.0
     max_steps_per_sec: 1600
-    left_sign: 1
+    # Left motor is mounted/wired opposite to the right motor. Field test showed
+    # angular-left produced forward motion, so invert only the left command.
+    left_sign: -1
     right_sign: 1
     cmd_timeout_sec: 0.5
 

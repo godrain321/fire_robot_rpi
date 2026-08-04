@@ -21,8 +21,11 @@ setup(
     maintainer_email="seeno04@example.com",
     description="Bringup for Camera Module 3, RPLIDAR C1, and RF2O odometry.",
     license="Apache-2.0",
+    tests_require=["pytest"],
     entry_points={"console_scripts": [
         "odom_to_path = inno_robot_bringup.odom_to_path_node:main",
+        "tf_to_path = inno_robot_bringup.tf_to_path_node:main",
+        "amcl_pose_tf_bridge = inno_robot_bringup.amcl_pose_tf_bridge:main",
         "slam_keyboard_runner = inno_robot_bringup.slam_keyboard_runner:main",
     ]},
 )

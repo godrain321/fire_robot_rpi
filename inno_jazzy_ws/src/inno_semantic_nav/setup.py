@@ -32,6 +32,9 @@ setup(
             'capture_landmark = inno_semantic_nav.capture_landmark:main',
             'semantic_marker_node = inno_semantic_nav.semantic_marker_node:main',
             'go = inno_semantic_nav.go_named_pose:main',
+            'go_dense_waypoints = inno_semantic_nav.go_dense_waypoints:main',
+            'go_stepwise_waypoints = inno_semantic_nav.go_stepwise_waypoints:main',
+            'path_waypoint_recorder = inno_semantic_nav.path_waypoint_recorder:main',
         ],
     },
 )

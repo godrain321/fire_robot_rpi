@@ -1,0 +1,25 @@
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: localization
+    use_sim_time: false
+    transform_publish_period: 0.02
+    transform_timeout: 0.5
+    tf_buffer_duration: 30.0
+    minimum_time_interval: 0.1
+    throttle_scans: 1
+    use_scan_matching: true
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    minimum_travel_distance: 0.05
+    minimum_travel_heading: 0.05
+    map_file_name: /home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/maps/inno_posegraph_20260717_112806
+    map_start_at_dock: true
+    enable_interactive_mode: true

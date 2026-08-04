@@ -22,11 +22,13 @@ setup(
     maintainer_email='seeno04@example.com',
     description='USB serial drive bridge and step-count odometry for the fire robot.',
     license='Apache-2.0',
+    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'keyboard_cmdvel_demo = inno_drive_bridge.keyboard_cmdvel_demo:main',
             'cmdvel_to_esp32_serial = inno_drive_bridge.cmdvel_to_esp32_serial:main',
             'step_count_to_odom = inno_drive_bridge.step_count_to_odom:main',
+            'cmd_vel_mode_mux = inno_drive_bridge.cmd_vel_mode_mux:main',
         ],
     },
 )

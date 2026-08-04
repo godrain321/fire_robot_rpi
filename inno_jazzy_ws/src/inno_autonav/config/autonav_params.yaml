@@ -24,6 +24,7 @@ astar_replanner:
     unknown_is_occupied: true
     replan_rate_hz: 1.0
     path_block_check_radius: 0.20
+    start_clearance_radius: 0.18
     allow_diagonal: true
 
 skid_path_follower:
@@ -31,7 +32,7 @@ skid_path_follower:
     map_frame: map
     base_frame: base_link
     scan_topic: /scan
-    cmd_vel_topic: /cmd_vel
+    cmd_vel_topic: /cmd_vel_auto
     lookahead_distance: 0.35
     goal_tolerance: 0.12
     yaw_tolerance: 0.25

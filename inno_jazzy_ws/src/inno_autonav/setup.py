@@ -32,6 +32,7 @@ setup(
             'dynamic_obstacle_layer = inno_autonav.dynamic_obstacle_layer:main',
             'astar_replanner = inno_autonav.astar_replanner:main',
             'skid_path_follower = inno_autonav.skid_path_follower:main',
+            'waypoint_queue = inno_autonav.waypoint_queue:main',
         ],
     },
 )

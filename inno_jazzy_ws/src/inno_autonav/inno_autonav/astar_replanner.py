@@ -136,6 +136,7 @@ class AstarReplanner(Node):
             'unknown_is_occupied': True,
             'replan_rate_hz': 1.0,
             'path_block_check_radius': 0.20,
+            'start_clearance_radius': 0.18,
             'allow_diagonal': True,
         }
         for name, value in defaults.items():
@@ -149,8 +150,12 @@ class AstarReplanner(Node):
         self.clearance_radius = float(
             self.get_parameter('path_block_check_radius').value
         )
+        self.start_clearance_radius = float(
+            self.get_parameter('start_clearance_radius').value
+        )
         self.allow_diagonal = bool(self.get_parameter('allow_diagonal').value)
-        if self.replan_rate <= 0.0 or self.clearance_radius < 0.0:
+        if (self.replan_rate <= 0.0 or self.clearance_radius < 0.0
+                or self.start_clearance_radius < 0.0):
             raise ValueError('replan_rate는 양수, radius는 0 이상이어야 합니다.')
 
         qos = QoSProfile(depth=1)
@@ -315,8 +320,22 @@ class AstarReplanner(Node):
                 self._state('REPLANNING')
         else:
             self._state('PLANNING')
+        # Inflation can mark the cell occupied by the physical robot itself.
+        # Clear only its already-occupied local footprint so A* can safely leave
+        # the start, while all cells beyond this small disk remain protected.
+        planning_data = self.combined_grid.data.copy()
+        start_radius_cells = int(math.ceil(
+            self.start_clearance_radius / self.combined_grid.resolution
+        ))
+        for dy in range(-start_radius_cells, start_radius_cells + 1):
+            for dx in range(-start_radius_cells, start_radius_cells + 1):
+                if math.hypot(dx, dy) > start_radius_cells:
+                    continue
+                sx, sy = start[0] + dx, start[1] + dy
+                if 0 <= sy < planning_data.shape[0] and 0 <= sx < planning_data.shape[1]:
+                    planning_data[sy, sx] = 0
         path = astar_search(
-            self.combined_grid.data,
+            planning_data,
             start,
             goal,
             self.unknown_is_occupied,
@@ -329,7 +348,7 @@ class AstarReplanner(Node):
             self.get_logger().error(f'A* 경로 없음: start={start}, goal={goal}')
             return
         simplified = simplify_path(
-            path, self.combined_grid.data, self.unknown_is_occupied
+            path, planning_data, self.unknown_is_occupied
         )
         self.current_path_cells = path
         self._dirty = False

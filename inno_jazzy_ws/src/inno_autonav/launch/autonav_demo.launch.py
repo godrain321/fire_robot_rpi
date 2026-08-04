@@ -20,12 +20,14 @@ def generate_launch_description() -> LaunchDescription:
     use_wheel_odom_tf = LaunchConfiguration('use_wheel_odom_tf')
     map_yaml = LaunchConfiguration('map_yaml')
     semantic_yaml = LaunchConfiguration('semantic_yaml')
+    use_dynamic_obstacles = LaunchConfiguration('use_dynamic_obstacles')
 
     return LaunchDescription(
         [
             DeclareLaunchArgument('use_serial', default_value='false'),
             DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB0'),
             DeclareLaunchArgument('use_wheel_odom_tf', default_value='false'),
+            DeclareLaunchArgument('use_dynamic_obstacles', default_value='false'),
             DeclareLaunchArgument(
                 'map_yaml',
                 default_value='/home/gosunwoo/fire_robot_rpi/maps/inno_map_nav.yaml',
@@ -50,6 +52,7 @@ def generate_launch_description() -> LaunchDescription:
                 name='dynamic_obstacle_layer',
                 parameters=[config_file],
                 output='screen',
+                condition=IfCondition(use_dynamic_obstacles),
             ),
             Node(
                 package='inno_autonav',

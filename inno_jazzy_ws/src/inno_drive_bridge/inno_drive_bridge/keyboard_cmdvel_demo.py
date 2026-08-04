@@ -6,6 +6,7 @@ import tty
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from std_msgs.msg import Int32, String
 
 
 class KeyboardCmdVelDemo(Node):
@@ -14,6 +15,7 @@ class KeyboardCmdVelDemo(Node):
         self.declare_parameter('linear_speed', 0.08)
         self.declare_parameter('angular_speed', 0.35)
         self.declare_parameter('publish_rate_hz', 10.0)
+        self.declare_parameter('cmd_vel_topic', '/cmd_vel_keyboard')
 
         self.linear_speed = float(self.get_parameter('linear_speed').value)
         self.angular_speed = float(self.get_parameter('angular_speed').value)
@@ -32,7 +34,14 @@ class KeyboardCmdVelDemo(Node):
                     'keyboard input requires an interactive terminal (TTY)'
                 ) from error
 
-        self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.publisher = self.create_publisher(
+            Twist, str(self.get_parameter('cmd_vel_topic').value), 10
+        )
+        self.mode_publisher = self.create_publisher(Int32, '/drive_mode', 10)
+        self.waypoint_command_publisher = self.create_publisher(
+            String, '/waypoint_queue_command', 10
+        )
+        self.drive_mode = 1
         self.command = Twist()
         self._terminal_settings = termios.tcgetattr(self._input_stream)
         tty.setcbreak(self._input_stream.fileno())
@@ -40,7 +49,8 @@ class KeyboardCmdVelDemo(Node):
         self.create_timer(1.0 / publish_rate, self._publish_command)
         self.create_timer(0.02, self._poll_keyboard)
         self.get_logger().info(
-            'Keyboard ready: w=forward, x=reverse, a=left, d=right, s=stop, q=quit'
+            'Keyboard ready: 1=manual, 2=waypoint select, g=run queue, '
+            'c=clear queue, w/x/a/d/s, q=quit'
         )
 
     def _poll_keyboard(self):
@@ -51,6 +61,30 @@ class KeyboardCmdVelDemo(Node):
 
         command = Twist()
         label = None
+        if key in ('1', '2'):
+            self.drive_mode = int(key)
+            self.command = command
+            self._publish_command()
+            self.mode_publisher.publish(Int32(data=self.drive_mode))
+            self.get_logger().info(
+                'MODE 1: KEYBOARD' if self.drive_mode == 1
+                else 'MODE 2: RViz / AUTONOMOUS'
+            )
+            return
+        if key == 'g':
+            if self.drive_mode != 2:
+                self.get_logger().warning('Press 2 before starting waypoint driving.')
+                return
+            self.waypoint_command_publisher.publish(String(data='GO'))
+            self.get_logger().info('Requested sequential waypoint driving')
+            return
+        if key == 'c':
+            self.waypoint_command_publisher.publish(String(data='CLEAR'))
+            self.get_logger().info('Requested waypoint queue clear')
+            return
+        if self.drive_mode != 1 and key in ('w', 'x', 'a', 'd'):
+            self.get_logger().warning('Press 1 before using manual drive keys.')
+            return
         if key == 'w':
             command.linear.x = self.linear_speed
             label = 'FORWARD'
@@ -82,7 +116,8 @@ class KeyboardCmdVelDemo(Node):
         )
 
     def _publish_command(self):
-        self.publisher.publish(self.command)
+        if self.drive_mode == 1:
+            self.publisher.publish(self.command)
 
     def restore_terminal(self):
         if self._terminal_settings is not None:

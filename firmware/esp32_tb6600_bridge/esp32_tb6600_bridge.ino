@@ -1,313 +1,175 @@
 #include <AccelStepper.h>
 
 /*
-  ESP32 DevKit V4 (ESP32-WROOM-32E) - Dual TB6600 Serial Motor Bridge
+  ESP32 -> dual TB6600 bridge (1/8 microstep)
 
-  No physical wheel encoders are required. AccelStepper::currentPosition()
-  counts the STEP pulses that this firmware actually generated and reports
-  them as temporary signed encoder counts.
+  The ESP32 is deliberately only a motor actuator. Map localization, path
+  following, and waypoint completion belong to ROS where map->base_link can be
+  observed. This prevents an ESP32 open-loop waypoint routine fighting ROS.
 
-  Pi -> ESP32:
-    M,<seq>,<left_sps>,<right_sps>
-    STOP,<seq>
-    PING,<seq>
-    ZERO,<seq>
-    K,<seq>,<W|X|A|D|S>
-
-  ESP32 -> Pi:
-    ACK,<seq>
-    STAT,<millis>,<state>,<left_sps>,<right_sps>
-    ENC,<millis>,<left_count>,<right_count>
-    ERR,<message>
+  Pi -> ESP32: M,<seq>,<left_sps>,<right_sps> | STOP,<seq> | PING,<seq> | ZERO,<seq>
+  ESP32 -> Pi: ACK,<seq> | STAT,<ms>,<state>,<left_sps>,<right_sps>
+                  | ENC,<ms>,<generated_left_steps>,<generated_right_steps>
 */
 
-// Pin mapping supplied for the current robot wiring.
 #define L_STEP 25
 #define L_DIR 26
 #define L_EN 27
-
 #define R_STEP 14
 #define R_DIR 12
 #define R_EN 13
 
-// GPIO12 is an ESP32 strapping pin. If flashing or booting becomes unreliable,
-// move R_DIR to GPIO32 or GPIO33 and update this definition.
-
 const bool ENABLE_ACTIVE_LOW = true;
 const bool INVERT_LEFT_DIR = false;
 const bool INVERT_RIGHT_DIR = false;
-
-const float MAX_STEP_SPEED = 1200.0F;
-// TB6600 is set to 1/2 microstep. 75 step/s gives the same shaft speed that
-// 300 step/s produced at the previously assumed 1/8 setting.
-const float DEFAULT_KEY_SPS = 75.0F;
+const float MAX_STEP_SPEED = 1600.0F;
+// Limit command edges that made skid steering harsh. This ramps STEP frequency,
+// while runSpeed() remains responsible for accurately timed pulses.
+const float MAX_STEP_ACCEL = 900.0F;  // steps/s^2; tune after wheels-off-ground test
 const unsigned long COMMAND_TIMEOUT_MS = 500;
-const unsigned long STAT_PERIOD_MS = 100;
-const unsigned long ENC_PERIOD_MS = 100;
+const unsigned long TELEMETRY_PERIOD_MS = 200;
 const unsigned long BAUDRATE = 115200;
-const size_t MAX_INPUT_LINE = 120;
+const size_t MAX_INPUT_LINE = 96;
 
 AccelStepper leftMotor(AccelStepper::DRIVER, L_STEP, L_DIR);
 AccelStepper rightMotor(AccelStepper::DRIVER, R_STEP, R_DIR);
-
 String inputLine;
+float targetLeftSps = 0.0F;
+float targetRightSps = 0.0F;
 float currentLeftSps = 0.0F;
 float currentRightSps = 0.0F;
 unsigned long lastCommandMs = 0;
-unsigned long lastStatMs = 0;
-unsigned long lastEncMs = 0;
+unsigned long lastRampUs = 0;
+unsigned long lastTelemetryMs = 0;
 String driveState = "BOOT";
 
-void setEnable(bool enable) {
-  if (ENABLE_ACTIVE_LOW) {
-    digitalWrite(L_EN, enable ? LOW : HIGH);
-    digitalWrite(R_EN, enable ? LOW : HIGH);
-  } else {
-    digitalWrite(L_EN, enable ? HIGH : LOW);
-    digitalWrite(R_EN, enable ? HIGH : LOW);
-  }
+void setEnable(bool enabled) {
+  const int active = ENABLE_ACTIVE_LOW ? LOW : HIGH;
+  const int inactive = ENABLE_ACTIVE_LOW ? HIGH : LOW;
+  digitalWrite(L_EN, enabled ? active : inactive);
+  digitalWrite(R_EN, enabled ? active : inactive);
 }
 
 float clampSps(float value) {
-  if (value > MAX_STEP_SPEED) return MAX_STEP_SPEED;
-  if (value < -MAX_STEP_SPEED) return -MAX_STEP_SPEED;
-  return value;
+  return constrain(value, -MAX_STEP_SPEED, MAX_STEP_SPEED);
 }
 
-void applyMotorSpeeds(float leftSps, float rightSps) {
-  leftSps = clampSps(leftSps);
-  rightSps = clampSps(rightSps);
-  currentLeftSps = leftSps;
-  currentRightSps = rightSps;
-
-  leftMotor.setSpeed(INVERT_LEFT_DIR ? -leftSps : leftSps);
-  rightMotor.setSpeed(INVERT_RIGHT_DIR ? -rightSps : rightSps);
-  driveState = (leftSps == 0.0F && rightSps == 0.0F) ? "STOP" : "RUN";
+void setTargets(float left, float right) {
+  targetLeftSps = clampSps(left);
+  targetRightSps = clampSps(right);
+  driveState = (targetLeftSps == 0.0F && targetRightSps == 0.0F) ? "STOP" : "RUN";
 }
 
-void stopMotors() {
-  applyMotorSpeeds(0.0F, 0.0F);
+void emergencyStop() {
+  targetLeftSps = targetRightSps = 0.0F;
+  currentLeftSps = currentRightSps = 0.0F;
+  leftMotor.setSpeed(0.0F);
+  rightMotor.setSpeed(0.0F);
+  driveState = "STOP";
 }
 
-void sendAck(const String &seq) {
-  Serial.print("ACK,");
-  Serial.println(seq);
+float approach(float current, float target, float maximumDelta) {
+  if (current < target) return min(current + maximumDelta, target);
+  if (current > target) return max(current - maximumDelta, target);
+  return current;
 }
 
-void sendErr(const String &message) {
-  Serial.print("ERR,");
-  Serial.println(message);
-}
-
-void sendStat() {
-  Serial.print("STAT,");
-  Serial.print(millis());
-  Serial.print(',');
-  Serial.print(driveState);
-  Serial.print(',');
-  Serial.print(currentLeftSps, 1);
-  Serial.print(',');
-  Serial.println(currentRightSps, 1);
-}
-
-long logicalLeftCount() {
-  const long motorCount = leftMotor.currentPosition();
-  return INVERT_LEFT_DIR ? -motorCount : motorCount;
-}
-
-long logicalRightCount() {
-  const long motorCount = rightMotor.currentPosition();
-  return INVERT_RIGHT_DIR ? -motorCount : motorCount;
-}
-
-void sendEnc() {
-  Serial.print("ENC,");
-  Serial.print(millis());
-  Serial.print(',');
-  Serial.print(logicalLeftCount());
-  Serial.print(',');
-  Serial.println(logicalRightCount());
-}
-
-void resetCounts() {
-  // setCurrentPosition() also changes AccelStepper's internal speed to zero.
-  // Restore the requested speeds so ZERO does not unexpectedly stop motion.
-  leftMotor.setCurrentPosition(0);
-  rightMotor.setCurrentPosition(0);
+void updateSpeedRamp() {
+  const unsigned long nowUs = micros();
+  const unsigned long elapsedUs = nowUs - lastRampUs;
+  if (elapsedUs < 1000) return;
+  lastRampUs = nowUs;
+  const float maxDelta = MAX_STEP_ACCEL * elapsedUs * 1.0e-6F;
+  currentLeftSps = approach(currentLeftSps, targetLeftSps, maxDelta);
+  currentRightSps = approach(currentRightSps, targetRightSps, maxDelta);
   leftMotor.setSpeed(INVERT_LEFT_DIR ? -currentLeftSps : currentLeftSps);
   rightMotor.setSpeed(INVERT_RIGHT_DIR ? -currentRightSps : currentRightSps);
 }
 
-int splitCsv(String line, String parts[], int maxParts) {
+int splitCsv(String line, String fields[], int capacity) {
   int count = 0;
   int start = 0;
   line.trim();
-
-  while (count < maxParts) {
+  while (count < capacity) {
     const int comma = line.indexOf(',', start);
-    if (comma == -1) {
-      parts[count++] = line.substring(start);
-      break;
-    }
-    parts[count++] = line.substring(start, comma);
+    if (comma < 0) { fields[count++] = line.substring(start); break; }
+    fields[count++] = line.substring(start, comma);
     start = comma + 1;
   }
-
-  for (int i = 0; i < count; ++i) parts[i].trim();
+  for (int i = 0; i < count; ++i) fields[i].trim();
   return count;
 }
 
-void handleKeyCommand(const String &seq, String key) {
-  key.toUpperCase();
+void ack(const String &seq) { Serial.println("ACK," + seq); }
 
-  if (key == "W") {
-    applyMotorSpeeds(DEFAULT_KEY_SPS, DEFAULT_KEY_SPS);
-  } else if (key == "X") {
-    applyMotorSpeeds(-DEFAULT_KEY_SPS, -DEFAULT_KEY_SPS);
-  } else if (key == "A") {
-    applyMotorSpeeds(-DEFAULT_KEY_SPS, DEFAULT_KEY_SPS);
-  } else if (key == "D") {
-    applyMotorSpeeds(DEFAULT_KEY_SPS, -DEFAULT_KEY_SPS);
-  } else if (key == "S") {
-    stopMotors();
-  } else {
-    sendErr("UNKNOWN_KEY_" + key);
-    return;
-  }
-
-  lastCommandMs = millis();
-  sendAck(seq);
+void sendTelemetry() {
+  Serial.printf("STAT,%lu,%s,%.1f,%.1f\n", millis(), driveState.c_str(), currentLeftSps, currentRightSps);
+  const long left = INVERT_LEFT_DIR ? -leftMotor.currentPosition() : leftMotor.currentPosition();
+  const long right = INVERT_RIGHT_DIR ? -rightMotor.currentPosition() : rightMotor.currentPosition();
+  Serial.printf("ENC,%lu,%ld,%ld\n", millis(), left, right);
 }
 
 void handleLine(String line) {
-  line.trim();
-  if (line.length() == 0) return;
-
-  String parts[6];
-  const int partCount = splitCsv(line, parts, 6);
-  if (partCount <= 0) return;
-
-  String command = parts[0];
-  command.toUpperCase();
-
-  if (command == "M") {
-    if (partCount != 4) {
-      sendErr("BAD_M_FORMAT");
-      return;
-    }
-    applyMotorSpeeds(parts[2].toFloat(), parts[3].toFloat());
+  String fields[4];
+  const int count = splitCsv(line, fields, 4);
+  fields[0].toUpperCase();
+  if (fields[0] == "M" && count == 4) {
+    setTargets(fields[2].toFloat(), fields[3].toFloat());
     lastCommandMs = millis();
-    sendAck(parts[1]);
-    return;
-  }
-
-  if (command == "STOP") {
-    const String seq = (partCount >= 2) ? parts[1] : "-1";
-    stopMotors();
+    ack(fields[1]);
+  } else if (fields[0] == "STOP" && count >= 2) {
+    emergencyStop();
     lastCommandMs = millis();
-    sendAck(seq);
-    return;
+    ack(fields[1]);
+  } else if (fields[0] == "PING" && count >= 2) {
+    ack(fields[1]);
+    sendTelemetry();
+  } else if (fields[0] == "ZERO" && count >= 2) {
+    leftMotor.setCurrentPosition(0);
+    rightMotor.setCurrentPosition(0);
+    ack(fields[1]);
+  } else {
+    Serial.println("ERR,BAD_COMMAND");
   }
-
-  if (command == "PING") {
-    const String seq = (partCount >= 2) ? parts[1] : "-1";
-    sendAck(seq);
-    sendStat();
-    sendEnc();
-    return;
-  }
-
-  if (command == "ZERO") {
-    const String seq = (partCount >= 2) ? parts[1] : "-1";
-    resetCounts();
-    sendAck(seq);
-    return;
-  }
-
-  if (command == "K") {
-    if (partCount != 3) {
-      sendErr("BAD_K_FORMAT");
-      return;
-    }
-    handleKeyCommand(parts[1], parts[2]);
-    return;
-  }
-
-  sendErr("UNKNOWN_CMD_" + command);
 }
 
-void readSerialLines() {
-  while (Serial.available() > 0) {
-    const char character = static_cast<char>(Serial.read());
-
-    // Accept CR, LF, and CRLF. Empty terminators are ignored. This prevents
-    // picocom CR-only commands from accumulating in the receive buffer.
-    if (character == '\r' || character == '\n') {
-      if (inputLine.length() > 0) {
-        handleLine(inputLine);
-        inputLine = "";
-      }
-      continue;
+void readSerial() {
+  while (Serial.available()) {
+    const char c = static_cast<char>(Serial.read());
+    if (c == '\r' || c == '\n') {
+      if (inputLine.length()) { handleLine(inputLine); inputLine = ""; }
+    } else if (c >= 32 && c <= 126) {
+      if (inputLine.length() < MAX_INPUT_LINE) inputLine += c;
+      else { inputLine = ""; Serial.println("ERR,LINE_TOO_LONG"); }
     }
-
-    if (character < 32 || character > 126) continue;
-    if (inputLine.length() >= MAX_INPUT_LINE) {
-      inputLine = "";
-      sendErr("LINE_TOO_LONG");
-      continue;
-    }
-    inputLine += character;
   }
 }
 
 void setup() {
   Serial.begin(BAUDRATE);
   inputLine.reserve(MAX_INPUT_LINE);
-
-  pinMode(L_EN, OUTPUT);
-  pinMode(R_EN, OUTPUT);
-  setEnable(true);
-
-  leftMotor.setMaxSpeed(MAX_STEP_SPEED);
-  leftMotor.setMinPulseWidth(5);
-  rightMotor.setMaxSpeed(MAX_STEP_SPEED);
-  rightMotor.setMinPulseWidth(5);
-
-  currentLeftSps = 0.0F;
-  currentRightSps = 0.0F;
-  resetCounts();
-  stopMotors();
-
-  lastCommandMs = millis();
-  lastStatMs = millis();
-  lastEncMs = millis();
-  driveState = "STOP";
-
+  pinMode(L_EN, OUTPUT); pinMode(R_EN, OUTPUT); setEnable(true);
+  leftMotor.setMaxSpeed(MAX_STEP_SPEED); rightMotor.setMaxSpeed(MAX_STEP_SPEED);
+  leftMotor.setMinPulseWidth(5); rightMotor.setMinPulseWidth(5);
+  emergencyStop();
+  lastCommandMs = lastTelemetryMs = millis();
+  lastRampUs = micros();
   Serial.println("STAT,0,READY,0,0");
-  Serial.println("ENC,0,0,0");
 }
 
 void loop() {
-  readSerialLines();
-  const unsigned long now = millis();
-
-  if ((now - lastCommandMs) > COMMAND_TIMEOUT_MS &&
-      (currentLeftSps != 0.0F || currentRightSps != 0.0F)) {
-    stopMotors();
+  readSerial();
+  if (millis() - lastCommandMs > COMMAND_TIMEOUT_MS &&
+      (targetLeftSps != 0.0F || targetRightSps != 0.0F)) {
+    emergencyStop();
     driveState = "FAILSAFE";
     Serial.println("ERR,COMMAND_TIMEOUT_STOP");
   }
-
-  // These calls generate STEP pulses and update currentPosition().
+  updateSpeedRamp();
   leftMotor.runSpeed();
   rightMotor.runSpeed();
-
-  if ((now - lastStatMs) >= STAT_PERIOD_MS) {
-    lastStatMs = now;
-    sendStat();
-  }
-  if ((now - lastEncMs) >= ENC_PERIOD_MS) {
-    lastEncMs = now;
-    sendEnc();
+  if (millis() - lastTelemetryMs >= TELEMETRY_PERIOD_MS) {
+    lastTelemetryMs = millis();
+    sendTelemetry();
   }
 }
