@@ -1,6 +1,5 @@
 planning_grid_publisher:
   ros__parameters:
-    map_yaml: /home/gosunwoo/fire_robot_rpi/maps/inno_map_nav.yaml
     map_frame: map
     publish_rate_hz: 1.0
 
@@ -47,7 +46,6 @@ skid_path_follower:
 
 mission_commander:
   ros__parameters:
-    semantic_yaml: /home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/src/inno_autonav/config/semantic_points.yaml
     map_frame: map
     base_frame: base_link
     use_source_if_no_tf: false

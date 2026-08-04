@@ -4,6 +4,7 @@ fi
 
 source /opt/ros/jazzy/setup.bash
 
-if [ -f "/home/seeno04/inno_jazzy_ws/install/setup.bash" ]; then
-  source "/home/seeno04/inno_jazzy_ws/install/setup.bash"
+INNO_WS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "${INNO_WS_DIR}/install/setup.bash" ]; then
+  source "${INNO_WS_DIR}/install/setup.bash"
 fi

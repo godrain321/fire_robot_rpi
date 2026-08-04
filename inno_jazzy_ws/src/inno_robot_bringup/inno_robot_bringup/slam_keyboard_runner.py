@@ -3,11 +3,13 @@ import argparse, os, select, signal, subprocess, sys, termios, threading, time, 
 from datetime import datetime
 from pathlib import Path
 
+from .project_paths import project_root
+
 BANNER='''========================================\nINNO RPLIDAR SLAM\ns : 현재 지도 저장\nq : SLAM 종료\nh : 도움말\n========================================'''
 class Runner:
     def __init__(self, launch_args): self.launch_args=launch_args; self.proc=None; self.saving=False; self.old=None
     def unique_base(self):
-        maps=Path.home()/'inno_jazzy_ws'/'maps'; maps.mkdir(parents=True,exist_ok=True)
+        maps=project_root()/'maps'; maps.mkdir(parents=True,exist_ok=True)
         stem='inno_map_'+datetime.now().strftime('%Y%m%d_%H%M%S'); base=maps/stem; n=1
         while base.with_suffix('.yaml').exists() or base.with_suffix('.pgm').exists(): base=maps/f'{stem}_{n:02d}'; n+=1
         return base

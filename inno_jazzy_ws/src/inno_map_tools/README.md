@@ -70,7 +70,7 @@ source /opt/ros/jazzy/setup.bash
 source ~/fire_robot_rpi/inno_jazzy_ws/install/setup.bash
 export ROS_DOMAIN_ID=3
 export ROS_LOCALHOST_ONLY=0
-ros2 run nav2_map_server map_server --ros-args -p yaml_filename:=/home/gosunwoo/fire_robot_rpi/maps/inno_map_raw.yaml
+ros2 run nav2_map_server map_server --ros-args -p yaml_filename:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml"
 ```
 
 터미널 2:
@@ -132,7 +132,7 @@ no_go_zones:
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/fire_robot_rpi/inno_jazzy_ws/install/setup.bash
-ros2 run inno_map_tools build_no_go_mask --map-yaml /home/gosunwoo/fire_robot_rpi/maps/inno_map_raw.yaml --zones-yaml /home/gosunwoo/fire_robot_rpi/maps/no_go_zones.yaml --out-dir /home/gosunwoo/fire_robot_rpi/maps
+ros2 run inno_map_tools build_no_go_mask --map-yaml "$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml" --zones-yaml "$FIRE_ROBOT_RPI_ROOT/maps/no_go_zones.yaml" --out-dir "$FIRE_ROBOT_RPI_ROOT/maps"
 ```
 
 생성 규칙:
@@ -147,7 +147,7 @@ ros2 run inno_map_tools build_no_go_mask --map-yaml /home/gosunwoo/fire_robot_rp
 기존 `/map_server`를 종료한 뒤 실행한다.
 
 ```bash
-ros2 run nav2_map_server map_server --ros-args -p yaml_filename:=/home/gosunwoo/fire_robot_rpi/maps/inno_map_nav.yaml
+ros2 run nav2_map_server map_server --ros-args -p yaml_filename:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_nav.yaml"
 ```
 
 다른 터미널:

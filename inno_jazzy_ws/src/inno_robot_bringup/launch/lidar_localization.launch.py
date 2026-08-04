@@ -7,12 +7,16 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
 from launch_ros.actions import Node
 
+from inno_robot_bringup.project_paths import project_path
+
 
 def generate_launch_description():
     share = get_package_share_directory('inno_robot_bringup')
     defaults = {
         'serial_port': '/dev/ttyUSB0', 'serial_baudrate': '460800',
-        'posegraph': '/home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/maps/inno_posegraph_20260717_112806',
+        'posegraph': project_path(
+            'inno_jazzy_ws', 'maps', 'inno_posegraph_20260717_112806'
+        ),
         'localization_params': share + '/config/slam_toolbox_localization.yaml',
         'use_rviz': 'true',
     }

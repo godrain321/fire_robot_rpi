@@ -25,6 +25,9 @@ dpkg -i "${ros_apt_deb}"
 apt-get update
 apt-get install -y \
   ros-jazzy-desktop \
+  ros-jazzy-slam-toolbox \
+  ros-jazzy-navigation2 \
+  ros-jazzy-nav2-bringup \
   ros-dev-tools \
   python3-colcon-meson \
   build-essential \
@@ -49,6 +52,7 @@ apt-get install -y \
   libdw-dev \
   libx11-dev \
   python3-numpy \
+  python3-pil \
   python3-tk \
   python3-smbus \
   python3-rpi.gpio \

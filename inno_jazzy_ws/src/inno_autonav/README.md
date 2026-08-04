@@ -112,7 +112,7 @@ source /opt/ros/jazzy/setup.bash
 source ~/fire_robot_rpi/inno_jazzy_ws/install/setup.bash
 export ROS_DOMAIN_ID=3
 export ROS_LOCALHOST_ONLY=0
-ros2 run nav2_map_server map_server --ros-args -p yaml_filename:=/home/gosunwoo/fire_robot_rpi/maps/inno_map_raw.yaml
+ros2 run nav2_map_server map_server --ros-args -p yaml_filename:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml"
 ```
 
 다른 터미널에서 lifecycle을 전환한다.

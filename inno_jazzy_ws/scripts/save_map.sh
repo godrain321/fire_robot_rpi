@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+workspace="${INNO_WS:-$(cd -- "$script_dir/.." && pwd)}"
+project_root="${FIRE_ROBOT_RPI_ROOT:-$(cd -- "$workspace/.." && pwd)}"
 set +u
 # shellcheck source=/dev/null
 source /opt/ros/jazzy/setup.bash
 # shellcheck source=/dev/null
-source "${INNO_WS:-$HOME/inno_jazzy_ws}/install/setup.bash"
+source "$workspace/install/setup.bash"
 set -u
-maps="${INNO_WS:-$HOME/inno_jazzy_ws}/maps"; mkdir -p "$maps"
+maps="$project_root/maps"; mkdir -p "$maps"
 name="${1:-inno_map_$(date +%Y%m%d_%H%M%S)}"; base="$maps/$name"
 timeout 6 ros2 topic echo /map --once >/dev/null || { echo "오류: /map 메시지가 없습니다." >&2; exit 1; }
 ros2 run nav2_map_server map_saver_cli -t /map -f "$base"

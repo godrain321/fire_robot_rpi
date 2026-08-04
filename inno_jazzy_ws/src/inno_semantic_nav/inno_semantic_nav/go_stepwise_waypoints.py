@@ -3,7 +3,7 @@
 
 Example:
   ros2 run inno_semantic_nav go_stepwise_waypoints --names p1,p2,p3,p4,p5,p6,p7,p8,p9 \
-    --semantic-file /home/gosunwoo/fire_robot_rpi/maps/semantic_points.yaml \
+    --semantic-file /path/to/fire_robot_rpi/inno_jazzy_ws/maps/semantic_points.yaml \
     --serial /dev/ttyUSB0
 
 Behavior:
@@ -24,12 +24,16 @@ from typing import List, Tuple
 import serial
 import yaml
 
+from .project_paths import project_path
+
 
 WHEEL_DIAMETER_M = 0.08
 STEPS_PER_REV = 1600.0
-TRACK_WIDTH_M = 0.18
+TRACK_WIDTH_M = 0.30
 MAX_LINEAR_MPS = 0.25
 MAX_ROTATION_RAD_S = 0.6
+LEFT_SIGN = -1
+RIGHT_SIGN = 1
 BAUDRATE = 115200
 
 
@@ -59,7 +63,10 @@ def pose_to_wheel_sps(linear_mps: float, angular_rps: float, wheel_diameter: flo
     v_r = linear_mps + angular_rps * track_width / 2.0
     revs_l = v_l / (math.pi * wheel_diameter)
     revs_r = v_r / (math.pi * wheel_diameter)
-    return revs_l * steps_per_rev, revs_r * steps_per_rev
+    return (
+        revs_l * steps_per_rev * LEFT_SIGN,
+        revs_r * steps_per_rev * RIGHT_SIGN,
+    )
 
 
 class Esp32Driver:
@@ -110,15 +117,14 @@ def rotate_in_place(driver: Esp32Driver, angle_rad: float, speed_rad_s: float = 
     sign = 1.0 if angle_rad >= 0 else -1.0
     angular_speed = min(abs(speed_rad_s), MAX_ROTATION_RAD_S) * sign
     left_sps, right_sps = pose_to_wheel_sps(0.0, angular_speed, WHEEL_DIAMETER_M, TRACK_WIDTH_M, STEPS_PER_REV)
-    driver.send_motor(left_sps, right_sps)
-    start = time.time()
-    while time.time() - start < timeout_s:
+    duration = min(abs(angle_rad) / abs(angular_speed), timeout_s)
+    deadline = time.monotonic() + duration
+    while time.monotonic() < deadline:
+        driver.send_motor(left_sps, right_sps)
         line = driver.read_line()
         if line is not None and line.startswith("ERR,"):
             break
-        if abs(angle_rad) <= 0.02:
-            break
-        time.sleep(0.02)
+        time.sleep(0.05)
     driver.stop()
     time.sleep(0.1)
 
@@ -127,12 +133,15 @@ def drive_distance(driver: Esp32Driver, distance_m: float, speed_mps: float = 0.
     if distance_m <= 0.001:
         return 0.0
     left_sps, right_sps = pose_to_wheel_sps(speed_mps, 0.0, WHEEL_DIAMETER_M, TRACK_WIDTH_M, STEPS_PER_REV)
-    driver.send_motor(left_sps, right_sps)
     baseline_left = None
     baseline_right = None
     start = time.time()
     travelled = 0.0
+    last_command = 0.0
     while time.time() - start < timeout_s:
+        if time.monotonic() - last_command >= 0.1:
+            driver.send_motor(left_sps, right_sps)
+            last_command = time.monotonic()
         line = driver.read_line()
         if line is None:
             time.sleep(0.02)
@@ -175,13 +184,15 @@ def run_waypoints(names: List[str], semantic_file: str, serial_port: str, speed_
             target_dist = math.hypot(dx, dy)
             target_heading = math.atan2(dy, dx)
             print(f"Segment {idx}: {names[idx-1]} -> {names[idx]}  dist={target_dist:.3f} m")
-            travelled = drive_distance(driver, target_dist, speed_mps=speed_mps)
-            print(f"completed segment: travelled={travelled:.3f} m")
-            # After driving to the target point, rotate in place to match the target heading.
-            angle_diff = math.atan2(math.sin(target_heading - prev_yaw), math.cos(target_heading - prev_yaw))
+            angle_diff = math.atan2(
+                math.sin(target_heading - prev_yaw),
+                math.cos(target_heading - prev_yaw),
+            )
             if abs(angle_diff) > 0.01:
                 print(f"rotate to heading {target_heading:.3f} rad (diff={angle_diff:.3f})")
                 rotate_in_place(driver, angle_diff)
+            travelled = drive_distance(driver, target_dist, speed_mps=speed_mps)
+            print(f"completed segment: travelled={travelled:.3f} m")
             prev_x, prev_y, prev_yaw = target_x, target_y, target_heading
             if step_mode and idx < len(points) - 1:
                 input("Press Enter to continue to the next waypoint...")
@@ -194,7 +205,10 @@ def run_waypoints(names: List[str], semantic_file: str, serial_port: str, speed_
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sequential waypoint driving with encoder feedback")
     parser.add_argument("--names", default="p1,p2,p3,p4,p5,p6,p7,p8,p9", help="Comma-separated waypoint names, e.g. p1,p2,p3")
-    parser.add_argument("--semantic-file", default="/home/gosunwoo/fire_robot_rpi/maps/semantic_points.yaml")
+    parser.add_argument(
+        "--semantic-file",
+        default=project_path('inno_jazzy_ws', 'maps', 'semantic_points.yaml'),
+    )
     parser.add_argument("--serial", default="/dev/ttyUSB0")
     parser.add_argument("--speed", type=float, default=0.15)
     parser.add_argument("--step-mode", action="store_true", help="Pause after each segment until Enter is pressed")

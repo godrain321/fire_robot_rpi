@@ -8,6 +8,9 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+
+from inno_autonav.project_paths import project_path
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -21,6 +24,8 @@ def generate_launch_description() -> LaunchDescription:
     map_yaml = LaunchConfiguration('map_yaml')
     semantic_yaml = LaunchConfiguration('semantic_yaml')
     use_dynamic_obstacles = LaunchConfiguration('use_dynamic_obstacles')
+    max_linear_speed = LaunchConfiguration('max_linear_speed')
+    max_angular_speed = LaunchConfiguration('max_angular_speed')
 
     return LaunchDescription(
         [
@@ -28,15 +33,17 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB0'),
             DeclareLaunchArgument('use_wheel_odom_tf', default_value='false'),
             DeclareLaunchArgument('use_dynamic_obstacles', default_value='false'),
+            DeclareLaunchArgument('max_linear_speed', default_value='0.06'),
+            DeclareLaunchArgument('max_angular_speed', default_value='0.45'),
             DeclareLaunchArgument(
                 'map_yaml',
-                default_value='/home/gosunwoo/fire_robot_rpi/maps/inno_map_nav.yaml',
+                default_value=project_path('maps', 'inno_map_nav.yaml'),
             ),
             DeclareLaunchArgument(
                 'semantic_yaml',
-                default_value=(
-                    '/home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/'
-                    'src/inno_autonav/config/semantic_points.yaml'
+                default_value=project_path(
+                    'inno_jazzy_ws', 'src', 'inno_autonav', 'config',
+                    'semantic_points.yaml',
                 ),
             ),
             Node(
@@ -65,7 +72,17 @@ def generate_launch_description() -> LaunchDescription:
                 package='inno_autonav',
                 executable='skid_path_follower',
                 name='skid_path_follower',
-                parameters=[config_file],
+                parameters=[
+                    config_file,
+                    {
+                        'max_linear_speed': ParameterValue(
+                            max_linear_speed, value_type=float
+                        ),
+                        'max_angular_speed': ParameterValue(
+                            max_angular_speed, value_type=float
+                        ),
+                    },
+                ],
                 output='screen',
             ),
             Node(

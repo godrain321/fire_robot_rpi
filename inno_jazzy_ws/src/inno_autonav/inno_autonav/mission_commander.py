@@ -13,12 +13,12 @@ from std_msgs.msg import String
 import yaml
 
 from .grid_utils import quaternion_from_yaw
+from .project_paths import project_path
 from .tf_utils import TfHelper
 
 
-DEFAULT_SEMANTIC = (
-    '/home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/'
-    'src/inno_autonav/config/semantic_points.yaml'
+DEFAULT_SEMANTIC = project_path(
+    'inno_jazzy_ws', 'src', 'inno_autonav', 'config', 'semantic_points.yaml'
 )
 
 

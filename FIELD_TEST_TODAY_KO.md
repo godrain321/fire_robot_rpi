@@ -14,7 +14,7 @@
 
 ## 오늘 사용하는 저장 지도
 
-오늘 지도는 `/home/gosunwoo/fire_robot_rpi/maps/inno_map_raw.yaml`과 그 YAML이 가리키는
+오늘 지도는 `$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml`과 그 YAML이 가리키는
 `inno_map_raw.pgm`이다. PGM 해시를 확인한 결과 7월 29일
 `fire_demo_20260729_182054.pgm`과 동일하다. 이 지도에는 slam_toolbox posegraph가 없으므로
 저장 PGM/YAML을 직접 지원하는 `map_server + AMCL`로 전역 위치를 잡고, RF2O LiDAR
@@ -29,7 +29,8 @@ Arduino IDE에서 다음 파일을 ESP32에 업로드한다.
 TB6600 DIP가 실제로 1/8인지 확인한 후:
 
 ```bash
-cd /home/gosunwoo/fire_robot_rpi/inno_jazzy_ws
+export FIRE_ROBOT_RPI_ROOT="${FIRE_ROBOT_RPI_ROOT:-$HOME/fire_robot_rpi}"
+cd "$FIRE_ROBOT_RPI_ROOT/inno_jazzy_ws"
 source /opt/ros/jazzy/setup.bash
 sudo apt-get install ros-jazzy-nav2-amcl
 colcon build --symlink-install --packages-select \
@@ -44,7 +45,11 @@ ESP32와 LiDAR 포트는 `ls -l /dev/serial/by-id/`로 구분한다. 예:
 ```bash
 ros2 launch inno_robot_bringup field_waypoint_test.launch.py \
   esp32_port:=/dev/ttyUSB0 lidar_port:=/dev/ttyUSB1 \
-  map_yaml:=/home/gosunwoo/fire_robot_rpi/maps/inno_map_raw.yaml
+  map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml" \
+  planning_map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_nav.yaml" \
+  waypoint_file:="$FIRE_ROBOT_RPI_ROOT/maps/waypoint_queue_latest.yaml" \
+  manual_linear_speed:=0.08 manual_angular_speed:=0.35 \
+  auto_linear_speed:=0.06 auto_angular_speed:=0.45
 ```
 
 RViz에서 Fixed Frame=`map`, Path topic=`/lidar_path`, planned Path=`/planned_path`를
@@ -69,12 +74,30 @@ launch를 실행한 터미널에서 `1`, 그 다음 `w/a/s/d/x`를 사용한다.
 키보드 터미널에서 `s`로 정지한 뒤 `2`를 누른다. 초록색 `/lidar_path`는 지도 위에
 그대로 남는다. RViz **2D Goal Pose**로 그 path 위의 waypoint를 원하는 순서대로 여러
 개 찍는다. 클릭한 waypoint들은 노란색 `/waypoint_queue` 선으로 누적 표시되며 아직
-로봇은 출발하지 않는다. 잘못 찍었으면 `c`로 전체 queue를 지우고 다시 찍는다.
+로봇은 출발하지 않는다. 각 클릭은 즉시 `maps/waypoint_queue_latest.yaml`에 원자적으로
+저장되며 launch를 다시 실행해도 자동 복원된다. 잘못 찍었으면 `c`로 전체 queue를
+지우고 다시 찍는다. `c`는 화면뿐 아니라 저장 파일의 queue도 비운다.
 
 모든 waypoint를 찍은 다음 키보드 터미널에서 `g`를 누르면 첫 waypoint부터 차례대로
 `/goal_pose` → A* `/planned_path` → LiDAR TF feedback follower → `/cmd_vel_auto`로
 주행한다. 각 waypoint가 `GOAL_REACHED`가 되어야 다음 waypoint가 전달된다. follower는
 10Hz로 명령을 계속 보내므로 0.5초 watchdog에 걸리지 않는다.
+
+속도는 펌웨어를 다시 굽지 않고 launch 명령의 `manual_linear_speed`,
+`manual_angular_speed`, `auto_linear_speed`, `auto_angular_speed`로 조절한다. 먼저 바퀴를
+띄운 상태에서 낮은 값으로 확인한 다음 현장 바닥에 맞춰 조금씩 올린다.
+
+실행 중에도 다른 터미널에서 즉시 변경할 수 있다.
+
+```bash
+ros2 param set /keyboard_cmdvel_demo linear_speed 0.06
+ros2 param set /keyboard_cmdvel_demo angular_speed 0.30
+ros2 param set /skid_path_follower max_linear_speed 0.04
+ros2 param set /skid_path_follower max_angular_speed 0.35
+```
+
+모든 속도 값은 0보다 커야 하며, 너무 큰 값은 펌웨어의 1600 step/s 제한에서 잘리거나
+탈조를 유발할 수 있으므로 작은 값부터 올린다.
 
 ```bash
 ros2 topic echo /planner_state

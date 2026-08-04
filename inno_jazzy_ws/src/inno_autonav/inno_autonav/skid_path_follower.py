@@ -6,6 +6,7 @@ from typing import Optional
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Path
 import rclpy
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
@@ -84,11 +85,37 @@ class SkidPathFollower(Node):
         self.create_subscription(String, '/planner_state', self._planner_callback, 10)
         self.create_subscription(LaserScan, self.scan_topic, self._scan_callback, 10)
         self.create_timer(1.0 / control_rate, self._control)
+        self.add_on_set_parameters_callback(self._set_speed_parameters)
         self._publish_stop('WAITING_FOR_PATH')
         self.get_logger().info(
             f'skid follower -> {cmd_vel_topic}, max=({self.max_linear:.3f} m/s, '
             f'{self.max_angular:.3f} rad/s)'
         )
+
+    def _set_speed_parameters(self, parameters):
+        max_linear = self.max_linear
+        max_angular = self.max_angular
+        changed = False
+        for parameter in parameters:
+            if parameter.name == 'max_linear_speed':
+                max_linear = float(parameter.value)
+                changed = True
+            elif parameter.name == 'max_angular_speed':
+                max_angular = float(parameter.value)
+                changed = True
+        if max_linear <= 0.0 or max_angular <= 0.0:
+            return SetParametersResult(
+                successful=False,
+                reason='max_linear_speed and max_angular_speed must be positive',
+            )
+        if changed:
+            self.max_linear = max_linear
+            self.max_angular = max_angular
+            self.get_logger().info(
+                f'Autonomous speed updated: linear={max_linear:.3f} m/s, '
+                f'angular={max_angular:.3f} rad/s'
+            )
+        return SetParametersResult(successful=True)
 
     def _path_callback(self, message: Path) -> None:
         self.path = message if message.poses else None

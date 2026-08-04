@@ -5,6 +5,7 @@ import tty
 
 import rclpy
 from geometry_msgs.msg import Twist
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from std_msgs.msg import Int32, String
 
@@ -48,10 +49,36 @@ class KeyboardCmdVelDemo(Node):
 
         self.create_timer(1.0 / publish_rate, self._publish_command)
         self.create_timer(0.02, self._poll_keyboard)
+        self.add_on_set_parameters_callback(self._set_speed_parameters)
         self.get_logger().info(
             'Keyboard ready: 1=manual, 2=waypoint select, g=run queue, '
             'c=clear queue, w/x/a/d/s, q=quit'
         )
+
+    def _set_speed_parameters(self, parameters):
+        linear_speed = self.linear_speed
+        angular_speed = self.angular_speed
+        changed = False
+        for parameter in parameters:
+            if parameter.name == 'linear_speed':
+                linear_speed = float(parameter.value)
+                changed = True
+            elif parameter.name == 'angular_speed':
+                angular_speed = float(parameter.value)
+                changed = True
+        if linear_speed <= 0.0 or angular_speed <= 0.0:
+            return SetParametersResult(
+                successful=False,
+                reason='linear_speed and angular_speed must be positive',
+            )
+        if changed:
+            self.linear_speed = linear_speed
+            self.angular_speed = angular_speed
+            self.get_logger().info(
+                f'Manual speed updated: linear={linear_speed:.3f} m/s, '
+                f'angular={angular_speed:.3f} rad/s'
+            )
+        return SetParametersResult(successful=True)
 
     def _poll_keyboard(self):
         readable, _, _ = select.select([self._input_stream], [], [], 0.0)

@@ -80,12 +80,11 @@ def _launch_setup(context):
             ],
         ),
         Node(
-            package='nav2_lifecycle_manager',
-            executable='lifecycle_manager',
-            name='lifecycle_manager_map_server',
+            package='inno_robot_bringup',
+            executable='lifecycle_autostart',
+            name='lifecycle_autostart_map_server',
             output='screen',
             parameters=[
-                {'autostart': True},
                 {'node_names': ['map_server']},
                 {'use_sim_time': use_sim_time},
             ],

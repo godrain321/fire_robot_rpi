@@ -20,6 +20,5 @@ slam_toolbox:
     scan_buffer_maximum_scan_distance: 10.0
     minimum_travel_distance: 0.05
     minimum_travel_heading: 0.05
-    map_file_name: /home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/maps/inno_posegraph_20260717_112806
     map_start_at_dock: true
     enable_interactive_mode: true

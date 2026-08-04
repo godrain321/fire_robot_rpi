@@ -7,6 +7,8 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
 from launch_ros.actions import Node
 
+from inno_robot_bringup.project_paths import project_path
+
 
 def generate_launch_description():
     share = get_package_share_directory('inno_robot_bringup')
@@ -15,7 +17,7 @@ def generate_launch_description():
         DeclareLaunchArgument('serial_baudrate', default_value='460800'),
         DeclareLaunchArgument(
             'map_yaml',
-            default_value='/home/gosunwoo/fire_robot_rpi/maps/inno_map_raw.yaml',
+            default_value=project_path('maps', 'inno_map_raw.yaml'),
         ),
         DeclareLaunchArgument(
             'amcl_params', default_value=share + '/config/amcl_lidar_only.yaml'
@@ -43,9 +45,9 @@ def generate_launch_description():
         parameters=[L('amcl_params')],
     )
     lifecycle = Node(
-        package='nav2_lifecycle_manager', executable='lifecycle_manager',
-        name='lifecycle_manager_localization', output='screen',
-        parameters=[{'autostart': True, 'node_names': ['map_server', 'amcl']}],
+        package='inno_robot_bringup', executable='lifecycle_autostart',
+        name='lifecycle_autostart_localization', output='screen',
+        parameters=[{'node_names': ['map_server', 'amcl']}],
     )
     trail = Node(package='inno_robot_bringup', executable='tf_to_path',
                  name='lidar_path', output='screen')
