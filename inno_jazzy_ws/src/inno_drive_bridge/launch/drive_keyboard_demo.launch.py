@@ -53,6 +53,14 @@ def generate_launch_description():
         ),
         Node(
             package='inno_drive_bridge',
+            executable='cmd_vel_mode_mux',
+            name='cmd_vel_mode_mux',
+            parameters=[config_file],
+            output='screen',
+            emulate_tty=True,
+        ),
+        Node(
+            package='inno_drive_bridge',
             executable='cmdvel_to_esp32_serial',
             name='cmdvel_to_esp32_serial',
             parameters=[config_file, {'serial_port': serial_port}],
