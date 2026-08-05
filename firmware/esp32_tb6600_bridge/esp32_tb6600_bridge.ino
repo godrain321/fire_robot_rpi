@@ -1,4 +1,5 @@
 #include <AccelStepper.h>
+#include <SPI.h>
 
 /*
   ESP32 -> dual TB6600 bridge (1/8 microstep)
@@ -10,6 +11,8 @@
   Pi -> ESP32: M,<seq>,<left_sps>,<right_sps> | STOP,<seq> | PING,<seq> | ZERO,<seq>
   ESP32 -> Pi: ACK,<seq> | STAT,<ms>,<state>,<left_sps>,<right_sps>
                   | ENC,<ms>,<generated_left_steps>,<generated_right_steps>
+                  | ENC_ABS,<ms>,<left_angle_deg>,<right_angle_deg>,
+                    <left_turns>,<right_turns>,<left_distance_m>,<right_distance_m>
 */
 
 #define L_STEP 25
@@ -18,6 +21,13 @@
 #define R_STEP 14
 #define R_DIR 12
 #define R_EN 13
+
+// AS5048A shared SPI bus
+#define ENC_SCK 18
+#define ENC_MOSI 23
+#define ENC_MISO 19
+#define ENC_LEFT_CS 17
+#define ENC_RIGHT_CS 5
 
 const bool ENABLE_ACTIVE_LOW = true;
 const bool INVERT_LEFT_DIR = false;
@@ -31,6 +41,24 @@ const unsigned long TELEMETRY_PERIOD_MS = 200;
 const unsigned long BAUDRATE = 115200;
 const size_t MAX_INPUT_LINE = 96;
 
+// AS5048A: 14-bit absolute angle, 16384 counts/revolution.
+const uint16_t AS5048A_ANGLE_REGISTER = 0x3FFF;
+const uint16_t AS5048A_CLEAR_ERROR_REGISTER = 0x0001;
+const uint16_t AS5048A_READ_FLAG = 0x4000;
+const int32_t AS5048A_COUNTS_PER_REV = 16384;
+const int32_t AS5048A_HALF_COUNTS = AS5048A_COUNTS_PER_REV / 2;
+const unsigned long ENCODER_SAMPLE_PERIOD_US = 10000;  // 100 Hz
+const uint32_t ENCODER_SPI_HZ = 1000000;               // reliable starting speed
+
+// User-requested wheel diameter: 10 mm.
+// If the actual wheel is 10 cm, change this value to 100.0F.
+const float WHEEL_DIAMETER_MM = 10.0F;
+const float WHEEL_CIRCUMFERENCE_M = PI * (WHEEL_DIAMETER_MM / 1000.0F);
+
+// Set one of these to -1 if that encoder decreases while the robot moves forward.
+const int LEFT_ENCODER_SIGN = 1;
+const int RIGHT_ENCODER_SIGN = -1;
+
 AccelStepper leftMotor(AccelStepper::DRIVER, L_STEP, L_DIR);
 AccelStepper rightMotor(AccelStepper::DRIVER, R_STEP, R_DIR);
 String inputLine;
@@ -42,6 +70,19 @@ unsigned long lastCommandMs = 0;
 unsigned long lastRampUs = 0;
 unsigned long lastTelemetryMs = 0;
 String driveState = "BOOT";
+
+SPISettings encoderSpiSettings(ENCODER_SPI_HZ, MSBFIRST, SPI_MODE1);
+unsigned long lastEncoderSampleUs = 0;
+bool leftEncoderReady = false;
+bool rightEncoderReady = false;
+uint16_t leftRawAngle = 0;
+uint16_t rightRawAngle = 0;
+uint16_t previousLeftRaw = 0;
+uint16_t previousRightRaw = 0;
+int64_t leftCumulativeCounts = 0;
+int64_t rightCumulativeCounts = 0;
+uint32_t leftEncoderErrors = 0;
+uint32_t rightEncoderErrors = 0;
 
 void setEnable(bool enabled) {
   const int active = ENABLE_ACTIVE_LOW ? LOW : HIGH;
@@ -102,11 +143,152 @@ int splitCsv(String line, String fields[], int capacity) {
 
 void ack(const String &seq) { Serial.println("ACK," + seq); }
 
+bool hasEvenParity(uint16_t value) {
+  bool parity = false;
+  while (value != 0) {
+    parity = !parity;
+    value &= (value - 1);
+  }
+  return !parity;
+}
+
+uint16_t addEvenParity(uint16_t value) {
+  value &= 0x7FFF;
+  if (!hasEvenParity(value)) value |= 0x8000;
+  return value;
+}
+
+uint16_t transferAs5048aFrame(uint8_t chipSelectPin, uint16_t transmitData) {
+  digitalWrite(chipSelectPin, LOW);
+  delayMicroseconds(1);
+
+  const uint8_t highByte =
+      SPI.transfer(static_cast<uint8_t>(transmitData >> 8));
+  const uint8_t lowByte =
+      SPI.transfer(static_cast<uint8_t>(transmitData & 0xFF));
+
+  delayMicroseconds(1);
+  digitalWrite(chipSelectPin, HIGH);
+  delayMicroseconds(1);
+
+  return (static_cast<uint16_t>(highByte) << 8) | lowByte;
+}
+
+void clearAs5048aError(uint8_t chipSelectPin) {
+  const uint16_t clearCommand = addEvenParity(
+      AS5048A_READ_FLAG | AS5048A_CLEAR_ERROR_REGISTER
+  );
+
+  SPI.beginTransaction(encoderSpiSettings);
+  transferAs5048aFrame(chipSelectPin, clearCommand);
+  transferAs5048aFrame(chipSelectPin, 0x0000U);
+  SPI.endTransaction();
+}
+
+bool readAs5048aAngle(uint8_t chipSelectPin, uint16_t &rawAngle) {
+  const uint16_t readCommand = addEvenParity(
+      AS5048A_READ_FLAG | AS5048A_ANGLE_REGISTER
+  );
+
+  SPI.beginTransaction(encoderSpiSettings);
+  transferAs5048aFrame(chipSelectPin, readCommand);
+  const uint16_t response =
+      transferAs5048aFrame(chipSelectPin, 0x0000U);
+  SPI.endTransaction();
+
+  const bool parityOk = hasEvenParity(response);
+  const bool errorFlag = (response & 0x4000U) != 0U;
+
+  if (!parityOk || errorFlag) {
+    clearAs5048aError(chipSelectPin);
+    return false;
+  }
+
+  rawAngle = response & 0x3FFFU;
+  return true;
+}
+
+int32_t unwrapDelta(uint16_t currentRaw, uint16_t previousRaw) {
+  int32_t delta = static_cast<int32_t>(currentRaw) - static_cast<int32_t>(previousRaw);
+  if (delta > AS5048A_HALF_COUNTS) delta -= AS5048A_COUNTS_PER_REV;
+  else if (delta < -AS5048A_HALF_COUNTS) delta += AS5048A_COUNTS_PER_REV;
+  return delta;
+}
+
+void updateEncoders() {
+  const unsigned long nowUs = micros();
+  if (nowUs - lastEncoderSampleUs < ENCODER_SAMPLE_PERIOD_US) return;
+  lastEncoderSampleUs = nowUs;
+
+  uint16_t raw = 0;
+  if (readAs5048aAngle(ENC_LEFT_CS, raw)) {
+    leftRawAngle = raw;
+    if (!leftEncoderReady) {
+      previousLeftRaw = raw;
+      leftEncoderReady = true;
+    } else {
+      const int32_t delta = unwrapDelta(raw, previousLeftRaw);
+      leftCumulativeCounts += static_cast<int64_t>(delta) * LEFT_ENCODER_SIGN;
+      previousLeftRaw = raw;
+    }
+  } else {
+    ++leftEncoderErrors;
+  }
+
+  if (readAs5048aAngle(ENC_RIGHT_CS, raw)) {
+    rightRawAngle = raw;
+    if (!rightEncoderReady) {
+      previousRightRaw = raw;
+      rightEncoderReady = true;
+    } else {
+      const int32_t delta = unwrapDelta(raw, previousRightRaw);
+      rightCumulativeCounts += static_cast<int64_t>(delta) * RIGHT_ENCODER_SIGN;
+      previousRightRaw = raw;
+    }
+  } else {
+    ++rightEncoderErrors;
+  }
+}
+
+void zeroEncoderDistance() {
+  leftCumulativeCounts = 0;
+  rightCumulativeCounts = 0;
+  if (leftEncoderReady) previousLeftRaw = leftRawAngle;
+  if (rightEncoderReady) previousRightRaw = rightRawAngle;
+}
+
 void sendTelemetry() {
   Serial.printf("STAT,%lu,%s,%.1f,%.1f\n", millis(), driveState.c_str(), currentLeftSps, currentRightSps);
   const long left = INVERT_LEFT_DIR ? -leftMotor.currentPosition() : leftMotor.currentPosition();
   const long right = INVERT_RIGHT_DIR ? -rightMotor.currentPosition() : rightMotor.currentPosition();
   Serial.printf("ENC,%lu,%ld,%ld\n", millis(), left, right);
+
+  if (leftEncoderReady && rightEncoderReady) {
+    const float leftAngleDeg = leftRawAngle * (360.0F / AS5048A_COUNTS_PER_REV);
+
+    // The right encoder is mounted in the opposite rotational direction.
+    // Mirror its absolute angle so forward motion increases both displayed angles.
+    const float rightMeasuredAngleDeg =
+        rightRawAngle * (360.0F / AS5048A_COUNTS_PER_REV);
+    float rightAngleDeg = 360.0F - rightMeasuredAngleDeg;
+    if (rightAngleDeg >= 360.0F) rightAngleDeg = 0.0F;
+    const double leftTurns = static_cast<double>(leftCumulativeCounts) / AS5048A_COUNTS_PER_REV;
+    const double rightTurns = static_cast<double>(rightCumulativeCounts) / AS5048A_COUNTS_PER_REV;
+    const double leftDistanceM = leftTurns * WHEEL_CIRCUMFERENCE_M;
+    const double rightDistanceM = rightTurns * WHEEL_CIRCUMFERENCE_M;
+
+    Serial.printf(
+      "ENC_ABS,%lu,%.2f,%.2f,%.6f,%.6f,%.6f,%.6f\n",
+      millis(), leftAngleDeg, rightAngleDeg,
+      leftTurns, rightTurns, leftDistanceM, rightDistanceM
+    );
+  } else {
+    Serial.printf(
+      "ERR,ENCODER_NOT_READY,%lu,%lu\n",
+      static_cast<unsigned long>(leftEncoderErrors),
+      static_cast<unsigned long>(rightEncoderErrors)
+    );
+  }
 }
 
 void handleLine(String line) {
@@ -127,6 +309,7 @@ void handleLine(String line) {
   } else if (fields[0] == "ZERO" && count >= 2) {
     leftMotor.setCurrentPosition(0);
     rightMotor.setCurrentPosition(0);
+    zeroEncoderDistance();
     ack(fields[1]);
   } else {
     Serial.println("ERR,BAD_COMMAND");
@@ -151,9 +334,25 @@ void setup() {
   pinMode(L_EN, OUTPUT); pinMode(R_EN, OUTPUT); setEnable(true);
   leftMotor.setMaxSpeed(MAX_STEP_SPEED); rightMotor.setMaxSpeed(MAX_STEP_SPEED);
   leftMotor.setMinPulseWidth(5); rightMotor.setMinPulseWidth(5);
+
+  pinMode(ENC_LEFT_CS, OUTPUT);
+  pinMode(ENC_RIGHT_CS, OUTPUT);
+  digitalWrite(ENC_LEFT_CS, HIGH);
+  digitalWrite(ENC_RIGHT_CS, HIGH);
+  SPI.begin(ENC_SCK, ENC_MISO, ENC_MOSI, -1);
+  delay(20);
+
   emergencyStop();
   lastCommandMs = lastTelemetryMs = millis();
   lastRampUs = micros();
+  lastEncoderSampleUs = micros() - ENCODER_SAMPLE_PERIOD_US;
+
+  // Prime both sensors before the first telemetry packet.
+  for (int i = 0; i < 3; ++i) {
+    updateEncoders();
+    delay(10);
+  }
+
   Serial.println("STAT,0,READY,0,0");
 }
 
@@ -168,6 +367,7 @@ void loop() {
   updateSpeedRamp();
   leftMotor.runSpeed();
   rightMotor.runSpeed();
+  updateEncoders();
   if (millis() - lastTelemetryMs >= TELEMETRY_PERIOD_MS) {
     lastTelemetryMs = millis();
     sendTelemetry();
