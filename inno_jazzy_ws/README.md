@@ -9,8 +9,9 @@ cd ~/inno_jazzy_ws
 
 지도 저장 위치: `~/inno_jazzy_ws/maps/`
 
-#encoder&keyboard 실행 명령어
-## 1. ROS 패키지 다시 빌드
+
+## encoder&keyboard 실행 명령어
+# 1. ROS 패키지 다시 빌드
 
 ```
 cd ~/inno_jazzy_ws
@@ -23,7 +24,7 @@ colcon build \
 source install/setup.bash
 ```
 
-## 2. launch 실행
+# 2. launch 실행
 
 ```
 ros2 launch inno_drive_bridge drive_keyboard_demo.launch.py \
