@@ -30,6 +30,13 @@ venv/
 *.so
 mlx90640/demo codes/mlx90640/cpp/main
 
+# Repository-local Pi camera runtime and generated calibration data
+.camera_build/
+.camera_runtime/
+data/intrinsic/
+data/extrinsic/screenshots/
+outputs/
+
 # Editor / OS
 .DS_Store
 *.swp

@@ -1,0 +1,104 @@
+schema_version: 1
+calibration_type: 2d_lidar_to_monocular_camera_extrinsic
+transform_convention: p_camera = R_camera_lidar * p_lidar + t_camera_lidar_m
+frames:
+  camera: camera_optical_frame
+  lidar: laser
+T_camera_lidar:
+- - 0.08396560872780923
+  - -0.9963363391421519
+  - 0.016238098896827313
+  - -0.007592684145271719
+- - 0.10155381006421893
+  - -0.007654687187200637
+  - -0.9948005978212451
+  - -0.08592265967882677
+- - 0.9912802833772136
+  - 0.0851780785700218
+  - 0.10053902087602706
+  - -0.04454874494006086
+- - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+R_camera_lidar:
+- - 0.08396560872780923
+  - -0.9963363391421519
+  - 0.016238098896827313
+- - 0.10155381006421893
+  - -0.007654687187200637
+  - -0.9948005978212451
+- - 0.9912802833772136
+  - 0.0851780785700218
+  - 0.10053902087602706
+t_camera_lidar_m:
+- -0.007592684145271719
+- -0.08592265967882677
+- -0.04454874494006086
+camera_intrinsics:
+  camera_info_path: /home/seeno04/fire_robot_rpi/outputs/pi_camera3_wide_intrinsic/camera_info.yaml
+  camera_info_sha256: 0c1fcc4235bf0050f984d2c72e48c954ab3f24b67755f56ef18032f9c3382f78
+  camera_name: pi_camera3_wide
+  image_width: 1280
+  image_height: 720
+  distortion_model: rational_polynomial
+  distortion_coefficient_order:
+  - k1
+  - k2
+  - p1
+  - p2
+  - k3
+  - k4
+  - k5
+  - k6
+  camera_matrix:
+  - - 825.5795842632374
+    - 0.0
+    - 647.3674820821794
+  - - 0.0
+    - 824.1957896996265
+    - 362.02541540697047
+  - - 0.0
+    - 0.0
+    - 1.0
+  distortion_coefficients:
+  - 36.38544344716404
+  - -31.816339909379096
+  - 0.00037565694672538985
+  - 0.0008964370627691536
+  - 108.8702283008128
+  - 36.496221010571325
+  - -30.54029200715003
+  - 107.49961263561438
+optimization:
+  method: pose-balanced Huber finite-difference Levenberg-Marquardt
+  huber_delta_m: 0.015
+  minimum_views: 20
+  iterations: 5
+  converged: true
+  initial_cost: 0.001311541898519535
+  final_cost: 0.00018876448974144776
+quality:
+  passed: true
+  pose_count: 24
+  lidar_point_count: 1411
+  normal_rank: 3
+  normal_singular_values:
+  - 4.789468400153155
+  - 0.9301024819071689
+  - 0.4426079722333453
+  jacobian_rank: 6
+  jacobian_singular_values:
+  - 5.279086051840195
+  - 1.2097374370824017
+  - 0.9733405606701352
+  - 0.6724403498929936
+  - 0.12711229714303696
+  - 0.111056401560445
+  jacobian_condition_number: 47.535180121669356
+  max_allowed_jacobian_condition_number: 100000000.0
+  rmse_m: 0.003922392223475869
+  max_allowed_rmse_m: 0.02
+  max_allowed_pose_rmse_m: 0.03
+  median_abs_residual_m: 0.0023868360348566764
+  max_abs_residual_m: 0.025537979541246925

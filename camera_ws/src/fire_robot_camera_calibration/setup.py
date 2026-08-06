@@ -37,6 +37,8 @@ setup(
     license='Apache-2.0',
     entry_points={
         'console_scripts': [
+            'fixed_model_cameracalibrator = '
+            'fire_robot_camera_calibration.fixed_model_calibrator:main',
             'calibrate_fisheye = '
             'fire_robot_camera_calibration.calibrate_fisheye:main',
             'external_tuner = '
