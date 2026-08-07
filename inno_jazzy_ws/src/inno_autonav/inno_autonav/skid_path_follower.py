@@ -31,7 +31,9 @@ class SkidPathFollower(Node):
             'lookahead_distance': 0.35,
             'goal_tolerance': 0.12,
             'yaw_tolerance': 0.25,
+            'align_goal_yaw': False,
             'rotate_in_place_threshold': 0.45,
+            'rotate_exit_threshold': 0.20,
             'max_linear_speed': 0.06,
             'max_angular_speed': 0.45,
             'k_linear': 0.5,
@@ -52,9 +54,13 @@ class SkidPathFollower(Node):
         self.rotate_threshold = float(
             self.get_parameter('rotate_in_place_threshold').value
         )
+        self.align_goal_yaw = bool(self.get_parameter('align_goal_yaw').value)
         self.max_linear = float(self.get_parameter('max_linear_speed').value)
         self.max_angular = float(self.get_parameter('max_angular_speed').value)
         self.k_linear = float(self.get_parameter('k_linear').value)
+        self.rotate_exit_threshold = float(
+            self.get_parameter('rotate_exit_threshold').value
+        )
         self.k_angular = float(self.get_parameter('k_angular').value)
         self.emergency_distance = float(
             self.get_parameter('emergency_stop_distance').value
@@ -69,6 +75,10 @@ class SkidPathFollower(Node):
             self.k_linear, self.k_angular, self.emergency_distance,
             self.front_angle, control_rate,
         )
+        if not 0.0 < self.rotate_exit_threshold < self.rotate_threshold:
+            raise ValueError(
+                'rotate_exit_threshold는 rotate_in_place_threshold보다 작아야 합니다.'
+            )
         if any(value <= 0.0 for value in positive):
             raise ValueError('skid follower의 모든 거리/속도/gain/rate는 양수여야 합니다.')
 
@@ -79,6 +89,8 @@ class SkidPathFollower(Node):
         self.path: Optional[Path] = None
         self.planner_state = 'WAITING_FOR_PATH'
         self.emergency_stop = False
+        self.rotating_in_place = False
+        self.rotation_direction = 0.0
         self.publisher = self.create_publisher(Twist, cmd_vel_topic, 10)
         self.state_publisher = self.create_publisher(String, '/follower_state', 10)
         self.create_subscription(Path, '/planned_path', self._path_callback, qos)
@@ -121,6 +133,10 @@ class SkidPathFollower(Node):
         self.path = message if message.poses else None
         if not message.poses:
             self._publish_stop('EMPTY_PATH')
+            return
+        # Acknowledge every newly accepted path before control can report an
+        # immediate GOAL_REACHED for a waypoint already inside tolerance.
+        self._state('PATH_ACCEPTED')
 
     def _planner_callback(self, message: String) -> None:
         self.planner_state = message.data
@@ -167,6 +183,11 @@ class SkidPathFollower(Node):
         goal_distance = math.hypot(goal.position.x - x, goal.position.y - y)
         if goal_distance <= self.goal_tolerance:
             goal_yaw = yaw_from_quaternion(goal.orientation)
+            if not self.align_goal_yaw:
+                self.path = None
+                self.rotating_in_place = False
+                self._publish_stop('GOAL_REACHED')
+                return
             yaw_error = normalize_angle(goal_yaw - yaw)
             if abs(yaw_error) <= self.yaw_tolerance:
                 self.path = None
@@ -189,14 +210,29 @@ class SkidPathFollower(Node):
         target_distance = math.hypot(target.x - x, target.y - y)
         target_heading = math.atan2(target.y - y, target.x - x)
         heading_error = normalize_angle(target_heading - yaw)
+        if self.rotating_in_place:
+            if abs(heading_error) <= self.rotate_exit_threshold:
+                self.rotating_in_place = False
+                self.rotation_direction = 0.0
+        elif abs(heading_error) >= self.rotate_threshold:
+            self.rotating_in_place = True
+            self.rotation_direction = 1.0 if heading_error >= 0.0 else -1.0
+
         command = Twist()
-        command.angular.z = clip(
-            self.k_angular * heading_error, self.max_angular
-        )
-        if abs(heading_error) >= self.rotate_threshold:
+        if self.rotating_in_place:
+            # Keep the chosen turn direction while near the +/-pi wrap point;
+            # small TF yaw noise must not alternate left/right commands.
+            magnitude = min(
+                self.max_angular,
+                max(0.10, self.k_angular * abs(heading_error)),
+            )
+            command.angular.z = self.rotation_direction * magnitude
             command.linear.x = 0.0
             state = 'ROTATING_IN_PLACE'
         else:
+            command.angular.z = clip(
+                self.k_angular * heading_error, self.max_angular
+            )
             command.linear.x = min(
                 self.max_linear, max(0.01, self.k_linear * target_distance)
             )

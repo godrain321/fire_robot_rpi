@@ -51,8 +51,8 @@ class KeyboardCmdVelDemo(Node):
         self.create_timer(0.02, self._poll_keyboard)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
         self.get_logger().info(
-            'Keyboard ready: 1=manual, 2=waypoint select, g=run queue, '
-            'c=clear queue, w/x/a/d/s, q=quit'
+            'Keyboard ready: 1=manual, 2=autonomous, g=run all, '
+            'SPACE=run next waypoint, c=clear, w/x/a/d/s, q=quit'
         )
 
     def _set_speed_parameters(self, parameters):
@@ -104,6 +104,13 @@ class KeyboardCmdVelDemo(Node):
                 return
             self.waypoint_command_publisher.publish(String(data='GO'))
             self.get_logger().info('Requested sequential waypoint driving')
+            return
+        if key == ' ':
+            if self.drive_mode != 2:
+                self.get_logger().warning('Press 2 before stepping waypoints.')
+                return
+            self.waypoint_command_publisher.publish(String(data='STEP'))
+            self.get_logger().info('Requested next waypoint only')
             return
         if key == 'c':
             self.waypoint_command_publisher.publish(String(data='CLEAR'))

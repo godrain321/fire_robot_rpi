@@ -11,8 +11,8 @@ dynamic_obstacle_layer:
     min_range: 0.15
     max_range: 4.0
     obstacle_confirm_count: 3
-    persistent_obstacles: true
-    obstacle_timeout_sec: 10.0
+    persistent_obstacles: false
+    obstacle_timeout_sec: 2.0
     inflation_radius: 0.30
     publish_rate_hz: 5.0
 
@@ -35,7 +35,9 @@ skid_path_follower:
     lookahead_distance: 0.35
     goal_tolerance: 0.12
     yaw_tolerance: 0.25
+    align_goal_yaw: false
     rotate_in_place_threshold: 0.45
+    rotate_exit_threshold: 0.20
     max_linear_speed: 0.06
     max_angular_speed: 0.45
     k_linear: 0.5

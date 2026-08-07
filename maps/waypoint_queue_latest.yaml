@@ -1,0 +1,123 @@
+version: 1
+frame_id: map
+poses:
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 6.115954399108887
+      y: -9.053062438964844
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: -0.2029885129011734
+      w: 0.9791811189101688
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 6.799873352050781
+      y: -9.361934661865234
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: -0.8500124677171945
+      w: 0.526762569594049
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 5.399708271026611
+      y: -11.876200675964355
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: -0.8587338267689284
+      w: 0.512421910892569
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 4.6952924728393555
+      y: -13.17548942565918
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: -0.24442621288549618
+      w: 0.9696678949281832
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 5.80153751373291
+      y: -13.85153865814209
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.5182103515529987
+      w: 0.8552531973300758
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 8.354460716247559
+      y: -8.328973770141602
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.5261580481807477
+      w: 0.8503867992476283
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 9.206222534179688
+      y: -6.508079528808594
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.8098445210100673
+      w: 0.5866445702382105
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 8.69487476348877
+      y: -4.189205646514893
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.9734874573981024
+      w: 0.2287403993364046
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 1.6957378387451172
+      y: -0.9988385438919067
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.9733641480217945
+      w: 0.22926455318213906
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: -0.578212320804596
+      y: 0.08694077283143997
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.9693068961224816
+      w: 0.24585390200157628

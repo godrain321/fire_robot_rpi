@@ -34,7 +34,7 @@ def generate_launch_description():
         DeclareLaunchArgument('manual_angular_speed', default_value='0.35'),
         DeclareLaunchArgument('auto_linear_speed', default_value='0.06'),
         DeclareLaunchArgument('auto_angular_speed', default_value='0.45'),
-        DeclareLaunchArgument('use_dynamic_obstacles', default_value='false'),
+        DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
     ]
     localization = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(bringup + '/launch/lidar_amcl_localization.launch.py'),

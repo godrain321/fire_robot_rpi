@@ -8,6 +8,7 @@ from geometry_msgs.msg import PoseArray, PoseStamped
 from nav_msgs.msg import Path
 import rclpy
 from rclpy.node import Node
+from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 import yaml
@@ -147,10 +148,15 @@ class WaypointQueue(Node):
         self.queue_path = self.create_publisher(Path, '/waypoint_queue', qos)
         self.queue_poses = self.create_publisher(PoseArray, '/waypoint_poses', qos)
         self.goal = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        self.step_index = 0
+        self.execution_mode = 'continuous'
         self.status = self.create_publisher(String, '/waypoint_queue_status', 10)
         self.create_subscription(PoseStamped, '/waypoint_click', self._click, 10)
         self.create_subscription(String, '/waypoint_queue_command', self._command, 10)
         self.create_subscription(String, '/follower_state', self._follower, 10)
+        self.markers = self.create_publisher(
+            MarkerArray, '/waypoint_markers', qos
+        )
         self._load_saved_queue(str(self.get_parameter('load_file').value))
         self._publish_queue()
         self._state(
@@ -249,6 +255,8 @@ class WaypointQueue(Node):
             self.queue.clear()
             self.current_index = None
             self.waiting_for_departure = False
+            self.step_index = 0
+            self.execution_mode = 'continuous'
             self._save_queue()
             self._publish_queue()
             self._state('CLEARED')
@@ -256,7 +264,21 @@ class WaypointQueue(Node):
             if not self.queue:
                 self._state('EMPTY:CANNOT_GO')
                 return
+            self.step_index = 0
+            self.execution_mode = 'continuous'
             self.current_index = 0
+            self._send_current_goal()
+        elif command == 'STEP':
+            if not self.queue:
+                self._state('EMPTY:CANNOT_STEP')
+                return
+            if self.current_index is not None:
+                self._state(f'BUSY:{self.current_index + 1}/{len(self.queue)}')
+                return
+            if self.step_index >= len(self.queue):
+                self.step_index = 0
+            self.execution_mode = 'step'
+            self.current_index = self.step_index
             self._send_current_goal()
 
     def _send_current_goal(self):
@@ -264,20 +286,37 @@ class WaypointQueue(Node):
         goal.header.stamp = self.get_clock().now().to_msg()
         self.goal.publish(goal)
         self.waiting_for_departure = True
+        self._publish_queue()
         self._state(f'RUNNING:{self.current_index + 1}/{len(self.queue)}')
 
     def _follower(self, message):
         if self.current_index is None:
             return
-        # Ignore a retained GOAL_REACHED from the preceding waypoint until the
-        # follower has actually accepted/departed toward the newly published one.
-        if message.data not in ('GOAL_REACHED', 'WAITING_FOR_PATH'):
+        if message.data in (
+            'PATH_ACCEPTED', 'FOLLOWING_PATH', 'ROTATING_IN_PLACE',
+            'ALIGNING_GOAL_YAW',
+        ):
             self.waiting_for_departure = False
         if message.data != 'GOAL_REACHED' or self.waiting_for_departure:
+            return
+        completed = self.current_index
+        if self.execution_mode == 'step':
+            self.step_index = completed + 1
+            self.current_index = None
+            self._publish_queue()
+            if self.step_index >= len(self.queue):
+                self._state('STEP_MISSION_COMPLETE')
+            else:
+                self._state(
+                    f'STEP_COMPLETE:{completed + 1}/{len(self.queue)}:'
+                    f'SPACE_FOR:{self.step_index + 1}'
+                )
             return
         self.current_index += 1
         if self.current_index >= len(self.queue):
             self.current_index = None
+            self.step_index = len(self.queue)
+            self._publish_queue()
             self._state('MISSION_COMPLETE')
             return
         self._send_current_goal()
@@ -292,9 +331,39 @@ class WaypointQueue(Node):
         poses.header = path.header
         poses.poses = [waypoint.pose for waypoint in self.queue]
         self.queue_poses.publish(poses)
+        marker_array = MarkerArray()
+        clear = Marker()
+        clear.header = path.header
+        clear.action = Marker.DELETEALL
+        marker_array.markers.append(clear)
+        for index, waypoint in enumerate(self.queue):
+            marker = Marker()
+            marker.header = path.header
+            marker.ns = 'waypoint_numbers'
+            marker.id = index
+            marker.type = Marker.TEXT_VIEW_FACING
+            marker.action = Marker.ADD
+            marker.pose.position.x = waypoint.pose.position.x
+            marker.pose.position.y = waypoint.pose.position.y
+            marker.pose.position.z = 0.45
+            marker.pose.orientation.w = 1.0
+            marker.scale.z = 0.35
+            if index == self.current_index:
+                marker.text = f'ACTIVE {index + 1}/{len(self.queue)}'
+                marker.color.r, marker.color.g, marker.color.b = 0.1, 1.0, 0.1
+            elif index < self.step_index:
+                marker.text = f'DONE {index + 1}'
+                marker.color.r = marker.color.g = marker.color.b = 0.5
+            else:
+                marker.text = f'WP {index + 1}'
+                marker.color.r, marker.color.g, marker.color.b = 1.0, 0.85, 0.0
+            marker.color.a = 1.0
+            marker_array.markers.append(marker)
+        self.markers.publish(marker_array)
 
     def _state(self, state):
         self.status.publish(String(data=state))
+        self.get_logger().info(state)
 
 
 def main(args=None):

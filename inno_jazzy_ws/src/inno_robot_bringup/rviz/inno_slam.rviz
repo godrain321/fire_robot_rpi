@@ -117,6 +117,36 @@ Visualization Manager:
       Shape: Arrow (Flat)
       Color: 255; 220; 0
       Alpha: 1
+    - Class: rviz_default_plugins/Map
+      Name: Live LiDAR Planning Grid
+      Enabled: true
+      Topic:
+        Value: /planning_grid
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+      Color Scheme: costmap
+      Alpha: 0.30
+      Draw Behind: false
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Dynamic LiDAR Obstacles (Red)
+      Enabled: true
+      Topic:
+        Value: /dynamic_obstacle_markers
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Waypoint Numbers and Active Target
+      Enabled: true
+      Topic:
+        Value: /waypoint_markers
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
   Enabled: true
   Name: root
   Tools:
