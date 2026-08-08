@@ -8,6 +8,8 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 import yaml
 
+from .waypoint_file import WaypointFileError, validated_pose_values
+
 
 class WaypointQueue(Node):
     def __init__(self):
@@ -46,22 +48,22 @@ class WaypointQueue(Node):
                 document = next(
                     (item for item in yaml.safe_load_all(stream) if item), {}
                 )
-            for entry in document.get('poses', []):
-                source = entry.get('pose', {})
-                position = source.get('position', {})
-                orientation = source.get('orientation', {})
+            values = validated_pose_values(document, self.map_frame)
+            restored = []
+            for x, y, z, qx, qy, qz, qw in values:
                 pose = PoseStamped()
                 pose.header.frame_id = self.map_frame
-                pose.pose.position.x = float(position.get('x', 0.0))
-                pose.pose.position.y = float(position.get('y', 0.0))
-                pose.pose.position.z = float(position.get('z', 0.0))
-                pose.pose.orientation.x = float(orientation.get('x', 0.0))
-                pose.pose.orientation.y = float(orientation.get('y', 0.0))
-                pose.pose.orientation.z = float(orientation.get('z', 0.0))
-                pose.pose.orientation.w = float(orientation.get('w', 1.0))
-                self.queue.append(pose)
+                pose.pose.position.x = x
+                pose.pose.position.y = y
+                pose.pose.position.z = z
+                pose.pose.orientation.x = qx
+                pose.pose.orientation.y = qy
+                pose.pose.orientation.z = qz
+                pose.pose.orientation.w = qw
+                restored.append(pose)
+            self.queue.extend(restored)
             self.get_logger().info(f'Restored {len(self.queue)} waypoints from {filename}')
-        except (OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+        except (OSError, TypeError, ValueError, WaypointFileError, yaml.YAMLError) as exc:
             self.get_logger().error(f'Cannot restore waypoint file {filename}: {exc}')
 
     def _click(self, message):

@@ -1,0 +1,18 @@
+format_version: 1
+coordinate_transform:
+  source_frame: factory_v3_world_xy_m
+  target_frame: map
+  # Rigid transform fitted from EXIT1/EXIT2/EXIT3/INIT pairs in
+  # fire_robot/simulator/factory_v3/config/semantic_points.yaml.
+  translation_x_m: 13.00189199
+  translation_y_m: -29.41813371
+  rotation_deg: 60.29982582450894
+  flip_x: false
+  flip_y: false
+  maximum_control_point_error_m: 0.001
+
+waypoint_processing:
+  minimum_spacing_m: 0.30
+  direction_change_deg: 8.0
+  allow_unknown_cells: false
+  validate_segments: true
