@@ -1,0 +1,60 @@
+# ROS 2 map-frame waypoint queue converted from the factory_v3 initial A* path.
+# Source factory_v3 world path (metres):
+#   (13.0, 16.0) -> (11.0, 16.2) -> (9.4, 17.4)
+# FDS-v3 -> ROS map rigid transform, validated with EXIT1/2/3 and INIT:
+#   x_ros =  0.49546131 * x_fds - 0.86863001 * y_fds + 13.00189199
+#   y_ros =  0.86863001 * x_fds + 0.49546131 * y_fds - 29.41813371
+# Orientations point toward the next waypoint; the final yaw is EXIT1's
+# registered ROS map orientation. Stamps are zero because WaypointQueue stamps
+# each goal immediately before publishing it.
+header:
+  stamp:
+    sec: 0
+    nanosec: 0
+  frame_id: map
+poses:
+- header:
+    stamp:
+      sec: 0
+      nanosec: 0
+    frame_id: map
+  pose:
+    position:
+      x: 5.54480886
+      y: -10.19856262
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: -0.8886603246053786
+      w: 0.45856605573489984
+- header:
+    stamp:
+      sec: 0
+      nanosec: 0
+    frame_id: map
+  pose:
+    position:
+      x: 4.380160238
+      y: -11.836730378
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: -0.9791698147344778
+      w: 0.20304303463268147
+- header:
+    stamp:
+      sec: 0
+      nanosec: 0
+    frame_id: map
+  pose:
+    position:
+      x: 2.54506613
+      y: -12.631984822
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.9729095679052026
+      w: 0.23118601315501783
