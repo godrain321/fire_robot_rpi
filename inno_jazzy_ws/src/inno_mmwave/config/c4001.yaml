@@ -1,0 +1,65 @@
+c4001_node:
+  ros__parameters:
+    # Raspberry Pi physical pins 8/10 are UART0 TX/RX at /dev/ttyAMA0.
+    serial_port: /dev/ttyAMA0
+    baud_rate: 9600
+    serial_timeout_sec: 0.0
+    write_timeout_sec: 0.5
+    serial_exclusive: true
+
+    # SEN0610 is configured for distance/speed mode and stationary-person
+    # micro-motion detection.  Set configure_on_start false only when these
+    # settings are already stored in the sensor and must not be rewritten.
+    configure_on_start: true
+    send_start_on_connect: true
+    micro_motion_enabled: true
+    min_range_m: 1.2
+    max_range_m: 12.0
+    detection_threshold: 10
+
+    sensor_warmup_sec: 1.0
+    command_interval_sec: 0.15
+    stop_settle_sec: 1.0
+    save_settle_sec: 0.8
+    poll_rate_hz: 50.0
+    stale_timeout_sec: 1.5
+    reconnect_interval_sec: 2.0
+    read_chunk_size: 512
+    max_frame_bytes: 256
+    publish_heartbeat_sec: 0.5
+
+    # Single-target robust filtering. Raw UART values remain available under
+    # /mmwave/raw/*; legacy /mmwave/{presence,distance_m,speed_mps} names use
+    # these stabilized results.
+    filter_min_distance_m: 1.2
+    filter_max_distance_m: 12.0
+    filter_acquire_radius_m: 0.30
+    filter_acquire_min_hits: 5
+    filter_acquire_min_support_ratio: 0.55
+    filter_acquire_confirm_sec: 0.50
+    filter_relock_confirm_sec: 2.00
+    filter_candidate_window_sec: 3.0
+    filter_presence_hold_sec: 3.0
+    filter_distance_gate_m: 0.25
+    filter_max_target_speed_mps: 2.2
+    filter_gate_horizon_sec: 0.35
+    filter_hampel_window_sec: 1.0
+    filter_hampel_min_samples: 5
+    filter_hampel_sigma: 3.0
+    filter_hampel_floor_m: 0.08
+    filter_median_window_sec: 0.45
+    filter_distance_ema_tau_sec: 0.45
+    filter_velocity_window_sec: 1.5
+    filter_velocity_pair_min_dt_sec: 0.15
+    filter_velocity_min_span_sec: 0.60
+    filter_motion_start_mps: 0.25
+    filter_motion_stop_mps: 0.10
+    filter_motion_confirm_sec: 0.20
+    filter_motion_release_sec: 0.60
+    filter_doppler_window_sec: 0.75
+    filter_doppler_min_mps: 0.18
+    filter_doppler_max_mps: 6.00
+    filter_doppler_min_samples: 4
+    filter_doppler_min_active_ratio: 0.60
+    filter_doppler_min_span_sec: 0.25
+    filter_motion_activity_reference_mps: 1.50

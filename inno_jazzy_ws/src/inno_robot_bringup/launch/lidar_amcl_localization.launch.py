@@ -35,6 +35,7 @@ def generate_launch_description():
         package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node',
         name='rf2o_laser_odometry', output='screen',
         parameters=[share + '/config/rf2o.yaml'],
+        arguments=['--ros-args', '--log-level', 'warn'],
     )
     map_server = Node(
         package='nav2_map_server', executable='map_server', name='map_server',

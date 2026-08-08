@@ -355,7 +355,7 @@ class AstarReplanner(Node):
         self._last_plan = time.monotonic()
         self._publish_path(simplified)
         self._state('PATH_READY')
-        self.get_logger().info(
+        self.get_logger().debug(
             f'A* {reason}: raw={len(path)} cells, simplified={len(simplified)} poses'
         )
 

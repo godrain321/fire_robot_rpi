@@ -15,9 +15,13 @@ def generate_launch_description():
     bringup = get_package_share_directory('inno_robot_bringup')
     drive = get_package_share_directory('inno_drive_bridge')
     autonav = get_package_share_directory('inno_autonav')
+    mmwave = get_package_share_directory('inno_mmwave')
     args = [
         DeclareLaunchArgument('esp32_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB1'),
+        DeclareLaunchArgument('mmwave_port', default_value='/dev/ttyAMA0'),
+        DeclareLaunchArgument('mmwave_configure_sensor', default_value='true'),
+        DeclareLaunchArgument('assist_check_sec', default_value='10.0'),
         DeclareLaunchArgument(
             'map_yaml',
             default_value=project_path('maps', 'inno_map_raw.yaml'),
@@ -41,6 +45,18 @@ def generate_launch_description():
         launch_arguments={
             'serial_port': L('lidar_port'), 'map_yaml': L('map_yaml'),
         }.items(),
+    )
+    mmwave_bringup = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(mmwave + '/launch/mmwave_bringup.launch.py'),
+        launch_arguments={
+            'serial_port': L('mmwave_port'),
+            'configure_sensor': L('mmwave_configure_sensor'),
+            'assist_check_sec': L('assist_check_sec'),
+        }.items(),
+    )
+    status_console = Node(
+        package='inno_mmwave', executable='mmwave_status_console',
+        name='mmwave_status_console', output='screen', emulate_tty=True,
     )
     navigation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(autonav + '/launch/autonav_demo.launch.py'),
@@ -87,5 +103,8 @@ def generate_launch_description():
         arguments=['-d', bringup + '/rviz/inno_slam.rviz'],
     )
     return LaunchDescription(
-        args + [localization, navigation, keyboard, mux, serial, waypoint_queue, rviz]
+        args + [
+            localization, mmwave_bringup, status_console, navigation, keyboard,
+            mux, serial, waypoint_queue, rviz,
+        ]
     )
