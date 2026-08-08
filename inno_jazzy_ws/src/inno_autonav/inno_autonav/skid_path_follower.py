@@ -20,6 +20,28 @@ def clip(value: float, limit: float) -> float:
     return max(-limit, min(limit, value))
 
 
+def nearest_scan_clearances(
+    scan: LaserScan, front_angle_rad: float
+) -> tuple[float, float]:
+    """Return nearest valid front and all-around ranges."""
+
+    angle = float(scan.angle_min)
+    nearest_front = math.inf
+    nearest_any = math.inf
+    for measured_range in scan.ranges:
+        distance = float(measured_range)
+        if (
+            math.isfinite(distance)
+            and distance >= float(scan.range_min)
+            and distance <= float(scan.range_max)
+        ):
+            nearest_any = min(nearest_any, distance)
+            if abs(normalize_angle(angle)) <= front_angle_rad:
+                nearest_front = min(nearest_front, distance)
+        angle += float(scan.angle_increment)
+    return nearest_front, nearest_any
+
+
 class SkidPathFollower(Node):
     def __init__(self) -> None:
         super().__init__('skid_path_follower')
@@ -40,6 +62,7 @@ class SkidPathFollower(Node):
             'k_angular': 1.2,
             'emergency_stop_distance': 0.28,
             'emergency_front_angle_deg': 35.0,
+            'rotation_clearance_distance': 0.32,
             'control_rate_hz': 10.0,
         }
         for name, value in defaults.items():
@@ -68,12 +91,15 @@ class SkidPathFollower(Node):
         self.front_angle = math.radians(float(
             self.get_parameter('emergency_front_angle_deg').value
         ))
+        self.rotation_clearance_distance = float(
+            self.get_parameter('rotation_clearance_distance').value
+        )
         control_rate = float(self.get_parameter('control_rate_hz').value)
         positive = (
             self.lookahead, self.goal_tolerance, self.yaw_tolerance,
             self.rotate_threshold, self.max_linear, self.max_angular,
             self.k_linear, self.k_angular, self.emergency_distance,
-            self.front_angle, control_rate,
+            self.front_angle, self.rotation_clearance_distance, control_rate,
         )
         if not 0.0 < self.rotate_exit_threshold < self.rotate_threshold:
             raise ValueError(
@@ -89,6 +115,7 @@ class SkidPathFollower(Node):
         self.path: Optional[Path] = None
         self.planner_state = 'WAITING_FOR_PATH'
         self.emergency_stop = False
+        self.rotation_clearance_blocked = False
         self.rotating_in_place = False
         self.rotation_direction = 0.0
         self.publisher = self.create_publisher(Twist, cmd_vel_topic, 10)
@@ -145,20 +172,14 @@ class SkidPathFollower(Node):
             self._publish_stop(message.data)
 
     def _scan_callback(self, scan: LaserScan) -> None:
-        angle = float(scan.angle_min)
-        nearest = math.inf
-        for measured_range in scan.ranges:
-            if abs(normalize_angle(angle)) <= self.front_angle:
-                distance = float(measured_range)
-                if (
-                    math.isfinite(distance)
-                    and distance >= float(scan.range_min)
-                    and distance <= float(scan.range_max)
-                ):
-                    nearest = min(nearest, distance)
-            angle += float(scan.angle_increment)
+        nearest, nearest_any = nearest_scan_clearances(
+            scan, self.front_angle
+        )
         was_stopped = self.emergency_stop
         self.emergency_stop = nearest < self.emergency_distance
+        self.rotation_clearance_blocked = (
+            nearest_any < self.rotation_clearance_distance
+        )
         if self.emergency_stop and not was_stopped:
             self.get_logger().warning(
                 f'EMERGENCY_STOP: front obstacle {nearest:.3f} m'
@@ -217,6 +238,10 @@ class SkidPathFollower(Node):
         elif abs(heading_error) >= self.rotate_threshold:
             self.rotating_in_place = True
             self.rotation_direction = 1.0 if heading_error >= 0.0 else -1.0
+
+        if self.rotating_in_place and self.rotation_clearance_blocked:
+            self._publish_stop('ROTATION_BLOCKED')
+            return
 
         command = Twist()
         if self.rotating_in_place:

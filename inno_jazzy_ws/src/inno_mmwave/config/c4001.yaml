@@ -39,7 +39,7 @@ c4001_node:
     filter_acquire_confirm_sec: 0.50
     filter_relock_confirm_sec: 2.00
     filter_candidate_window_sec: 3.0
-    filter_presence_hold_sec: 3.0
+    filter_presence_hold_sec: 1.2
     filter_distance_gate_m: 0.25
     filter_max_target_speed_mps: 2.2
     filter_gate_horizon_sec: 0.35
@@ -52,14 +52,19 @@ c4001_node:
     filter_velocity_window_sec: 1.5
     filter_velocity_pair_min_dt_sec: 0.15
     filter_velocity_min_span_sec: 0.60
-    filter_motion_start_mps: 0.25
-    filter_motion_stop_mps: 0.10
-    filter_motion_confirm_sec: 0.20
-    filter_motion_release_sec: 0.60
-    filter_doppler_window_sec: 0.75
-    filter_doppler_min_mps: 0.18
-    filter_doppler_max_mps: 6.00
-    filter_doppler_min_samples: 4
-    filter_doppler_min_active_ratio: 0.60
-    filter_doppler_min_span_sec: 0.25
-    filter_motion_activity_reference_mps: 1.50
+    # The SEN0610 velocity specification starts at 0.1 m/s. Repeated
+    # low-speed Doppler reports therefore count as limb/body movement even
+    # when the person's centre distance is stable.
+    filter_motion_start_mps: 0.10
+    filter_motion_stop_mps: 0.05
+    filter_motion_confirm_sec: 0.15
+    filter_motion_release_sec: 0.70
+    filter_doppler_window_sec: 0.70
+    filter_doppler_min_mps: 0.10
+    # Faster reports remain available on /mmwave/raw/speed_mps but are not
+    # credible rescuee motion and cannot establish a person track.
+    filter_doppler_max_mps: 2.20
+    filter_doppler_min_samples: 5
+    filter_doppler_min_active_ratio: 0.50
+    filter_doppler_min_span_sec: 0.30
+    filter_motion_activity_reference_mps: 1.00

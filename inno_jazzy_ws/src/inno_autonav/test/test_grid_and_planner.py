@@ -1,11 +1,18 @@
 from pathlib import Path
+import math
 
 import numpy as np
 from PIL import Image
 import pytest
+from sensor_msgs.msg import LaserScan
 import yaml
 
-from inno_autonav.astar_replanner import astar_search, simplify_path
+from inno_autonav.astar_replanner import (
+    astar_search,
+    footprint_clearance_radius,
+    simplify_path,
+)
+from inno_autonav.skid_path_follower import nearest_scan_clearances
 from inno_autonav.grid_utils import (
     MapGrid,
     grid_to_world,
@@ -57,3 +64,34 @@ def test_unknown_is_occupied_switch():
     data[:, 2] = -1
     assert not astar_search(data, (0, 1), (4, 1), True, False)
     assert astar_search(data, (0, 1), (4, 1), False, False)
+
+
+def test_skid_footprint_clearance_uses_half_diagonal_plus_margin():
+    radius = footprint_clearance_radius(0.39, 0.20, 0.10)
+    assert radius == pytest.approx(0.3192, abs=0.0002)
+
+
+def test_single_scan_point_still_triggers_immediate_safety_ranges():
+    scan = LaserScan()
+    scan.angle_min = 0.0
+    scan.angle_increment = 0.1
+    scan.range_min = 0.05
+    scan.range_max = 12.0
+    scan.ranges = [0.25]
+
+    front, all_around = nearest_scan_clearances(scan, 0.61)
+    assert front == pytest.approx(0.25)
+    assert all_around == pytest.approx(0.25)
+
+
+def test_side_scan_point_blocks_rotation_but_not_front_emergency():
+    scan = LaserScan()
+    scan.angle_min = 1.0
+    scan.angle_increment = 0.1
+    scan.range_min = 0.05
+    scan.range_max = 12.0
+    scan.ranges = [0.25]
+
+    front, all_around = nearest_scan_clearances(scan, 0.61)
+    assert math.isinf(front)
+    assert all_around == pytest.approx(0.25)

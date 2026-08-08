@@ -63,6 +63,14 @@ def generate_launch_description() -> LaunchDescription:
             ),
             Node(
                 package='inno_autonav',
+                executable='victim_fusion',
+                name='victim_fusion',
+                parameters=[config_file],
+                output='screen',
+                condition=IfCondition(use_dynamic_obstacles),
+            ),
+            Node(
+                package='inno_autonav',
                 executable='astar_replanner',
                 name='astar_replanner',
                 parameters=[config_file],

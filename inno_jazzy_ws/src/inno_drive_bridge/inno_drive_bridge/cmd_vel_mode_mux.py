@@ -8,6 +8,21 @@ from rclpy.node import Node
 from std_msgs.msg import Int32, String
 
 
+MODE_LABELS = {
+    1: 'KEYBOARD',
+    2: 'WAYPOINT',
+    3: 'RESCUE WAYPOINT',
+}
+
+
+def command_source_for_mode(mode: int) -> int:
+    """Map operator mode to the physical velocity input channel."""
+
+    if mode not in MODE_LABELS:
+        raise ValueError('drive_mode must be 1, 2, or 3')
+    return 1 if mode == 1 else 2
+
+
 class CmdVelModeMux(Node):
     def __init__(self):
         super().__init__('cmd_vel_mode_mux')
@@ -33,18 +48,19 @@ class CmdVelModeMux(Node):
         self.received[source] = time.monotonic()
 
     def _mode(self, message):
-        if message.data not in (1, 2):
-            self.get_logger().warning('drive_mode must be 1 or 2')
+        if message.data not in MODE_LABELS:
+            self.get_logger().warning('drive_mode must be 1, 2, or 3')
             return
         self.output.publish(Twist())
         self.mode = int(message.data)
-        label = 'KEYBOARD' if self.mode == 1 else 'AUTONOMOUS'
+        label = MODE_LABELS[self.mode]
         self.status.publish(String(data=f'{self.mode}:{label}'))
         self.get_logger().info(f'Drive mode {self.mode} ({label}) selected')
 
     def _publish(self):
-        command = self.commands[self.mode]
-        if time.monotonic() - self.received[self.mode] > self.timeout:
+        source = command_source_for_mode(self.mode)
+        command = self.commands[source]
+        if time.monotonic() - self.received[source] > self.timeout:
             command = Twist()
         self.output.publish(command)
 

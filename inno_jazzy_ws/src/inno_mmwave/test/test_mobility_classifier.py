@@ -14,10 +14,10 @@ from inno_mmwave.mobility_classifier import (
 
 def classifier():
     return MobilityClassifier(MobilityConfig(
-        moving_speed_threshold_mps=0.20,
-        moving_confirm_samples=3,
-        moving_confirm_sec=0.20,
-        moving_hold_sec=1.0,
+        moving_speed_threshold_mps=0.10,
+        moving_confirm_samples=2,
+        moving_confirm_sec=0.08,
+        moving_hold_sec=3.0,
         assist_check_sec=10.0,
         robot_linear_threshold_mps=0.01,
         robot_angular_threshold_rps=0.03,
@@ -43,12 +43,15 @@ def test_new_motion_resets_stillness_timer():
     item.update_sensor_state('ONLINE')
     item.update_target(True, 0.0, 0.0)
     assert item.state(5.0) == STILL_MONITOR
-    item.update_speed(-0.25, 6.0)
-    item.update_speed(-0.26, 6.1)
-    assert item.state(6.1) == STILL_MONITOR
-    item.update_speed(-0.24, 6.2)
-    assert item.state(6.5) == MOVING
-    assert item.still_duration(6.5) == 0.0
+    item.update_speed(-0.10, 6.0)
+    assert item.state(6.0) == STILL_MONITOR
+    item.update_speed(-0.11, 6.1)
+    assert item.state(6.1) == MOVING
+    assert item.still_duration(6.1) == 0.0
+    # The state remains visible after an intermittent radar burst so an
+    # operator looking from the person back to the display can see it.
+    assert item.state(8.9) == MOVING
+    assert item.state(9.2) == STILL_MONITOR
 
 
 def test_isolated_speed_spikes_never_claim_motion_or_reset_assist_timer():
@@ -86,9 +89,11 @@ def test_non_finite_speed_is_not_motion_evidence():
     item.update_presence(True, 0.0)
     item.update_speed(0.5, 1.0)
     item.update_speed(float('nan'), 1.1)
+    assert item.state(1.1) == STILL_MONITOR
     item.update_speed(0.5, 1.2)
+    assert item.state(1.2) == STILL_MONITOR
     item.update_speed(0.5, 1.3)
-    assert item.state(1.3) == STILL_MONITOR
+    assert item.state(1.3) == MOVING
 
 
 def test_robot_motion_suspends_person_mobility_inference_until_settled():

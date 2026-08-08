@@ -67,4 +67,7 @@ def test_step_mode_stops_after_one_waypoint():
 
     assert queue.current_index is None
     assert queue.step_index == 1
-    assert states == ['STEP_COMPLETE:1/2:SPACE_FOR:2']
+    assert states == [
+        'REACHED:1/2',
+        'STEP_COMPLETE:1/2:SPACE_FOR:2',
+    ]

@@ -23,10 +23,16 @@ class MobilityConfig:
     # several samples spanning time. C4001 occasionally emits a large single
     # speed sample for a stationary target; one sample must never reset the
     # stillness/assistance timer.
-    moving_speed_threshold_mps: float = 0.20
-    moving_confirm_samples: int = 3
-    moving_confirm_sec: float = 0.20
-    moving_hold_sec: float = 1.0
+    # The signal filter has already required a repeated Doppler/range-motion
+    # pattern. This second stage only debounces delivery between ROS topics;
+    # it must not discard valid SEN0610 velocities near the official 0.1 m/s
+    # measurement floor.
+    moving_speed_threshold_mps: float = 0.10
+    moving_confirm_samples: int = 2
+    moving_confirm_sec: float = 0.08
+    # Keep MOVING visible long enough for an operator to notice intermittent
+    # C4001 reports; new evidence refreshes this display hold.
+    moving_hold_sec: float = 3.0
     assist_check_sec: float = 10.0
     robot_linear_threshold_mps: float = 0.01
     robot_angular_threshold_rps: float = 0.03

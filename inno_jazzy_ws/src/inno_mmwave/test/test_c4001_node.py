@@ -83,7 +83,7 @@ def acquire_pipeline_target(pipeline):
     distances = (1.99, 2.01, 2.0, 2.02, 1.98, 2.01, 2.0)
     for index, distance in enumerate(distances):
         result = pipeline.handle_measurement(
-            target_measurement(distance, speed=4.0, energy=100 + index),
+            target_measurement(distance, speed=0.0, energy=100 + index),
             index * 0.1,
         )
     assert result is not None and result.filtered.presence
@@ -93,7 +93,7 @@ def acquire_pipeline_target(pipeline):
 def test_pipeline_preserves_raw_frame_but_rejects_distance_jump():
     pipeline = default_pipeline()
     acquired = acquire_pipeline_target(pipeline)
-    assert acquired.raw == (True, 2.0, 4.0, 106)
+    assert acquired.raw == (True, 2.0, 0.0, 106)
     assert acquired.filtered.tracking_state == TRACKING
     assert acquired.filtered.speed_mps == 0.0
 
@@ -197,4 +197,4 @@ def test_all_signal_filter_defaults_are_exposed_as_prefixed_parameters():
     config = signal_filter_config_from_parameters(FILTER_PARAMETER_DEFAULTS)
     assert config.min_distance_m == 1.2
     assert config.max_distance_m == 12.0
-    assert config.motion_start_mps == 0.25
+    assert config.motion_start_mps == 0.10

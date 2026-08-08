@@ -14,10 +14,10 @@ class MobilityNode(Node):
     def __init__(self) -> None:
         super().__init__('mmwave_mobility')
         defaults = {
-            'moving_speed_threshold_mps': 0.20,
-            'moving_confirm_samples': 3,
-            'moving_confirm_sec': 0.20,
-            'moving_hold_sec': 1.0,
+            'moving_speed_threshold_mps': 0.10,
+            'moving_confirm_samples': 2,
+            'moving_confirm_sec': 0.08,
+            'moving_hold_sec': 3.0,
             'assist_check_sec': 10.0,
             'robot_linear_threshold_mps': 0.01,
             'robot_angular_threshold_rps': 0.03,

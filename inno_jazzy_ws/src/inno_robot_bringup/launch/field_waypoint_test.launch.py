@@ -34,10 +34,9 @@ def generate_launch_description():
             'waypoint_file',
             default_value=project_path('maps', 'waypoint_queue_latest.yaml'),
         ),
-        DeclareLaunchArgument('manual_linear_speed', default_value='0.08'),
-        DeclareLaunchArgument('manual_angular_speed', default_value='0.35'),
-        DeclareLaunchArgument('auto_linear_speed', default_value='0.06'),
-        DeclareLaunchArgument('auto_angular_speed', default_value='0.45'),
+        # One speed pair applies identically to MODE 1, MODE 2, and MODE 3.
+        DeclareLaunchArgument('drive_speed', default_value='0.06'),
+        DeclareLaunchArgument('turn_speed', default_value='0.35'),
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
     ]
     localization = IncludeLaunchDescription(
@@ -63,8 +62,8 @@ def generate_launch_description():
         launch_arguments={
             'use_serial': 'false', 'use_wheel_odom_tf': 'false',
             'map_yaml': L('planning_map_yaml'),
-            'max_linear_speed': L('auto_linear_speed'),
-            'max_angular_speed': L('auto_angular_speed'),
+            'max_linear_speed': L('drive_speed'),
+            'max_angular_speed': L('turn_speed'),
             'use_dynamic_obstacles': L('use_dynamic_obstacles'),
         }.items(),
     )
@@ -75,10 +74,10 @@ def generate_launch_description():
             drive + '/config/drive_params.yaml',
             {
                 'linear_speed': ParameterValue(
-                    L('manual_linear_speed'), value_type=float
+                    L('drive_speed'), value_type=float
                 ),
                 'angular_speed': ParameterValue(
-                    L('manual_angular_speed'), value_type=float
+                    L('turn_speed'), value_type=float
                 ),
             },
         ],
@@ -98,6 +97,16 @@ def generate_launch_description():
             'save_file': L('waypoint_file'),
         }],
     )
+    robot_heading = Node(
+        package='inno_robot_bringup', executable='tf_heading_marker',
+        name='tf_heading_marker', output='screen',
+        parameters=[{
+            'fixed_frame': 'map',
+            'base_frame': 'base_link',
+            'arrow_length_m': 0.55,
+            'arrow_width_m': 0.12,
+        }],
+    )
     rviz = Node(
         package='rviz2', executable='rviz2', name='rviz2', output='screen',
         arguments=['-d', bringup + '/rviz/inno_slam.rviz'],
@@ -105,6 +114,6 @@ def generate_launch_description():
     return LaunchDescription(
         args + [
             localization, mmwave_bringup, status_console, navigation, keyboard,
-            mux, serial, waypoint_queue, rviz,
+            mux, serial, waypoint_queue, robot_heading, rviz,
         ]
     )

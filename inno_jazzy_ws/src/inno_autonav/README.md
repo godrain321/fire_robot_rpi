@@ -38,7 +38,7 @@ map ─▶ odom ─▶ base_link ─▶ laser
 ## 노드
 
 - `planning_grid_publisher`: `inno_map_nav.yaml`을 `/planning_grid_static`으로 발행
-- `dynamic_obstacle_layer`: static-free 공간의 새 scan endpoint를 확인·팽창하여 persistent obstacle로 저장
+- `dynamic_obstacle_layer`: 벽에서 떨어진 scan을 군집화하고 5점 이상을 3회 연속 확인해 큰 동적장애물로 발행
 - `astar_replanner`: static/dynamic grid를 합치고 현재 TF pose에서 goal까지 A* 수행
 - `skid_path_follower`: 큰 heading error에서는 제자리 회전, 작으면 저속 전진 보정
 - `mission_commander`: 문자열 mission을 semantic `/goal_pose`로 변환
@@ -242,20 +242,22 @@ ros2 launch inno_autonav autonav_demo.launch.py use_serial:=true serial_port:=/d
 1. `exit1 → exit2` goal을 보낸다.
 2. 로봇이 기존 `/planned_path`로 이동한다.
 3. 원래 free 공간의 경로 중간에 박스나 설비 모형을 놓는다.
-4. LiDAR endpoint가 static-free cell에서 3회 확인된다.
+4. 벽 제외 영역에서 반경 0.18m 안에 5점 이상인 군집이 3스캔 연속 확인된다.
 5. `/dynamic_obstacle_grid`와 `/dynamic_obstacle_markers`에 표시된다.
 6. `/planning_grid`가 갱신되고 A*가 재계획한다.
 7. follower가 새 경로를 따라 `/cmd_vel`을 변경한다.
 8. serial 사용 시 ESP32가 좌우 모터를 구동한다.
 
-기본값은 붕괴 설비 시나리오에 맞춘 persistent obstacle이다. 센서에서 사라져도
-자동 삭제되지 않는다. 명시적으로 지우려면:
+기본값은 `persistent_obstacles: false`이며 마지막 확인 후 1.2초 동안 유지된다.
+명시적으로 즉시 지우려면:
 
 ```bash
 ros2 service call /clear_dynamic_obstacles std_srvs/srv/Trigger "{}"
 ```
 
-`persistent_obstacles: false`로 바꾸면 `obstacle_timeout_sec` 이후 제거된다.
+차체는 0.39m x 0.20m로 설정하며, 스키드 제자리 회전용 반대각선 절반과
+0.10m 여유를 합친 약 0.319m를 static/dynamic/요구조자에 한 번만 팽창한다.
+mmWave로 확정된 1~3점 요구조자는 일반 5점 기준과 별도로 같은 안전영역에 포함한다.
 
 ## 성공 기준
 
@@ -274,6 +276,8 @@ ros2 service call /clear_dynamic_obstacles std_srvs/srv/Trigger "{}"
   않는다. serial port 중복 open과 `/cmd_vel` 충돌이 발생한다.
 - 실제 주행 전에 `use_serial:=false`로 경로와 `/cmd_vel`을 검증한다.
 - 모터 연결 첫 시험은 바퀴를 공중에 띄우고 ESP32 ACK와 STOP을 확인한다.
+- 일반 회피는 5점 이상이지만 0.28m 전방 비상정지는 점 개수와 무관하다.
+- 제자리 회전 중에는 전 방향 0.32m 이내 scan이 있으면 `ROTATION_BLOCKED`로 정지한다.
 - emergency stop 거리 `0.28m`를 너무 작게 설정하지 않는다. 실제 제동거리와 LiDAR
   높이 0.35m에서 보이지 않는 낮은 장애물을 고려한다.
 - `odom → base_link` TF 발행자는 딱 하나여야 한다. wheel odom, RF2O, EKF가 동시에

@@ -25,6 +25,7 @@ setup(
     entry_points={"console_scripts": [
         "odom_to_path = inno_robot_bringup.odom_to_path_node:main",
         "tf_to_path = inno_robot_bringup.tf_to_path_node:main",
+        "tf_heading_marker = inno_robot_bringup.tf_heading_marker:main",
         "amcl_pose_tf_bridge = inno_robot_bringup.amcl_pose_tf_bridge:main",
         "lifecycle_autostart = inno_robot_bringup.lifecycle_autostart:main",
         "slam_keyboard_runner = inno_robot_bringup.slam_keyboard_runner:main",

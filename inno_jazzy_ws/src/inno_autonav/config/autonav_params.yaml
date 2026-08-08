@@ -10,19 +10,61 @@ dynamic_obstacle_layer:
     base_frame: base_link
     min_range: 0.15
     max_range: 4.0
+    # MODE 3: both avoidance and rescuee fusion only use 0..4m scan rays.
+    observation_max_range: 4.0
     obstacle_confirm_count: 3
+    min_cluster_points: 5
+    cluster_radius_m: 0.18
+    cluster_track_radius_m: 0.35
+    cluster_max_scan_gap_sec: 0.35
     persistent_obstacles: false
-    obstacle_timeout_sec: 2.0
-    inflation_radius: 0.30
+    obstacle_timeout_sec: 1.2
+    # A* applies the skid footprint radius once after grid composition.
+    inflation_radius: 0.0
+    marker_diameter_m: 0.60
+    # Ignore scan endpoints on/near saved SLAM walls and unknown boundaries.
+    wall_exclusion_radius: 0.25
     publish_rate_hz: 5.0
+
+victim_fusion:
+  ros__parameters:
+    fixed_frame: map
+    base_frame: base_link
+    mmwave_stale_timeout_sec: 1.5
+    max_match_distance_m: 4.0
+    # C4001 is mounted facing the robot's +X/forward direction.
+    sensor_yaw_offset_deg: 0.0
+    sensor_horizontal_fov_deg: 100.0
+    cluster_radius_m: 0.22
+    max_cluster_points: 3
+    victim_follow_radius_m: 0.65
+    victim_follow_ambiguity_margin_m: 0.15
+    victim_history_spacing_m: 0.10
+    distance_tolerance_m: 0.80
+    relative_distance_tolerance: 0.25
+    maximum_distance_tolerance_m: 1.50
+    ambiguity_margin_m: 0.35
+    confirmation_hits: 3
+    confirmation_sec: 0.50
+    evidence_timeout_sec: 1.50
+    track_radius_m: 0.35
+    victim_merge_radius_m: 0.55
+    red_suppression_radius_m: 0.50
+    victim_marker_diameter_m: 0.75
+    publish_rate_hz: 2.0
 
 astar_replanner:
   ros__parameters:
     map_frame: map
     base_frame: base_link
     unknown_is_occupied: true
-    replan_rate_hz: 1.0
-    path_block_check_radius: 0.20
+    replan_rate_hz: 2.0
+    # 0.0 selects 0.5*hypot(length,width)+margin = 0.319m.
+    path_block_check_radius: 0.0
+    robot_length_m: 0.39
+    robot_width_m: 0.20
+    safety_margin_m: 0.10
+    dynamic_replan_stop_sec: 0.35
     start_clearance_radius: 0.18
     allow_diagonal: true
 
@@ -44,6 +86,7 @@ skid_path_follower:
     k_angular: 1.2
     emergency_stop_distance: 0.28
     emergency_front_angle_deg: 35.0
+    rotation_clearance_distance: 0.32
     control_rate_hz: 10.0
 
 mission_commander:

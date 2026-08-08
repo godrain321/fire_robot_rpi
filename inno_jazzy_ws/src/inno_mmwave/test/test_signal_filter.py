@@ -42,7 +42,7 @@ def test_alternating_two_and_ten_metre_returns_lock_to_one_target():
         distance = 2.0 + (0.02 if index % 4 == 0 else 0.0)
         if index % 3 == 1:
             distance = 10.0
-        outputs.append(feed(item, index * 0.1, distance, raw_speed=7.5))
+        outputs.append(feed(item, index * 0.1, distance, raw_speed=0.0))
 
     present = [sample for sample in outputs if sample.presence]
     assert present
@@ -51,22 +51,33 @@ def test_alternating_two_and_ten_metre_returns_lock_to_one_target():
     assert present[-1].speed_mps == 0.0
 
 
-def test_stationary_range_ignores_implausibly_large_raw_doppler_speed():
+def test_implausibly_fast_doppler_cannot_acquire_a_person_track():
     item = SingleTargetSignalFilter()
-    output = None
+    outputs = []
     for index in range(61):
         jitter = (0.015, -0.010, 0.005, -0.005)[index % 4]
-        raw_speed = 7.8 if index % 2 else -8.2
-        output = feed(item, index * 0.1, 3.0 + jitter, raw_speed)
+        raw_speed = 3.8 if index % 2 else -3.8
+        outputs.append(feed(item, index * 0.1, 3.0 + jitter, raw_speed))
 
-    assert output is not None
-    assert output.tracking_state == TRACKING
-    assert output.presence
-    assert output.distance_m == pytest.approx(3.0, abs=0.03)
-    assert output.speed_mps == 0.0
+    assert not any(output.presence for output in outputs)
+    assert outputs[-1].tracking_state == NO_TARGET
+    assert outputs[-1].reason == 'candidate_speed_gate'
 
 
-@pytest.mark.parametrize('amplitude', [0.75, 3.8])
+def test_locked_person_ignores_implausibly_fast_doppler_spikes():
+    item = SingleTargetSignalFilter()
+    acquire(item, centre=3.0)
+    outputs = [
+        feed(item, 0.7 + index * 0.1, 3.0, raw_speed=3.8)
+        for index in range(12)
+    ]
+
+    assert all(output.presence for output in outputs)
+    assert all(output.speed_mps == 0.0 for output in outputs)
+    assert outputs[-1].tracking_state == TRACKING
+
+
+@pytest.mark.parametrize('amplitude', [0.10, 0.12, 0.75])
 def test_repeated_plausible_doppler_detects_hand_motion_at_stable_range(amplitude):
     item = SingleTargetSignalFilter()
     acquire(item, centre=2.0)
@@ -79,8 +90,28 @@ def test_repeated_plausible_doppler_detects_hand_motion_at_stable_range(amplitud
         outputs.append(feed(item, now, distance, raw_speed=raw_speed))
 
     assert any(abs(sample.speed_mps) > 0.0 for sample in outputs)
-    assert max(sample.activity_percent for sample in outputs) >= 40.0
+    assert max(sample.activity_percent for sample in outputs) >= min(
+        100.0, amplitude * 100.0
+    )
     assert outputs[-1].tracking_state == TRACKING
+
+
+def test_sub_spec_doppler_jitter_does_not_declare_motion():
+    item = SingleTargetSignalFilter()
+    acquire(item, centre=2.0)
+
+    outputs = [
+        feed(
+            item,
+            0.7 + index * 0.1,
+            2.0 + (0.005 if index % 2 else -0.005),
+            raw_speed=0.09 if index % 2 else -0.09,
+        )
+        for index in range(15)
+    ]
+
+    assert all(sample.speed_mps == 0.0 for sample in outputs)
+    assert all(sample.activity_percent == 0.0 for sample in outputs)
 
 
 def test_isolated_plausible_doppler_spikes_do_not_declare_motion():
@@ -115,7 +146,7 @@ def test_persistent_human_scale_range_change_is_reported_as_motion():
     assert outputs[-1].distance_m == pytest.approx(3.5, abs=0.35)
 
 
-def test_isolated_jump_is_held_but_persistent_new_cluster_relocks():
+def test_isolated_jump_is_held_but_persistent_new_cluster_reacquires():
     item = SingleTargetSignalFilter()
     acquire(item, centre=2.0)
 
@@ -125,14 +156,16 @@ def test_isolated_jump_is_held_but_persistent_new_cluster_relocks():
     assert one_jump.distance_m < 2.2
 
     relocked = None
-    saw_relock = False
+    saw_reacquire = False
     for index in range(1, 26):
         relocked = feed(item, 0.7 + index * 0.1, 9.95 + 0.01 * (index % 2))
-        saw_relock = saw_relock or relocked.reason == 'relocked'
+        saw_reacquire = saw_reacquire or relocked.reason in (
+            'relocked', 'acquired'
+        )
     assert relocked is not None
     assert relocked.presence
     assert relocked.tracking_state == TRACKING
-    assert saw_relock
+    assert saw_reacquire
     assert relocked.distance_m == pytest.approx(9.955, abs=0.05)
 
 
@@ -140,12 +173,12 @@ def test_presence_hold_and_expiry_use_elapsed_time():
     item = SingleTargetSignalFilter()
     acquire(item, centre=4.0)
 
-    held = item.advance(2.0)
+    held = item.advance(1.5)
     assert held.presence
     assert held.tracking_state == HOLDING
     assert held.speed_mps == 0.0
 
-    expired = item.advance(3.7)
+    expired = item.advance(2.0)
     assert not expired.presence
     assert expired.tracking_state == NO_TARGET
     assert expired.distance_m == 0.0

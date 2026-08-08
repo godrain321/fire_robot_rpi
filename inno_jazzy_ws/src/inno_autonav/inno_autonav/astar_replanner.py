@@ -14,6 +14,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
+from visualization_msgs.msg import Marker, MarkerArray
 
 from .grid_utils import (
     MapGrid,
@@ -127,6 +128,16 @@ def message_to_grid(message: OccupancyGrid) -> MapGrid:
     )
 
 
+def footprint_clearance_radius(
+    robot_length_m: float, robot_width_m: float, safety_margin_m: float
+) -> float:
+    """Conservative circular footprint for in-place skid steering."""
+
+    if robot_length_m <= 0.0 or robot_width_m <= 0.0 or safety_margin_m < 0.0:
+        raise ValueError('robot dimensions must be positive and margin nonnegative')
+    return 0.5 * math.hypot(robot_length_m, robot_width_m) + safety_margin_m
+
+
 class AstarReplanner(Node):
     def __init__(self) -> None:
         super().__init__('astar_replanner')
@@ -134,8 +145,12 @@ class AstarReplanner(Node):
             'map_frame': 'map',
             'base_frame': 'base_link',
             'unknown_is_occupied': True,
-            'replan_rate_hz': 1.0,
-            'path_block_check_radius': 0.20,
+            'replan_rate_hz': 2.0,
+            'path_block_check_radius': 0.0,
+            'robot_length_m': 0.39,
+            'robot_width_m': 0.20,
+            'safety_margin_m': 0.10,
+            'dynamic_replan_stop_sec': 0.35,
             'start_clearance_radius': 0.18,
             'allow_diagonal': True,
         }
@@ -147,15 +162,32 @@ class AstarReplanner(Node):
             self.get_parameter('unknown_is_occupied').value
         )
         self.replan_rate = float(self.get_parameter('replan_rate_hz').value)
-        self.clearance_radius = float(
+        configured_clearance = float(
             self.get_parameter('path_block_check_radius').value
+        )
+        self.robot_length = float(self.get_parameter('robot_length_m').value)
+        self.robot_width = float(self.get_parameter('robot_width_m').value)
+        self.safety_margin = float(self.get_parameter('safety_margin_m').value)
+        automatic_clearance = footprint_clearance_radius(
+            self.robot_length, self.robot_width, self.safety_margin
+        )
+        self.clearance_radius = (
+            configured_clearance if configured_clearance > 0.0
+            else automatic_clearance
+        )
+        self.dynamic_replan_stop = float(
+            self.get_parameter('dynamic_replan_stop_sec').value
         )
         self.start_clearance_radius = float(
             self.get_parameter('start_clearance_radius').value
         )
         self.allow_diagonal = bool(self.get_parameter('allow_diagonal').value)
-        if (self.replan_rate <= 0.0 or self.clearance_radius < 0.0
-                or self.start_clearance_radius < 0.0):
+        if (
+            self.replan_rate <= 0.0
+            or configured_clearance < 0.0
+            or self.start_clearance_radius < 0.0
+            or self.dynamic_replan_stop < 0.0
+        ):
             raise ValueError('replan_rate는 양수, radius는 0 이상이어야 합니다.')
 
         qos = QoSProfile(depth=1)
@@ -167,13 +199,19 @@ class AstarReplanner(Node):
         self.combined_grid: Optional[MapGrid] = None
         self.goal: Optional[PoseStamped] = None
         self.current_path_cells: List[Cell] = []
+        self.victim_positions: List[Tuple[float, float]] = []
         self._dirty = False
         self._last_plan = 0.0
+        self._waiting_dynamic_replan = False
+        self._replan_not_before = 0.0
         self.create_subscription(
             OccupancyGrid, '/planning_grid_static', self._static_callback, qos
         )
         self.create_subscription(
             OccupancyGrid, '/dynamic_obstacle_grid', self._dynamic_callback, qos
+        )
+        self.create_subscription(
+            MarkerArray, '/victim_markers', self._victim_callback, qos
         )
         self.create_subscription(PoseStamped, '/goal_pose', self._goal_callback, 10)
         self.grid_publisher = self.create_publisher(
@@ -183,6 +221,11 @@ class AstarReplanner(Node):
         self.state_publisher = self.create_publisher(String, '/planner_state', 10)
         self.create_timer(1.0 / self.replan_rate, self._timer_callback)
         self._state('WAITING_FOR_GRID')
+        self.get_logger().info(
+            f'skid footprint clearance={self.clearance_radius:.3f}m '
+            f'(L={self.robot_length:.3f}, W={self.robot_width:.3f}, '
+            f'margin={self.safety_margin:.3f})'
+        )
 
     @staticmethod
     def _same_geometry(first: MapGrid, second: MapGrid) -> bool:
@@ -214,8 +257,12 @@ class AstarReplanner(Node):
         except ValueError as exc:
             self.get_logger().error(str(exc))
             return
-        if self.static_grid is not None and not self._same_geometry(self.static_grid, grid):
-            self.get_logger().error('dynamic grid geometry가 static grid와 다릅니다.')
+        if self.static_grid is not None and not self._same_geometry(
+            self.static_grid, grid
+        ):
+            self.get_logger().error(
+                'dynamic grid geometry가 static grid와 다릅니다.'
+            )
             return
         changed = self.dynamic_grid is None or not np.array_equal(
             self.dynamic_grid.data, grid.data
@@ -224,6 +271,40 @@ class AstarReplanner(Node):
         if changed:
             self._dirty = True
             self._combine_and_publish()
+            self._stop_if_current_path_blocked()
+
+    def _victim_callback(self, message: MarkerArray) -> None:
+        positions = []
+        for marker in message.markers:
+            if marker.action != Marker.ADD or marker.type != Marker.SPHERE_LIST:
+                continue
+            if marker.header.frame_id and marker.header.frame_id != self.map_frame:
+                continue
+            positions.extend((float(point.x), float(point.y)) for point in marker.points)
+        if positions == self.victim_positions:
+            return
+        self.victim_positions = positions
+        self._dirty = True
+        self._combine_and_publish()
+        self._stop_if_current_path_blocked()
+
+    def _stop_if_current_path_blocked(self) -> None:
+        if (
+            self._waiting_dynamic_replan
+            or self.goal is None
+            or self.combined_grid is None
+            or not self.current_path_cells
+            or not path_cells_collision(
+                self.current_path_cells,
+                self.combined_grid.data,
+                self.unknown_is_occupied,
+            )
+        ):
+            return
+        self._waiting_dynamic_replan = True
+        self._replan_not_before = time.monotonic() + self.dynamic_replan_stop
+        self._state('REPLANNING')
+        self._publish_empty_path()
 
     def _combine_and_publish(self) -> None:
         if self.static_grid is None:
@@ -231,6 +312,10 @@ class AstarReplanner(Node):
         combined = self.static_grid.data.copy()
         if self.dynamic_grid is not None:
             combined[self.dynamic_grid.data >= 100] = 100
+        for x, y in self.victim_positions:
+            grid_x, grid_y = world_to_grid(x, y, self.static_grid)
+            if is_inside_grid(grid_x, grid_y, self.static_grid):
+                combined[grid_y, grid_x] = 100
         planning_source = combined.copy()
         if self.unknown_is_occupied:
             planning_source[planning_source < 0] = 100
@@ -279,13 +364,20 @@ class AstarReplanner(Node):
             )
             return
         self.goal = message
+        self._waiting_dynamic_replan = False
         self._dirty = True
         self._plan('NEW_GOAL')
 
     def _timer_callback(self) -> None:
         if self.goal is None:
             return
-        # Periodic replanning also corrects for robot motion, even without grid changes.
+        if (
+            self._waiting_dynamic_replan
+            and time.monotonic() < self._replan_not_before
+        ):
+            return
+        self._waiting_dynamic_replan = False
+        # Periodic replanning also corrects for robot motion.
         reason = 'GRID_UPDATE' if self._dirty else 'PERIODIC'
         self._plan(reason)
 

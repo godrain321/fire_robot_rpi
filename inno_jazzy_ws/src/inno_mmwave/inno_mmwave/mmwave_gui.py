@@ -86,9 +86,9 @@ MOBILITY_PRESENTATIONS = {
         "#34E3B3",
     ),
     MobilityState.STILL_MONITOR: MobilityPresentation(
-        "미동 없음 · 관찰 중",
-        "STILL / MONITORING",
-        "정차 상태에서 움직임 변화를 관찰하고 있습니다.",
+        "움직임 관찰 중",
+        "MONITORING",
+        "반복 움직임 신호를 확인하고 있습니다.",
         "#F7B955",
     ),
     MobilityState.ASSIST_CHECK: MobilityPresentation(
@@ -844,7 +844,7 @@ class MmWaveDashboard:
         self._text(953, 271, presentation.detail, size=11, fill=self.MUTED, width=265)
 
         self._line(953, 330, 1225, 330, fill=self.GRID, width=1)
-        self._text(953, 349, "미동 지속시간", size=9, fill=self.MUTED)
+        self._text(953, 349, "연속 무동작 시간", size=9, fill=self.MUTED)
         duration_color = presentation.color if snapshot.presence else self.MUTED
         self._text(
             1225,

@@ -49,7 +49,7 @@ Visualization Manager:
       Position Transformer: XYZ
     - Class: rviz_default_plugins/TF
       Name: TF Tree
-      Enabled: true
+      Enabled: false
       Frame Timeout: 15
       Show Arrows: true
       Show Axes: true
@@ -57,7 +57,7 @@ Visualization Manager:
       Marker Scale: 0.3
     - Class: rviz_default_plugins/Odometry
       Name: RF2O Odometry
-      Enabled: true
+      Enabled: false
       Topic:
         Value: /odom_rf2o
         Reliability Policy: Reliable
@@ -66,9 +66,18 @@ Visualization Manager:
         Depth: 5
       Shape:
         Value: Arrow
-      Keep: 100
+      Keep: 1
       Position Tolerance: 0.1
       Angle Tolerance: 0.1
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Robot Heading (TF, Single)
+      Enabled: true
+      Topic:
+        Value: /robot_heading_marker
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 1
     - Class: rviz_default_plugins/Path
       Name: LiDAR Localized Path (Green)
       Enabled: true
@@ -133,7 +142,16 @@ Visualization Manager:
       Name: Dynamic LiDAR Obstacles (Red)
       Enabled: true
       Topic:
-        Value: /dynamic_obstacle_markers
+        Value: /dynamic_obstacle_markers_display
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Inferred Rescuees (Cyan)
+      Enabled: true
+      Topic:
+        Value: /victim_markers
         Reliability Policy: Reliable
         Durability Policy: Transient Local
         History Policy: Keep Last

@@ -300,6 +300,7 @@ class WaypointQueue(Node):
         if message.data != 'GOAL_REACHED' or self.waiting_for_departure:
             return
         completed = self.current_index
+        self._state(f'REACHED:{completed + 1}/{len(self.queue)}')
         if self.execution_mode == 'step':
             self.step_index = completed + 1
             self.current_index = None
@@ -363,7 +364,7 @@ class WaypointQueue(Node):
 
     def _state(self, state):
         self.status.publish(String(data=state))
-        self.get_logger().info(state)
+        self.get_logger().debug(state)
 
 
 def main(args=None):

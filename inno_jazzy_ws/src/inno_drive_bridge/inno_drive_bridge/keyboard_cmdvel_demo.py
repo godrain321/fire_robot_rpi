@@ -51,8 +51,9 @@ class KeyboardCmdVelDemo(Node):
         self.create_timer(0.02, self._poll_keyboard)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
         self.get_logger().info(
-            'Keyboard ready: 1=manual, 2=autonomous, g=run all, '
-            'SPACE=run next waypoint, c=clear, w/x/a/d/s, q=quit'
+            'Keyboard ready: 1=manual, 2=waypoint, 3=rescue waypoint, '
+            'g=run all, SPACE=run next waypoint, c=clear, '
+            'w/x/a/d/s, q=quit'
         )
 
     def _set_speed_parameters(self, parameters):
@@ -88,26 +89,32 @@ class KeyboardCmdVelDemo(Node):
 
         command = Twist()
         label = None
-        if key in ('1', '2'):
+        if key in ('1', '2', '3'):
             self.drive_mode = int(key)
             self.command = command
             self._publish_command()
             self.mode_publisher.publish(Int32(data=self.drive_mode))
-            self.get_logger().info(
-                'MODE 1: KEYBOARD' if self.drive_mode == 1
-                else 'MODE 2: RViz / AUTONOMOUS'
-            )
+            labels = {
+                1: 'MODE 1: KEYBOARD',
+                2: 'MODE 2: WAYPOINT ONLY',
+                3: 'MODE 3: RESCUE + DYNAMIC AVOIDANCE',
+            }
+            self.get_logger().info(labels[self.drive_mode])
             return
         if key == 'g':
-            if self.drive_mode != 2:
-                self.get_logger().warning('Press 2 before starting waypoint driving.')
+            if self.drive_mode not in (2, 3):
+                self.get_logger().warning(
+                    'Press 2 or 3 before starting waypoint driving.'
+                )
                 return
             self.waypoint_command_publisher.publish(String(data='GO'))
             self.get_logger().info('Requested sequential waypoint driving')
             return
         if key == ' ':
-            if self.drive_mode != 2:
-                self.get_logger().warning('Press 2 before stepping waypoints.')
+            if self.drive_mode not in (2, 3):
+                self.get_logger().warning(
+                    'Press 2 or 3 before stepping waypoints.'
+                )
                 return
             self.waypoint_command_publisher.publish(String(data='STEP'))
             self.get_logger().info('Requested next waypoint only')

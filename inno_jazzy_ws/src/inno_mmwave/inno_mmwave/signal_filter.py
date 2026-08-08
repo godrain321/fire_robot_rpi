@@ -45,7 +45,9 @@ class SignalFilterConfig:
     candidate_window_sec: float = 3.00
 
     # Keep a confirmed target through short missing/rejected reports.
-    presence_hold_sec: float = 3.00
+    # Bridge short UART dropouts without showing a departed person for
+    # several seconds. This is separate from the MOVING display hold.
+    presence_hold_sec: float = 1.20
 
     # A frame must be physically reachable from the most recently accepted
     # range.  The gate widens only over a bounded time horizon.
@@ -72,20 +74,24 @@ class SignalFilterConfig:
     velocity_window_sec: float = 1.50
     velocity_pair_min_dt_sec: float = 0.15
     velocity_min_span_sec: float = 0.60
-    motion_start_mps: float = 0.25
-    motion_stop_mps: float = 0.10
-    motion_confirm_sec: float = 0.20
-    motion_release_sec: float = 0.60
+    # SEN0610's specified velocity range begins at 0.1 m/s. Do not place the
+    # software threshold above that lower bound: ordinary arm/hand motion can
+    # leave the tracked body range almost unchanged while still producing a
+    # small, repeated Doppler velocity.
+    motion_start_mps: float = 0.10
+    motion_stop_mps: float = 0.05
+    motion_confirm_sec: float = 0.15
+    motion_release_sec: float = 0.70
 
     # Plausible Doppler activity from an already range-locked target catches
     # hand/arm motion that barely changes the person's centre distance.
-    doppler_window_sec: float = 0.75
-    doppler_min_mps: float = 0.18
-    doppler_max_mps: float = 6.00
-    doppler_min_samples: int = 4
-    doppler_min_active_ratio: float = 0.60
-    doppler_min_span_sec: float = 0.25
-    motion_activity_reference_mps: float = 1.50
+    doppler_window_sec: float = 0.70
+    doppler_min_mps: float = 0.10
+    doppler_max_mps: float = 2.20
+    doppler_min_samples: int = 5
+    doppler_min_active_ratio: float = 0.50
+    doppler_min_span_sec: float = 0.30
+    motion_activity_reference_mps: float = 1.00
 
     def validate(self) -> None:
         if not (0.0 <= self.min_distance_m < self.max_distance_m):
@@ -283,6 +289,15 @@ class SingleTargetSignalFilter:
 
         distance = float(distance_m)
         if not self._tracking:
+            if not self._candidate_speed_is_plausible(speed_mps):
+                _prune(
+                    self._candidates,
+                    now - self.config.candidate_window_sec,
+                )
+                state = ACQUIRING if self._candidates else NO_TARGET
+                return self._empty_snapshot(
+                    now, state, 'candidate_speed_gate'
+                )
             self._add_candidate(now, distance)
             cluster = self._confirmed_cluster(self.config.acquire_confirm_sec)
             if cluster:
@@ -301,6 +316,10 @@ class SingleTargetSignalFilter:
         # A rejected measurement is kept separately as possible evidence of a
         # real replacement target.  It can never drag the existing EMA toward
         # an in-between distance.
+        if not self._candidate_speed_is_plausible(speed_mps):
+            return self._without_accepted_sample(
+                now, reason='candidate_speed_gate', keep_candidates=True
+            )
         self._add_candidate(now, distance)
         assert self._last_accepted_time is not None
         old_track_age = now - self._last_accepted_time
@@ -318,6 +337,18 @@ class SingleTargetSignalFilter:
         """Advance dropout timers when no new UART report was received."""
 
         return self.update(timestamp=timestamp, detected=False)
+
+    def _candidate_speed_is_plausible(
+        self, raw_speed_mps: Optional[float]
+    ) -> bool:
+        # SPEED_MODE can report fast non-human reflections. They must not
+        # establish or replace a person track, although an isolated bad speed
+        # on an already locked range is harmless and ignored by Doppler logic.
+        return (
+            not _finite(raw_speed_mps)
+            or abs(float(raw_speed_mps))
+            <= self.config.max_target_speed_mps
+        )
 
     def _add_candidate(self, now: float, distance: float) -> None:
         self._candidates.append((now, distance))
