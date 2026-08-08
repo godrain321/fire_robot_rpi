@@ -32,6 +32,7 @@ setup(
             'mmwave_mobility = inno_mmwave.mobility_node:main',
             'mmwave_gui = inno_mmwave.mmwave_gui:main',
             'mmwave_status_console = inno_mmwave.status_console:main',
+            'mmwave_presence_led = inno_mmwave.presence_led:main',
         ],
     },
 )
