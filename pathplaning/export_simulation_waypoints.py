@@ -251,29 +251,57 @@ def simplify_path(points: Sequence[Point], grid: OccupancyMap, *,
     points = remove_duplicate_points(points)
     if len(points) < 2:
         raise ExportError("path collapsed below two distinct points")
-    candidates = [points[0]]
+    # First retain only genuine direction changes.  The previous implementation
+    # also emitted a waypoint every ``minimum_spacing_m`` on straight runs,
+    # which turned a visually straight 18 m trajectory into 52 ROS goals.
+    mandatory_indices = [0]
     for index in range(1, len(points) - 1):
         previous, current, following = points[index - 1:index + 2]
         incoming = math.atan2(current[1] - previous[1], current[0] - previous[0])
         outgoing = math.atan2(following[1] - current[1], following[0] - current[0])
         turn = abs(math.degrees(math.atan2(math.sin(outgoing - incoming),
                                           math.cos(outgoing - incoming))))
-        if turn >= direction_change_deg or math.dist(candidates[-1], current) >= minimum_spacing_m:
-            # Removing intermediate samples is only allowed when the resulting
-            # segment is known-free in the ROS occupancy map.
-            if segment_is_safe(candidates[-1], current, grid, allow_unknown):
-                candidates.append(current)
-    if math.dist(candidates[-1], points[-1]) <= 1e-9:
-        candidates[-1] = points[-1]
-    elif segment_is_safe(candidates[-1], points[-1], grid, allow_unknown):
-        candidates.append(points[-1])
-    else:
-        # Fall back to original samples until a safe connection is obtained.
-        for point in points[1:]:
-            if math.dist(candidates[-1], point) > 1e-9:
-                if not segment_is_safe(candidates[-1], point, grid, allow_unknown):
+        if turn >= direction_change_deg:
+            mandatory_indices.append(index)
+    mandatory_indices.append(len(points) - 1)
+
+    candidates = [points[0]]
+    anchor_index = 0
+    for target_index in mandatory_indices[1:]:
+        target = points[target_index]
+        if segment_is_safe(candidates[-1], target, grid, allow_unknown):
+            candidates.append(target)
+            anchor_index = target_index
+            continue
+
+        # A corner-to-corner shortcut is unsafe. Recover the farthest safe
+        # original sample deterministically, then try the target again. This
+        # preserves the source route without restoring fixed-distance goals.
+        while anchor_index < target_index:
+            safe_index = None
+            for candidate_index in range(target_index, anchor_index, -1):
+                if segment_is_safe(
+                    candidates[-1], points[candidate_index], grid, allow_unknown
+                ):
+                    safe_index = candidate_index
+                    break
+            if safe_index is None or safe_index == anchor_index:
+                raise ExportError("original path contains an unsafe map segment")
+            candidate = points[safe_index]
+            # The spacing value now suppresses only redundant near-identical
+            # recovery samples; start, corners and goal remain mandatory.
+            if (
+                safe_index != target_index
+                and math.dist(candidates[-1], candidate) < minimum_spacing_m
+            ):
+                safe_index = anchor_index + 1
+                candidate = points[safe_index]
+                if not segment_is_safe(
+                    candidates[-1], candidate, grid, allow_unknown
+                ):
                     raise ExportError("original path contains an unsafe map segment")
-                candidates.append(point)
+            candidates.append(candidate)
+            anchor_index = safe_index
     if len(candidates) < 2:
         raise ExportError("simplified path has fewer than two points")
     validate_path(candidates, grid, allow_unknown)

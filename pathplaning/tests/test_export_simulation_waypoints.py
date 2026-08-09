@@ -73,6 +73,14 @@ def test_duplicates_removed_but_endpoints_and_corner_remain():
     assert result == ((1.0, 1.0), (3.0, 1.0), (3.0, 3.0))
 
 
+def test_long_straight_path_does_not_emit_spacing_waypoints():
+    grid = free_map()
+    points = tuple((1.0 + index * 0.25, 2.0) for index in range(40))
+    result = simplify_path(points, grid, minimum_spacing_m=0.30,
+                           direction_change_deg=8.0, allow_unknown=False)
+    assert result == (points[0], points[-1])
+
+
 def test_shortcut_through_obstacle_is_not_accepted():
     grid = free_map()
     grid.occupancy[2, 2] = 100

@@ -23,7 +23,9 @@ astar_replanner:
     base_frame: base_link
     unknown_is_occupied: true
     replan_rate_hz: 1.0
-    path_block_check_radius: 0.20
+    # Inflate the ROS planning grid by the physical wall-clearance requirement;
+    # this makes A* turn around wall corners instead of clipping their edge.
+    path_block_check_radius: 0.40
     start_clearance_radius: 0.18
     allow_diagonal: true
 

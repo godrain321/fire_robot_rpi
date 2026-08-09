@@ -34,10 +34,13 @@ python3 pathplaning/export_simulation_waypoints.py \
   --dry-run
 ```
 
-Remove `--dry-run` to write the file.  Existing outputs are protected unless
-`--overwrite` is explicitly supplied.  Unknown map cells are rejected by
-default.  The exporter checks each waypoint and every simplified segment
-against the selected occupancy map.  Dynamic obstacles and fire costs are not
+Remove `--dry-run` to write the file. Existing outputs are protected unless
+`--overwrite` is explicitly supplied. Straight runs retain only their start
+and end, while actual direction changes remain as waypoints. If a direct
+corner-to-corner segment is not known-free, the exporter restores the farthest
+safe original samples instead of cutting through the obstacle. Unknown map
+cells are rejected by default. The exporter checks each waypoint and every
+simplified segment against the selected occupancy map. Dynamic obstacles and fire costs are not
 present in the intermediate trajectory, so the real ROS A* node must still use
 its latest `/planning_grid` before every waypoint is driven.
 
