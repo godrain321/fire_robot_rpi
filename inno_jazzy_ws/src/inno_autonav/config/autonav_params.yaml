@@ -14,6 +14,7 @@ dynamic_obstacle_layer:
     persistent_obstacles: false
     obstacle_timeout_sec: 2.0
     inflation_radius: 0.30
+    wall_exclusion_radius: 0.25
     publish_rate_hz: 5.0
 
 astar_replanner:

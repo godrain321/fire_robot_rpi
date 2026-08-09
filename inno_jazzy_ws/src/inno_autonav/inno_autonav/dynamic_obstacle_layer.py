@@ -42,6 +42,35 @@ def grid_from_message(message: OccupancyGrid) -> MapGrid:
     )
 
 
+def build_wall_exclusion_mask(
+    data: np.ndarray, resolution: float, radius_m: float
+) -> np.ndarray:
+    """Exclude saved walls, unknown cells, and their clearance buffer."""
+
+    source = np.asarray(data, dtype=np.int8)
+    if source.ndim != 2:
+        raise ValueError("static occupancy data must be two-dimensional")
+    if not math.isfinite(resolution) or resolution <= 0.0:
+        raise ValueError("map resolution must be positive")
+    if not math.isfinite(radius_m) or radius_m < 0.0:
+        raise ValueError("wall exclusion radius must not be negative")
+    non_free = np.where(source == 0, 0, 100).astype(np.int8)
+    radius_cells = int(math.ceil(radius_m / resolution))
+    return inflate_occupied_cells(non_free, radius_cells) >= 100
+
+
+def is_clear_dynamic_candidate(
+    grid: MapGrid, exclusion_mask: np.ndarray, grid_x: int, grid_y: int
+) -> bool:
+    """Accept only known-free cells farther than the saved-wall buffer."""
+
+    return (
+        is_inside_grid(grid_x, grid_y, grid)
+        and int(grid.data[grid_y, grid_x]) == 0
+        and not bool(exclusion_mask[grid_y, grid_x])
+    )
+
+
 class DynamicObstacleLayer(Node):
     def __init__(self) -> None:
         super().__init__('dynamic_obstacle_layer')
@@ -55,6 +84,7 @@ class DynamicObstacleLayer(Node):
             'persistent_obstacles': True,
             'obstacle_timeout_sec': 10.0,
             'inflation_radius': 0.30,
+            'wall_exclusion_radius': 0.25,
             'publish_rate_hz': 5.0,
         }
         for name, value in defaults.items():
@@ -67,14 +97,23 @@ class DynamicObstacleLayer(Node):
         self.persistent = bool(self.get_parameter('persistent_obstacles').value)
         self.timeout = float(self.get_parameter('obstacle_timeout_sec').value)
         self.inflation_radius = float(self.get_parameter('inflation_radius').value)
+        self.wall_exclusion_radius = float(
+            self.get_parameter('wall_exclusion_radius').value
+        )
         publish_rate = float(self.get_parameter('publish_rate_hz').value)
         if not (0.0 <= self.min_range < self.max_range):
             raise ValueError('min_range/max_range 값이 올바르지 않습니다.')
-        if self.confirm_count <= 0 or publish_rate <= 0.0 or self.inflation_radius < 0.0:
-            raise ValueError('confirm_count/rate는 양수이고 inflation은 0 이상이어야 합니다.')
+        if (
+            self.confirm_count <= 0
+            or publish_rate <= 0.0
+            or self.inflation_radius < 0.0
+            or self.wall_exclusion_radius < 0.0
+        ):
+            raise ValueError('confirm_count/rate는 양수이고 반경은 0 이상이어야 합니다.')
 
         self.tf = TfHelper(self)
         self.static_grid = None
+        self.wall_exclusion_mask = None
         self.counts: Dict[int, int] = {}
         self.confirmed: Dict[int, float] = {}
         grid_qos = QoSProfile(depth=1)
@@ -114,9 +153,12 @@ class DynamicObstacleLayer(Node):
             self.confirmed.clear()
             self.get_logger().warning('static grid geometry 변경: dynamic obstacle 초기화')
         self.static_grid = incoming
+        self.wall_exclusion_mask = build_wall_exclusion_mask(
+            incoming.data, incoming.resolution, self.wall_exclusion_radius
+        )
 
     def _scan_callback(self, scan: LaserScan) -> None:
-        if self.static_grid is None:
+        if self.static_grid is None or self.wall_exclusion_mask is None:
             return
         transform = self.tf.lookup_transform(self.map_frame, scan.header.frame_id)
         if transform is None:
@@ -136,11 +178,11 @@ class DynamicObstacleLayer(Node):
                     transform, scan_x, scan_y
                 )
                 grid_x, grid_y = world_to_grid(map_x, map_y, self.static_grid)
-                if is_inside_grid(grid_x, grid_y, self.static_grid):
+                if is_clear_dynamic_candidate(
+                    self.static_grid, self.wall_exclusion_mask, grid_x, grid_y
+                ):
                     index = grid_y * self.static_grid.width + grid_x
-                    # Only new returns in known-free planning cells are dynamic.
-                    if int(self.static_grid.data[grid_y, grid_x]) == 0:
-                        seen.add(index)
+                    seen.add(index)
             angle += float(scan.angle_increment)
 
         now = time.monotonic()
