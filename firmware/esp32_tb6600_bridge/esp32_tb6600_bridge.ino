@@ -11,8 +11,7 @@
   Pi -> ESP32: M,<seq>,<left_sps>,<right_sps> | STOP,<seq> | PING,<seq> | ZERO,<seq>
   ESP32 -> Pi: ACK,<seq> | STAT,<ms>,<state>,<left_sps>,<right_sps>
                   | ENC,<ms>,<generated_left_steps>,<generated_right_steps>
-                  | ENC_ABS,<ms>,<left_angle_deg>,<right_angle_deg>,
-                    <left_turns>,<right_turns>,<left_distance_m>,<right_distance_m>
+                  | ENC_ABS,<ms>,<angle_deg>,<turns>,<distance_m>
 */
 
 #define L_STEP 25
@@ -22,12 +21,11 @@
 #define R_DIR 12
 #define R_EN 13
 
-// AS5048A shared SPI bus
+// AS5048A SPI bus (single encoder)
 #define ENC_SCK 18
 #define ENC_MOSI 23
 #define ENC_MISO 19
 #define ENC_LEFT_CS 17
-#define ENC_RIGHT_CS 5
 
 const bool ENABLE_ACTIVE_LOW = true;
 const bool INVERT_LEFT_DIR = false;
@@ -55,9 +53,8 @@ const uint32_t ENCODER_SPI_HZ = 1000000;               // reliable starting spee
 const float WHEEL_DIAMETER_MM = 10.0F;
 const float WHEEL_CIRCUMFERENCE_M = PI * (WHEEL_DIAMETER_MM / 1000.0F);
 
-// Set one of these to -1 if that encoder decreases while the robot moves forward.
-const int LEFT_ENCODER_SIGN = 1;
-const int RIGHT_ENCODER_SIGN = -1;
+// Set to -1 only if the remaining encoder decreases while the robot moves forward.
+const int ENCODER_SIGN = 1;
 
 AccelStepper leftMotor(AccelStepper::DRIVER, L_STEP, L_DIR);
 AccelStepper rightMotor(AccelStepper::DRIVER, R_STEP, R_DIR);
@@ -73,16 +70,11 @@ String driveState = "BOOT";
 
 SPISettings encoderSpiSettings(ENCODER_SPI_HZ, MSBFIRST, SPI_MODE1);
 unsigned long lastEncoderSampleUs = 0;
-bool leftEncoderReady = false;
-bool rightEncoderReady = false;
-uint16_t leftRawAngle = 0;
-uint16_t rightRawAngle = 0;
-uint16_t previousLeftRaw = 0;
-uint16_t previousRightRaw = 0;
-int64_t leftCumulativeCounts = 0;
-int64_t rightCumulativeCounts = 0;
-uint32_t leftEncoderErrors = 0;
-uint32_t rightEncoderErrors = 0;
+bool encoderReady = false;
+uint16_t rawAngle = 0;
+uint16_t previousRaw = 0;
+int64_t cumulativeCounts = 0;
+uint32_t encoderErrors = 0;
 
 void setEnable(bool enabled) {
   const int active = ENABLE_ACTIVE_LOW ? LOW : HIGH;
@@ -220,73 +212,68 @@ void updateEncoders() {
   if (nowUs - lastEncoderSampleUs < ENCODER_SAMPLE_PERIOD_US) return;
   lastEncoderSampleUs = nowUs;
 
-  uint16_t raw = 0;
-  if (readAs5048aAngle(ENC_LEFT_CS, raw)) {
-    leftRawAngle = raw;
-    if (!leftEncoderReady) {
-      previousLeftRaw = raw;
-      leftEncoderReady = true;
-    } else {
-      const int32_t delta = unwrapDelta(raw, previousLeftRaw);
-      leftCumulativeCounts += static_cast<int64_t>(delta) * LEFT_ENCODER_SIGN;
-      previousLeftRaw = raw;
-    }
-  } else {
-    ++leftEncoderErrors;
-  }
+  uint16_t currentRaw = 0;
+  if (readAs5048aAngle(ENC_LEFT_CS, currentRaw)) {
+    rawAngle = currentRaw;
 
-  if (readAs5048aAngle(ENC_RIGHT_CS, raw)) {
-    rightRawAngle = raw;
-    if (!rightEncoderReady) {
-      previousRightRaw = raw;
-      rightEncoderReady = true;
+    if (!encoderReady) {
+      previousRaw = currentRaw;
+      encoderReady = true;
     } else {
-      const int32_t delta = unwrapDelta(raw, previousRightRaw);
-      rightCumulativeCounts += static_cast<int64_t>(delta) * RIGHT_ENCODER_SIGN;
-      previousRightRaw = raw;
+      const int32_t delta = unwrapDelta(currentRaw, previousRaw);
+      cumulativeCounts += static_cast<int64_t>(delta) * ENCODER_SIGN;
+      previousRaw = currentRaw;
     }
   } else {
-    ++rightEncoderErrors;
+    ++encoderErrors;
   }
 }
 
 void zeroEncoderDistance() {
-  leftCumulativeCounts = 0;
-  rightCumulativeCounts = 0;
-  if (leftEncoderReady) previousLeftRaw = leftRawAngle;
-  if (rightEncoderReady) previousRightRaw = rightRawAngle;
+  // ZERO 명령은 누적 이동거리만 0으로 초기화한다.
+  // 절대 각도(rawAngle)는 초기화하지 않는다.
+  cumulativeCounts = 0;
+  if (encoderReady) previousRaw = rawAngle;
 }
 
 void sendTelemetry() {
-  Serial.printf("STAT,%lu,%s,%.1f,%.1f\n", millis(), driveState.c_str(), currentLeftSps, currentRightSps);
-  const long left = INVERT_LEFT_DIR ? -leftMotor.currentPosition() : leftMotor.currentPosition();
-  const long right = INVERT_RIGHT_DIR ? -rightMotor.currentPosition() : rightMotor.currentPosition();
+  Serial.printf(
+    "STAT,%lu,%s,%.1f,%.1f\n",
+    millis(),
+    driveState.c_str(),
+    currentLeftSps,
+    currentRightSps
+  );
+
+  // 기존 모터 스텝 카운트 텔레메트리는 그대로 유지한다.
+  const long left =
+      INVERT_LEFT_DIR ? -leftMotor.currentPosition() : leftMotor.currentPosition();
+  const long right =
+      INVERT_RIGHT_DIR ? -rightMotor.currentPosition() : rightMotor.currentPosition();
   Serial.printf("ENC,%lu,%ld,%ld\n", millis(), left, right);
 
-  if (leftEncoderReady && rightEncoderReady) {
-    const float leftAngleDeg = leftRawAngle * (360.0F / AS5048A_COUNTS_PER_REV);
+  if (encoderReady) {
+    // AS5048A 절대 각도는 launch 시 초기화하지 않고 그대로 출력한다.
+    const float angleDeg =
+        rawAngle * (360.0F / AS5048A_COUNTS_PER_REV);
 
-    // The right encoder is mounted in the opposite rotational direction.
-    // Mirror its absolute angle so forward motion increases both displayed angles.
-    const float rightMeasuredAngleDeg =
-        rightRawAngle * (360.0F / AS5048A_COUNTS_PER_REV);
-    float rightAngleDeg = 360.0F - rightMeasuredAngleDeg;
-    if (rightAngleDeg >= 360.0F) rightAngleDeg = 0.0F;
-    const double leftTurns = static_cast<double>(leftCumulativeCounts) / AS5048A_COUNTS_PER_REV;
-    const double rightTurns = static_cast<double>(rightCumulativeCounts) / AS5048A_COUNTS_PER_REV;
-    const double leftDistanceM = leftTurns * WHEEL_CIRCUMFERENCE_M;
-    const double rightDistanceM = rightTurns * WHEEL_CIRCUMFERENCE_M;
+    const double turns =
+        static_cast<double>(cumulativeCounts) / AS5048A_COUNTS_PER_REV;
+
+    const double distanceM =
+        turns * WHEEL_CIRCUMFERENCE_M;
 
     Serial.printf(
-      "ENC_ABS,%lu,%.2f,%.2f,%.6f,%.6f,%.6f,%.6f\n",
-      millis(), leftAngleDeg, rightAngleDeg,
-      leftTurns, rightTurns, leftDistanceM, rightDistanceM
+      "ENC_ABS,%lu,%.2f,%.6f,%.6f\n",
+      millis(),
+      angleDeg,
+      turns,
+      distanceM
     );
   } else {
     Serial.printf(
-      "ERR,ENCODER_NOT_READY,%lu,%lu\n",
-      static_cast<unsigned long>(leftEncoderErrors),
-      static_cast<unsigned long>(rightEncoderErrors)
+      "ERR,ENCODER_NOT_READY,%lu\n",
+      static_cast<unsigned long>(encoderErrors)
     );
   }
 }
@@ -336,9 +323,7 @@ void setup() {
   leftMotor.setMinPulseWidth(5); rightMotor.setMinPulseWidth(5);
 
   pinMode(ENC_LEFT_CS, OUTPUT);
-  pinMode(ENC_RIGHT_CS, OUTPUT);
   digitalWrite(ENC_LEFT_CS, HIGH);
-  digitalWrite(ENC_RIGHT_CS, HIGH);
   SPI.begin(ENC_SCK, ENC_MISO, ENC_MOSI, -1);
   delay(20);
 
@@ -347,7 +332,7 @@ void setup() {
   lastRampUs = micros();
   lastEncoderSampleUs = micros() - ENCODER_SAMPLE_PERIOD_US;
 
-  // Prime both sensors before the first telemetry packet.
+  // Prime the encoder before the first telemetry packet.
   for (int i = 0; i < 3; ++i) {
     updateEncoders();
     delay(10);

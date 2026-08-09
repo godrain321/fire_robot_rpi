@@ -124,22 +124,19 @@ class KeyboardCmdVelDemo(Node):
             return
 
         fields = message.data.split(',')
-        if len(fields) < 8 or fields[0] != 'ENC_ABS':
+        if len(fields) < 5 or fields[0] != 'ENC_ABS':
             return
 
         try:
-            left_angle_deg = float(fields[2])
-            right_angle_deg = float(fields[3])
-            left_distance_mm = float(fields[6]) * 1000.0
-            right_distance_mm = float(fields[7]) * 1000.0
+            encoder_angle_deg = float(fields[2])
+            distance_mm = float(fields[4]) * 1000.0
         except ValueError:
             return
 
-        # ros2 launch는 개행 문자(\n)가 들어와야 출력을 즉시 전달하는 경우가 있다.
-        # 따라서 한 줄을 \r로 덮어쓰지 않고, 측정값마다 새 줄로 출력한다.
+        # ros2 launch에서도 즉시 보이도록 매 측정값을 한 줄씩 출력한다.
         print(
-            f'각도: 왼쪽 {left_angle_deg:8.2f}°, 오른쪽 {right_angle_deg:8.2f}°  |  '
-            f'거리: 왼쪽 {left_distance_mm:8.2f} mm, 오른쪽 {right_distance_mm:8.2f} mm',
+            f'엔코더 각도: {encoder_angle_deg:8.2f}°, '
+            f'이동거리: {distance_mm:8.2f} mm',
             flush=True,
         )
 

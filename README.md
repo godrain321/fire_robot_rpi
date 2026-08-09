@@ -35,3 +35,8 @@ cd ~/fire_robot_rpi
 git add .gitignore README.md inno_jazzy_ws/src/inno_bringup
 git commit -m "Add Raspberry Pi lidar bringup configuration"
 ```
+
+##열화상 카메라 실행
+
+cd ~/Robot_project/fire_robot_rpi/mlx90640/"demo codes"/mlx90640/python
+python3 mlx90640.py

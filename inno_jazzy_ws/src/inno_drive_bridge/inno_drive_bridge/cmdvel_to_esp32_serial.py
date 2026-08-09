@@ -24,6 +24,10 @@ class CmdVelToEsp32Serial(Node):
             'left_sign': 1,
             'right_sign': 1,
             'cmd_timeout_sec': 0.5,
+            # ESP32는 시리얼 포트를 열 때 자동 재부팅될 수 있으므로
+            # 부팅이 끝난 뒤 ZERO 명령을 보낸다.
+            'serial_startup_delay_sec': 2.0,
+            'zero_encoders_on_start': True,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -39,6 +43,12 @@ class CmdVelToEsp32Serial(Node):
         self.left_sign = int(self.get_parameter('left_sign').value)
         self.right_sign = int(self.get_parameter('right_sign').value)
         self.cmd_timeout = float(self.get_parameter('cmd_timeout_sec').value)
+        self.serial_startup_delay = float(
+            self.get_parameter('serial_startup_delay_sec').value
+        )
+        self.zero_encoders_on_start = bool(
+            self.get_parameter('zero_encoders_on_start').value
+        )
         self._validate_parameters()
 
         self.status_publisher = self.create_publisher(String, '/esp32/status', 10)
@@ -66,7 +76,23 @@ class CmdVelToEsp32Serial(Node):
                 f'{self.baudrate} baud: {error}. Check the device path and dialout permission.'
             ) from error
 
+        # 포트를 열면 ESP32가 자동 재부팅될 수 있다.
+        # 부팅 전에 보낸 명령은 사라질 수 있으므로 잠시 기다린다.
+        if self.serial_startup_delay > 0.0:
+            time.sleep(self.serial_startup_delay)
+
+        try:
+            self.serial.reset_input_buffer()
+        except (serial.SerialException, OSError):
+            pass
+
         self._send('STOP')
+        if self.zero_encoders_on_start:
+            self._send('ZERO')
+            self.get_logger().info(
+                'Encoder distance reset at launch start'
+            )
+
         self.create_timer(0.01, self._poll_serial)
         self.create_timer(0.05, self._watchdog)
         self.get_logger().info(
@@ -82,6 +108,8 @@ class CmdVelToEsp32Serial(Node):
             raise ValueError('motor step parameters and gear_ratio must be greater than zero')
         if self.max_sps <= 0 or self.cmd_timeout <= 0.0:
             raise ValueError('max_steps_per_sec and cmd_timeout_sec must be greater than zero')
+        if self.serial_startup_delay < 0.0:
+            raise ValueError('serial_startup_delay_sec must be zero or greater')
         if self.left_sign not in (-1, 1) or self.right_sign not in (-1, 1):
             raise ValueError('left_sign and right_sign must be either -1 or 1')
 
@@ -164,8 +192,9 @@ class CmdVelToEsp32Serial(Node):
             self.ticks_publisher.publish(message)
             return
 
-        if message_type == 'ENC_ABS' and len(fields) >= 8:
-            # Accept the new absolute-encoder message format and keep the status stream quiet.
+        if message_type == 'ENC_ABS' and len(fields) >= 5:
+            # Single AS5048A format:
+            # ENC_ABS,<ms>,<angle_deg>,<turns>,<distance_m>
             self._publish_status(line)
             return
 
