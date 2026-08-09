@@ -38,7 +38,9 @@ Remove `--dry-run` to write the file. Existing outputs are protected unless
 `--overwrite` is explicitly supplied. Straight runs retain only their start
 and end, while actual direction changes remain as waypoints. If a direct
 corner-to-corner segment is not known-free, the exporter restores the farthest
-safe original samples instead of cutting through the obstacle. Unknown map
+safe original samples instead of cutting through the obstacle. Gradually
+curving source trajectories are sampled at no more than 0.8 m of travelled arc
+length, so their shape is not flattened into one long chord. Unknown map
 cells are rejected by default. The exporter checks each waypoint and every
 simplified segment against the selected occupancy map. Dynamic obstacles and fire costs are not
 present in the intermediate trajectory, so the real ROS A* node must still use

@@ -13,6 +13,8 @@ coordinate_transform:
 
 waypoint_processing:
   minimum_spacing_m: 0.30
+  # Preserve gradual bends that do not contain one large direction change.
+  maximum_spacing_m: 0.80
   direction_change_deg: 8.0
   allow_unknown_cells: false
   validate_segments: true

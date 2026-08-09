@@ -81,6 +81,22 @@ def test_long_straight_path_does_not_emit_spacing_waypoints():
     assert result == (points[0], points[-1])
 
 
+def test_maximum_spacing_preserves_gradual_curve_shape():
+    grid = free_map(size=40)
+    points = tuple(
+        (10.0 + 5.0 * math.sin(index * 0.02),
+         10.0 + 5.0 * (1.0 - math.cos(index * 0.02)))
+        for index in range(30)
+    )
+    result = simplify_path(
+        points, grid, minimum_spacing_m=0.30, maximum_spacing_m=0.80,
+        direction_change_deg=8.0, allow_unknown=False,
+    )
+    assert len(result) > 2
+    assert result[0] == points[0]
+    assert result[-1] == points[-1]
+
+
 def test_shortcut_through_obstacle_is_not_accepted():
     grid = free_map()
     grid.occupancy[2, 2] = 100

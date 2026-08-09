@@ -245,8 +245,16 @@ def segment_is_safe(start: Point, end: Point, grid: OccupancyMap,
 
 def simplify_path(points: Sequence[Point], grid: OccupancyMap, *,
                   minimum_spacing_m: float, direction_change_deg: float,
-                  allow_unknown: bool) -> tuple[Point, ...]:
-    if minimum_spacing_m < 0.0 or not 0.0 <= direction_change_deg <= 180.0:
+                  allow_unknown: bool,
+                  maximum_spacing_m: float | None = None) -> tuple[Point, ...]:
+    if (
+        minimum_spacing_m < 0.0
+        or maximum_spacing_m is not None
+        and maximum_spacing_m <= 0.0
+        or maximum_spacing_m is not None
+        and maximum_spacing_m < minimum_spacing_m
+        or not 0.0 <= direction_change_deg <= 180.0
+    ):
         raise ExportError("invalid waypoint simplification settings")
     points = remove_duplicate_points(points)
     if len(points) < 2:
@@ -264,6 +272,26 @@ def simplify_path(points: Sequence[Point], grid: OccupancyMap, *,
         if turn >= direction_change_deg:
             mandatory_indices.append(index)
     mandatory_indices.append(len(points) - 1)
+
+    # A sequence of tiny per-sample turns can form a visible gradual bend even
+    # though no individual turn exceeds the angular threshold. Bound the
+    # source-trajectory arc length between retained points so that curvature is
+    # represented without returning to the old 0.3 m goal density.
+    if maximum_spacing_m is not None:
+        sampled_indices = [0]
+        arc_distance = 0.0
+        for index in range(1, len(points)):
+            step_distance = math.dist(points[index - 1], points[index])
+            if (
+                arc_distance + step_distance > maximum_spacing_m + 1e-12
+                and index - 1 > sampled_indices[-1]
+            ):
+                sampled_indices.append(index - 1)
+                arc_distance = step_distance
+            else:
+                arc_distance += step_distance
+        sampled_indices.append(len(points) - 1)
+        mandatory_indices = sorted(set(mandatory_indices + sampled_indices))
 
     candidates = [points[0]]
     anchor_index = 0
@@ -384,11 +412,17 @@ def export(args: argparse.Namespace) -> dict:
                               "minimum_spacing_m")
     direction_change = _finite(processing.get("direction_change_deg", 8.0),
                                "direction_change_deg")
+    maximum_spacing_raw = processing.get("maximum_spacing_m")
+    maximum_spacing = (
+        None if maximum_spacing_raw is None
+        else _finite(maximum_spacing_raw, "maximum_spacing_m")
+    )
     allow_unknown = processing.get("allow_unknown_cells", False)
     if type(allow_unknown) is not bool:
         raise ExportError("allow_unknown_cells must be boolean")
     simplified = simplify_path(
         transformed, grid, minimum_spacing_m=minimum_spacing,
+        maximum_spacing_m=maximum_spacing,
         direction_change_deg=direction_change, allow_unknown=allow_unknown,
     )
     document = build_waypoint_document(simplified, transform.target_frame,
