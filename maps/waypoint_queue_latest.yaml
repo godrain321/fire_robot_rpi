@@ -1,233 +1,60 @@
-# Candidate reduced from the attached 52-point route.
-# Original waypoint indices: 1, 3, 6, 11, 16, 21, 22, 25, 27, 33, 38, 43, 50, 51, 52
-header:
-  stamp:
-    sec: 0
-    nanosec: 0
-  frame_id: map
+# Default mode 2/3 waypoint queue: operator-approved 11-point route.
+# Confirmed by the operator on 2026-08-09.
+version: 1
+frame_id: map
 poses:
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 5.544808875
-      y: -10.198562658
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: -0.72618594819
-      w: 0.687498340835
+    position: {x: 5.544808875, y: -10.198562658, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -0.72618594819, w: 0.687498340835}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 5.455940383
-      y: -10.758028824
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: -0.864714203947
-      w: 0.502264218806
+    position: {x: 5.523478958, y: -10.587979151, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -0.827382000752, w: 0.561639586239}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 5.005070592
-      y: -11.548482132
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.48951851539
-      w: 0.871992903119
+    position: {x: 5.455940383, y: -10.758028824, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -0.864714203947, w: 0.502264218806}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 6.020518258
-      y: -9.883740002
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.489519632847
-      w: 0.871992275801
+    position: {x: 5.005070592, y: -11.548482132, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 0.48951903687, w: 0.871992610371}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 7.035965056
-      y: -8.218997377
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.48951851539
-      w: 0.871992903119
+    position: {x: 8.051412722, y: -6.554255247, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 0.017008864235, w: 0.999855338805}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 8.051412722
-      y: -6.554255247
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.017008864235
-      w: 0.999855338805
+    position: {x: 8.181336564, y: -6.549833614, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 0.690879738671, w: 0.722969699706}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 8.181336564
-      y: -6.549833614
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.690879638245
-      w: 0.722969795675
+    position: {x: 8.269216987, y: -4.614872083, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 0.913065045406, w: 0.407813956183}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 8.234419758
-      y: -5.381038705
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.690879638245
-      w: 0.722969795675
+    position: {x: 8.008940793, y: -4.324431065, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 0.939772879578, w: 0.341799553554}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 8.269216987
-      y: -4.614872083
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.913065045406
-      w: 0.407813956183
+    position: {x: 6.614190317, y: -3.15521185, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: 0.974461881307, w: 0.224552982346}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 6.614190317
-      y: -3.15521185
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.972606221337
-      w: 0.232458895757
+    position: {x: 0.451546913, y: -0.155720302, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -0.864714203947, w: 0.502264218806}
 - header:
-    stamp:
-      sec: 0
-      nanosec: 0
     frame_id: map
   pose:
-    position:
-      x: 4.874936164
-      y: -2.27345652
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.972606221337
-      w: 0.232458895757
-- header:
-    stamp:
-      sec: 0
-      nanosec: 0
-    frame_id: map
-  pose:
-    position:
-      x: 3.131748862
-      y: -1.399801621
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.976485470098
-      w: 0.215583224503
-- header:
-    stamp:
-      sec: 0
-      nanosec: 0
-    frame_id: map
-  pose:
-    position:
-      x: 0.655509268
-      y: -0.250394047
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: 0.976485570498
-      w: 0.215582769742
-- header:
-    stamp:
-      sec: 0
-      nanosec: 0
-    frame_id: map
-  pose:
-    position:
-      x: 0.451546913
-      y: -0.155720302
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: -0.864714203947
-      w: 0.502264218806
-- header:
-    stamp:
-      sec: 0
-      nanosec: 0
-    frame_id: map
-  pose:
-    position:
-      x: 0.387136943
-      y: -0.268642203
-      z: 0.0
-    orientation:
-      x: 0.0
-      y: 0.0
-      z: -0.864714203947
-      w: 0.502264218806
+    position: {x: 0.387136943, y: -0.268642203, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -0.864714203947, w: 0.502264218806}

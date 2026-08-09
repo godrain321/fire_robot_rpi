@@ -150,7 +150,9 @@ class WaypointQueue(Node):
         self.goal = self.create_publisher(PoseStamped, '/goal_pose', 10)
         self.step_index = 0
         self.execution_mode = 'continuous'
-        self.status = self.create_publisher(String, '/waypoint_queue_status', 10)
+        self.status = self.create_publisher(
+            String, '/waypoint_queue_status', qos
+        )
         self.create_subscription(PoseStamped, '/waypoint_click', self._click, 10)
         self.create_subscription(String, '/waypoint_queue_command', self._command, 10)
         self.create_subscription(String, '/follower_state', self._follower, 10)

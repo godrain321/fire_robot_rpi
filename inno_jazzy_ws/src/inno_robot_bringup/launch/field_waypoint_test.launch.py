@@ -35,7 +35,7 @@ def generate_launch_description():
             default_value=project_path('maps', 'waypoint_queue_latest.yaml'),
         ),
         # One speed pair applies identically to MODE 1, MODE 2, and MODE 3.
-        DeclareLaunchArgument('drive_speed', default_value='0.06'),
+        DeclareLaunchArgument('drive_speed', default_value='0.20'),
         DeclareLaunchArgument('turn_speed', default_value='0.35'),
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
     ]
@@ -43,6 +43,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(bringup + '/launch/lidar_amcl_localization.launch.py'),
         launch_arguments={
             'serial_port': L('lidar_port'), 'map_yaml': L('map_yaml'),
+            'node_output': 'log',
         }.items(),
     )
     mmwave_bringup = IncludeLaunchDescription(
@@ -51,11 +52,13 @@ def generate_launch_description():
             'serial_port': L('mmwave_port'),
             'configure_sensor': L('mmwave_configure_sensor'),
             'assist_check_sec': L('assist_check_sec'),
+            'node_output': 'log',
         }.items(),
     )
     status_console = Node(
         package='inno_mmwave', executable='mmwave_status_console',
         name='mmwave_status_console', output='screen', emulate_tty=True,
+        output_format='{line}',
     )
     navigation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(autonav + '/launch/autonav_demo.launch.py'),
@@ -65,11 +68,12 @@ def generate_launch_description():
             'max_linear_speed': L('drive_speed'),
             'max_angular_speed': L('turn_speed'),
             'use_dynamic_obstacles': L('use_dynamic_obstacles'),
+            'node_output': 'log',
         }.items(),
     )
     keyboard = Node(
         package='inno_drive_bridge', executable='keyboard_cmdvel_demo',
-        name='keyboard_cmdvel_demo', output='screen', emulate_tty=True,
+        name='keyboard_cmdvel_demo', output='log', emulate_tty=True,
         parameters=[
             drive + '/config/drive_params.yaml',
             {
@@ -83,15 +87,15 @@ def generate_launch_description():
         ],
     )
     mux = Node(package='inno_drive_bridge', executable='cmd_vel_mode_mux',
-               name='cmd_vel_mode_mux', output='screen')
+               name='cmd_vel_mode_mux', output='log')
     serial = Node(
         package='inno_drive_bridge', executable='cmdvel_to_esp32_serial',
-        name='cmdvel_to_esp32_serial', output='screen',
+        name='cmdvel_to_esp32_serial', output='log',
         parameters=[drive + '/config/drive_params.yaml', {'serial_port': L('esp32_port')}],
     )
     waypoint_queue = Node(
         package='inno_autonav', executable='waypoint_queue',
-        name='waypoint_queue', output='screen',
+        name='waypoint_queue', output='log',
         parameters=[{
             'load_file': L('waypoint_file'),
             'save_file': L('waypoint_file'),
@@ -99,7 +103,7 @@ def generate_launch_description():
     )
     robot_heading = Node(
         package='inno_robot_bringup', executable='tf_heading_marker',
-        name='tf_heading_marker', output='screen',
+        name='tf_heading_marker', output='log',
         parameters=[{
             'fixed_frame': 'map',
             'base_frame': 'base_link',
@@ -108,7 +112,7 @@ def generate_launch_description():
         }],
     )
     rviz = Node(
-        package='rviz2', executable='rviz2', name='rviz2', output='screen',
+        package='rviz2', executable='rviz2', name='rviz2', output='log',
         arguments=['-d', bringup + '/rviz/inno_slam.rviz'],
     )
     return LaunchDescription(

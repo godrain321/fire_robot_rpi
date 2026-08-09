@@ -1,4 +1,4 @@
-"""Latch ten Raspberry Pi GPIO LEDs when filtered mmWave presence is detected."""
+"""Latch five Raspberry Pi GPIO LEDs when filtered mmWave presence is detected."""
 
 from dataclasses import dataclass
 import importlib
@@ -15,8 +15,8 @@ from std_srvs.srv import Trigger
 PRESENCE_TOPIC = '/mmwave/filtered_presence'
 LED_STATUS_TOPIC = '/mmwave/led_latched'
 RESET_SERVICE = '/mmwave/reset_led'
-DEFAULT_GPIO_LINES = (17, 27, 22, 23, 24, 25, 5, 6, 16, 26)
-DEFAULT_PHYSICAL_PINS = (11, 13, 15, 16, 18, 22, 29, 31, 36, 37)
+DEFAULT_GPIO_LINES = (17, 27, 22, 23, 24)
+DEFAULT_PHYSICAL_PINS = (11, 13, 15, 16, 18)
 
 
 @dataclass
@@ -118,7 +118,7 @@ class LgpioLedBank:
 
 
 class PresenceLedNode(Node):
-    """Drive ten latched LEDs from the conservative filtered-presence topic."""
+    """Drive five latched LEDs from the conservative filtered-presence topic."""
 
     def __init__(self, gpio_factory=LgpioLedBank) -> None:
         super().__init__('mmwave_presence_led')
@@ -146,7 +146,7 @@ class PresenceLedNode(Node):
         self.create_service(Trigger, RESET_SERVICE, self._reset)
         self._publish_status()
         self.get_logger().info(
-            f'10-LED bank ready: physical pins {DEFAULT_PHYSICAL_PINS}, '
+            f'5-LED bank ready: physical pins {DEFAULT_PHYSICAL_PINS}, '
             f'BCM GPIOs {lines}, gpiochip{chip}; waiting for presence'
         )
 
@@ -158,7 +158,7 @@ class PresenceLedNode(Node):
             return
         self.output.set_enabled(True)
         self._publish_status()
-        self.get_logger().warning('PERSON DETECTED: ALL 10 LEDS LATCHED ON')
+        self.get_logger().warning('PERSON DETECTED: ALL 5 LEDS LATCHED ON')
 
     def _reset(self, request, response):
         del request

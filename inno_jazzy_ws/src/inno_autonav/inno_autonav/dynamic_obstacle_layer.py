@@ -1,4 +1,4 @@
-"""Confirm large LiDAR clusters in static-free space for avoidance."""
+"""Confirm mode-dependent LiDAR clusters for display and avoidance."""
 
 import math
 import time
@@ -68,6 +68,24 @@ def cluster_scan_points(
         if len(members) >= min_points:
             clusters.append(members)
     return clusters
+
+
+def minimum_cluster_points_for_mode(
+    mode: int, mode2_min_points: int, mode3_min_points: int
+):
+    """Return the display/avoidance cluster threshold for a drive mode."""
+
+    if int(mode) == 2:
+        return int(mode2_min_points)
+    if int(mode) == 3:
+        return int(mode3_min_points)
+    return None
+
+
+def dynamic_avoidance_enabled(mode: int) -> bool:
+    """Only MODE 3 may inject confirmed clusters into the planning grid."""
+
+    return int(mode) == 3
 
 
 class LargeObstacleTracker:
@@ -201,7 +219,8 @@ class DynamicObstacleLayer(Node):
             'max_range': 4.0,
             'observation_max_range': 4.0,
             'obstacle_confirm_count': 3,
-            'min_cluster_points': 5,
+            'mode2_min_cluster_points': 3,
+            'mode3_min_cluster_points': 15,
             'cluster_radius_m': 0.18,
             'cluster_track_radius_m': 0.35,
             'cluster_max_scan_gap_sec': 0.35,
@@ -222,8 +241,11 @@ class DynamicObstacleLayer(Node):
             self.get_parameter('observation_max_range').value
         )
         self.confirm_count = int(self.get_parameter('obstacle_confirm_count').value)
-        self.min_cluster_points = int(
-            self.get_parameter('min_cluster_points').value
+        self.mode2_min_cluster_points = int(
+            self.get_parameter('mode2_min_cluster_points').value
+        )
+        self.mode3_min_cluster_points = int(
+            self.get_parameter('mode3_min_cluster_points').value
         )
         self.cluster_radius = float(self.get_parameter('cluster_radius_m').value)
         self.cluster_track_radius = float(
@@ -252,7 +274,9 @@ class DynamicObstacleLayer(Node):
             )
         if (
             self.confirm_count <= 0
-            or self.min_cluster_points < 5
+            or self.mode2_min_cluster_points < 3
+            or self.mode3_min_cluster_points
+            < self.mode2_min_cluster_points
             or publish_rate <= 0.0
             or self.cluster_radius <= 0.0
             or self.cluster_track_radius <= 0.0
@@ -265,7 +289,7 @@ class DynamicObstacleLayer(Node):
                 '동적장애물 군집/확인/크기/주기 파라미터가 올바르지 않습니다.'
             )
 
-        self.mode3_enabled = False
+        self.drive_mode = 1
         self.tf = TfHelper(self)
         self.static_grid = None
         self.wall_exclusion_mask = None
@@ -305,25 +329,29 @@ class DynamicObstacleLayer(Node):
         self._publish_detection_state(force=True)
         self.get_logger().info(
             f'dynamic obstacle layer: scan={self.scan_topic}, '
-            f'min_points={self.min_cluster_points}, '
+            f'mode2_min_points={self.mode2_min_cluster_points}, '
+            f'mode3_min_points={self.mode3_min_cluster_points}, '
             f'confirm_scans={self.confirm_count}, persistent={self.persistent}'
         )
 
     def _mode_callback(self, message: Int32) -> None:
-        enabled = int(message.data) == 3
-        if enabled == self.mode3_enabled:
+        mode = int(message.data)
+        if mode not in (1, 2, 3) or mode == self.drive_mode:
             return
-        self.mode3_enabled = enabled
-        if not enabled:
-            self.cluster_tracker.clear()
-            self.confirmed.clear()
-            self._publish_observations(())
+        self.drive_mode = mode
+        self.cluster_tracker.clear()
+        self.confirmed.clear()
+        self._publish_observations(())
+        if self.static_grid is not None:
             self._publish()
-        self._publish_detection_state()
-        self.get_logger().info(
-            'MODE 3 dynamic avoidance enabled' if enabled
-            else 'Dynamic avoidance disabled outside MODE 3'
-        )
+        else:
+            self._publish_detection_state()
+        descriptions = {
+            1: 'Dynamic obstacle processing disabled in MODE 1',
+            2: 'MODE 2 dynamic obstacle display enabled (5+ points, no avoidance)',
+            3: 'MODE 3 dynamic avoidance enabled (15+ points)',
+        }
+        self.get_logger().info(descriptions[mode])
 
     def _static_callback(self, message: OccupancyGrid) -> None:
         try:
@@ -357,7 +385,12 @@ class DynamicObstacleLayer(Node):
         )
 
     def _scan_callback(self, scan: LaserScan) -> None:
-        if not self.mode3_enabled:
+        min_cluster_points = minimum_cluster_points_for_mode(
+            self.drive_mode,
+            self.mode2_min_cluster_points,
+            self.mode3_min_cluster_points,
+        )
+        if min_cluster_points is None:
             return
         if self.static_grid is None or self.wall_exclusion_mask is None:
             return
@@ -398,7 +431,7 @@ class DynamicObstacleLayer(Node):
         clusters = cluster_scan_points(
             avoidance_observations,
             self.cluster_radius,
-            self.min_cluster_points,
+            min_cluster_points,
         )
         now = time.monotonic()
         confirmed_clusters = self.cluster_tracker.update(clusters, now)
@@ -411,7 +444,7 @@ class DynamicObstacleLayer(Node):
         self._publish_detection_state()
 
     def _publish_detection_state(self, force: bool = False) -> None:
-        detected = self.mode3_enabled and bool(self.confirmed)
+        detected = self.drive_mode in (2, 3) and bool(self.confirmed)
         if force or detected != self._last_detected_state:
             self.detected_publisher.publish(Bool(data=detected))
             self._last_detected_state = detected
@@ -448,9 +481,10 @@ class DynamicObstacleLayer(Node):
         data = np.zeros(
             (self.static_grid.height, self.static_grid.width), dtype=np.int8
         )
-        for index in self.confirmed:
-            y, x = divmod(index, self.static_grid.width)
-            data[y, x] = 100
+        if dynamic_avoidance_enabled(self.drive_mode):
+            for index in self.confirmed:
+                y, x = divmod(index, self.static_grid.width)
+                data[y, x] = 100
         radius_cells = int(math.ceil(self.inflation_radius / self.static_grid.resolution))
         return inflate_occupied_cells(data, radius_cells)
 

@@ -15,6 +15,7 @@ from inno_mmwave.status_console import (  # noqa: E402
     FILTERED_PRESENCE_TOPIC,
     MODE_TITLES,
     StatusConsole,
+    VICTIM_FUSION_TOPIC,
     waypoint_log_text,
 )
 
@@ -31,17 +32,17 @@ def test_console_uses_filtered_target_topics() -> None:
     assert FILTERED_PRESENCE_TOPIC == '/mmwave/filtered_presence'
     assert FILTERED_DISTANCE_TOPIC == '/mmwave/filtered_distance_m'
     assert DYNAMIC_OBSTACLE_TOPIC == '/dynamic_obstacle_detected'
+    assert VICTIM_FUSION_TOPIC == '/victim_fusion_status'
 
 
-def test_waypoint_log_only_formats_arrival_and_completion_events() -> None:
-    assert waypoint_log_text('REACHED:2/5') == (
-        '[웨이포인트] 2번 도착 (2/5)'
-    )
+def test_waypoint_log_formats_queue_progress_and_completion_events() -> None:
+    assert waypoint_log_text('RESTORED:15') == '[웨이포인트] 15개 준비됨'
+    assert waypoint_log_text('RUNNING:3/15') == '[웨이포인트] 3/15 주행 중'
+    assert waypoint_log_text('REACHED:2/5') == '[웨이포인트] 2/5 도착'
     assert waypoint_log_text('MISSION_COMPLETE') == '[웨이포인트] 주행 완료'
-    assert waypoint_log_text('RUNNING:3/5') is None
 
 
-def test_mode_two_and_three_report_waypoint_arrival_only() -> None:
+def test_mode_two_and_three_report_waypoint_progress() -> None:
     console = object.__new__(StatusConsole)
     console._mode = 2
     console._waypoint_state = None
@@ -54,9 +55,24 @@ def test_mode_two_and_three_report_waypoint_arrival_only() -> None:
     console._on_waypoint_state(String(data='REACHED:2/3'))
 
     assert lines == [
-        '[웨이포인트] 1번 도착 (1/3)',
-        '[웨이포인트] 2번 도착 (2/3)',
+        '[웨이포인트] 1/3 주행 중',
+        '[웨이포인트] 1/3 도착',
+        '[웨이포인트] 2/3 도착',
     ]
+
+
+def test_mode_three_reports_newly_confirmed_rescuee_once() -> None:
+    console = object.__new__(StatusConsole)
+    console._mode = 3
+    console._victim_state = None
+    lines = []
+    console._write = lines.append
+
+    message = String(data='DETECTED:1.24,-3.56')
+    console._on_victim_fusion(message)
+    console._on_victim_fusion(message)
+
+    assert lines == ['[요구조자] 확정됨 (x=1.2, y=-3.6)']
 
 
 def test_mode_three_dynamic_obstacle_log_is_transition_only() -> None:

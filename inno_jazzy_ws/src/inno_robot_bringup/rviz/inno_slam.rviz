@@ -88,8 +88,8 @@ Visualization Manager:
         History Policy: Keep Last
         Depth: 5
       Color: 0; 255; 0
-      Line Style: Lines
-      Line Width: 0.05
+      Line Style: Billboards
+      Line Width: 0.15
     - Class: rviz_default_plugins/Path
       Name: Autonomous Planned Path (Blue)
       Enabled: true
@@ -139,7 +139,7 @@ Visualization Manager:
       Alpha: 0.30
       Draw Behind: false
     - Class: rviz_default_plugins/MarkerArray
-      Name: Dynamic LiDAR Obstacles (Red)
+      Name: Dynamic LiDAR Obstacles (Mode 2 Cyan / Mode 3 Red)
       Enabled: true
       Topic:
         Value: /dynamic_obstacle_markers_display

@@ -15,6 +15,7 @@ def generate_launch_description():
     args = [
         DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB1'),
         DeclareLaunchArgument('serial_baudrate', default_value='460800'),
+        DeclareLaunchArgument('node_output', default_value='screen'),
         DeclareLaunchArgument(
             'map_yaml',
             default_value=project_path('maps', 'inno_map_raw.yaml'),
@@ -29,32 +30,33 @@ def generate_launch_description():
             'start_lidar': 'true', 'serial_port': L('serial_port'),
             'serial_baudrate': L('serial_baudrate'), 'publish_static_tf': 'true',
             'scan_topic': '/scan', 'base_frame': 'base_link', 'laser_frame': 'laser',
+            'node_output': L('node_output'),
         }.items(),
     )
     rf2o = Node(
         package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node',
-        name='rf2o_laser_odometry', output='screen',
+        name='rf2o_laser_odometry', output=L('node_output'),
         parameters=[share + '/config/rf2o.yaml'],
         arguments=['--ros-args', '--log-level', 'warn'],
     )
     map_server = Node(
         package='nav2_map_server', executable='map_server', name='map_server',
-        output='screen', parameters=[{'yaml_filename': L('map_yaml')}],
+        output=L('node_output'), parameters=[{'yaml_filename': L('map_yaml')}],
     )
     amcl = Node(
-        package='nav2_amcl', executable='amcl', name='amcl', output='screen',
+        package='nav2_amcl', executable='amcl', name='amcl', output=L('node_output'),
         parameters=[L('amcl_params')],
     )
     lifecycle = Node(
         package='inno_robot_bringup', executable='lifecycle_autostart',
-        name='lifecycle_autostart_localization', output='screen',
+        name='lifecycle_autostart_localization', output=L('node_output'),
         parameters=[{'node_names': ['map_server', 'amcl']}],
     )
     trail = Node(package='inno_robot_bringup', executable='tf_to_path',
-                 name='lidar_path', output='screen')
+                 name='lidar_path', output=L('node_output'))
     tf_bridge = Node(
         package='inno_robot_bringup', executable='amcl_pose_tf_bridge',
-        name='amcl_pose_tf_bridge', output='screen',
+        name='amcl_pose_tf_bridge', output=L('node_output'),
     )
     return LaunchDescription(
         args + [lidar, rf2o, map_server, amcl, lifecycle, tf_bridge, trail]

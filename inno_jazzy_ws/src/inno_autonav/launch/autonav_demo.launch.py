@@ -26,6 +26,7 @@ def generate_launch_description() -> LaunchDescription:
     use_dynamic_obstacles = LaunchConfiguration('use_dynamic_obstacles')
     max_linear_speed = LaunchConfiguration('max_linear_speed')
     max_angular_speed = LaunchConfiguration('max_angular_speed')
+    node_output = LaunchConfiguration('node_output')
 
     return LaunchDescription(
         [
@@ -35,6 +36,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('use_dynamic_obstacles', default_value='false'),
             DeclareLaunchArgument('max_linear_speed', default_value='0.06'),
             DeclareLaunchArgument('max_angular_speed', default_value='0.45'),
+            DeclareLaunchArgument('node_output', default_value='screen'),
             DeclareLaunchArgument(
                 'map_yaml',
                 default_value=project_path('maps', 'inno_map_nav.yaml'),
@@ -51,14 +53,14 @@ def generate_launch_description() -> LaunchDescription:
                 executable='planning_grid_publisher',
                 name='planning_grid_publisher',
                 parameters=[config_file, {'map_yaml': map_yaml}],
-                output='screen',
+                output=node_output,
             ),
             Node(
                 package='inno_autonav',
                 executable='dynamic_obstacle_layer',
                 name='dynamic_obstacle_layer',
                 parameters=[config_file],
-                output='screen',
+                output=node_output,
                 condition=IfCondition(use_dynamic_obstacles),
             ),
             Node(
@@ -66,7 +68,7 @@ def generate_launch_description() -> LaunchDescription:
                 executable='victim_fusion',
                 name='victim_fusion',
                 parameters=[config_file],
-                output='screen',
+                output=node_output,
                 condition=IfCondition(use_dynamic_obstacles),
             ),
             Node(
@@ -74,7 +76,7 @@ def generate_launch_description() -> LaunchDescription:
                 executable='astar_replanner',
                 name='astar_replanner',
                 parameters=[config_file],
-                output='screen',
+                output=node_output,
             ),
             Node(
                 package='inno_autonav',
@@ -91,21 +93,21 @@ def generate_launch_description() -> LaunchDescription:
                         ),
                     },
                 ],
-                output='screen',
+                output=node_output,
             ),
             Node(
                 package='inno_autonav',
                 executable='mission_commander',
                 name='mission_commander',
                 parameters=[config_file, {'semantic_yaml': semantic_yaml}],
-                output='screen',
+                output=node_output,
             ),
             Node(
                 package='inno_drive_bridge',
                 executable='cmdvel_to_esp32_serial',
                 name='cmdvel_to_esp32_serial',
                 parameters=[drive_config, {'serial_port': serial_port}],
-                output='screen',
+                output=node_output,
                 emulate_tty=True,
                 condition=IfCondition(use_serial),
             ),
@@ -121,7 +123,7 @@ def generate_launch_description() -> LaunchDescription:
                         'base_frame': 'base_link',
                     },
                 ],
-                output='screen',
+                output=node_output,
                 condition=IfCondition(use_wheel_odom_tf),
             ),
         ]

@@ -6,6 +6,7 @@ from typing import Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float32, String
 
 
@@ -17,20 +18,25 @@ MODE_TITLES = {
 FILTERED_PRESENCE_TOPIC = '/mmwave/filtered_presence'
 FILTERED_DISTANCE_TOPIC = '/mmwave/filtered_distance_m'
 DYNAMIC_OBSTACLE_TOPIC = '/dynamic_obstacle_detected'
+VICTIM_FUSION_TOPIC = '/victim_fusion_status'
 
 
 def waypoint_log_text(state: str) -> Optional[str]:
     """Return one concise Korean line for operator-relevant queue events."""
 
     raw = state.strip().upper()
-    if raw.startswith('REACHED:'):
+    if raw.startswith('RESTORED:'):
         try:
-            progress = raw.split(':', 1)[1]
-            reached, total = progress.split('/', 1)
-            return (
-                f'[웨이포인트] {int(reached)}번 도착 '
-                f'({int(reached)}/{int(total)})'
-            )
+            return f'[웨이포인트] {int(raw.split(":", 1)[1])}개 준비됨'
+        except (TypeError, ValueError):
+            return None
+    if raw.startswith(('RUNNING:', 'REACHED:')):
+        try:
+            event, progress = raw.split(':', 1)
+            current, total = (int(value) for value in progress.split('/', 1))
+            if event == 'RUNNING':
+                return f'[웨이포인트] {current}/{total} 주행 중'
+            return f'[웨이포인트] {current}/{total} 도착'
         except (TypeError, ValueError):
             return None
     if raw in ('MISSION_COMPLETE', 'STEP_MISSION_COMPLETE'):
@@ -75,12 +81,17 @@ class StatusConsole(Node):
         self._last_distance_log_time = 0.0
         self._pending_detection = False
         self._dynamic_detected = False
+        self._victim_state: Optional[str] = None
 
         self.create_subscription(
             String, '/drive_mode_status', self._on_drive_mode, 10
         )
+        waypoint_qos = QoSProfile(depth=1)
+        waypoint_qos.reliability = ReliabilityPolicy.RELIABLE
+        waypoint_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.create_subscription(
-            String, '/waypoint_queue_status', self._on_waypoint_state, 10
+            String, '/waypoint_queue_status', self._on_waypoint_state,
+            waypoint_qos,
         )
         self.create_subscription(
             String, '/follower_state', self._on_follower_state, 10
@@ -96,6 +107,9 @@ class StatusConsole(Node):
         )
         self.create_subscription(
             Bool, DYNAMIC_OBSTACLE_TOPIC, self._on_dynamic_obstacle, 10
+        )
+        self.create_subscription(
+            String, VICTIM_FUSION_TOPIC, self._on_victim_fusion, 10
         )
         self._detection_timer = self.create_timer(
             self.detection_distance_wait, self._flush_pending_detection
@@ -129,9 +143,14 @@ class StatusConsole(Node):
         self._last_distance_log_m = None
         self._last_distance_log_time = 0.0
         self._print_mode(mode)
+        if mode in (2, 3):
+            text = waypoint_log_text(self._waypoint_state or '')
+            if text:
+                self._write(text)
+            self._write('[조작] g=전체 웨이포인트 주행 | SPACE=다음 1개')
         if mode == 3:
-            if self._sensor_state:
-                self._write(f'[MMWAVE] SENSOR, {self._sensor_state}')
+            if self._sensor_state and self._sensor_state.upper() != 'ONLINE':
+                self._write(f'[센서 경고] MMWAVE {self._sensor_state}')
             if self._presence:
                 self._emit_detection()
 
@@ -175,8 +194,25 @@ class StatusConsole(Node):
         if not state or state == self._sensor_state:
             return
         self._sensor_state = state
-        if self._mode == 3:
-            self._write(f'[MMWAVE] SENSOR, {state}')
+        if self._mode == 3 and state.upper() != 'ONLINE':
+            self._write(f'[센서 경고] MMWAVE {state}')
+
+    def _on_victim_fusion(self, message: String) -> None:
+        state = message.data.strip()
+        if not state or state == self._victim_state:
+            return
+        self._victim_state = state
+        if self._mode != 3 or not state.upper().startswith('DETECTED:'):
+            return
+        try:
+            coordinates = state.split(':', 1)[1]
+            x_text, y_text = coordinates.split(',', 1)
+            self._write(
+                f'[요구조자] 확정됨 (x={float(x_text):.1f}, '
+                f'y={float(y_text):.1f})'
+            )
+        except (TypeError, ValueError):
+            self._write('[요구조자] 확정됨')
 
     @staticmethod
     def _valid_distance(value: float) -> bool:

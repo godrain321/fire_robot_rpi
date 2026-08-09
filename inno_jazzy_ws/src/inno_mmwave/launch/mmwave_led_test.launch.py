@@ -1,4 +1,4 @@
-"""Run the real C4001 driver and a latched ten-LED bank."""
+"""Run the real C4001 driver and a latched five-LED bank."""
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -36,7 +36,7 @@ def generate_launch_description():
         emulate_tty=True,
         parameters=[{
             'gpio_chip': ParameterValue(L('gpio_chip'), value_type=int),
-            'gpio_lines': [17, 27, 22, 23, 24, 25, 5, 6, 16, 26],
+            'gpio_lines': [17, 27, 22, 23, 24],
             'active_high': True,
         }],
     )

@@ -96,6 +96,7 @@ def select_unique_range_match(
     horizontal_fov_rad: float,
     mmwave_distance_m: float,
     cluster_radius_m: float,
+    min_cluster_points: int,
     max_cluster_points: int,
     absolute_tolerance_m: float,
     relative_tolerance: float,
@@ -110,7 +111,7 @@ def select_unique_range_match(
     )
     matches = []
     for members in cluster_points(points, cluster_radius_m):
-        if not 1 <= len(members) <= max_cluster_points:
+        if not min_cluster_points <= len(members) <= max_cluster_points:
             continue
         x = sum(point[0] for point in members) / len(members)
         y = sum(point[1] for point in members) / len(members)
@@ -220,15 +221,16 @@ def follow_victim_positions(
     observations: Sequence[XY],
     *,
     cluster_radius_m: float,
+    min_cluster_points: int,
     max_cluster_points: int,
     follow_radius_m: float,
     ambiguity_margin_m: float,
 ) -> List[XY]:
-    """Follow each rescuee with one unique nearby 1..N point scan cluster."""
+    """Follow each rescuee with one unique nearby configured-size scan cluster."""
 
     centers = []
     for members in cluster_points(observations, cluster_radius_m):
-        if not 1 <= len(members) <= max_cluster_points:
+        if not min_cluster_points <= len(members) <= max_cluster_points:
             continue
         centers.append((
             sum(point[0] for point in members) / len(members),
@@ -275,6 +277,22 @@ def filtered_dynamic_markers(
     return result
 
 
+def recolored_dynamic_markers(
+    message: MarkerArray, red: float, green: float, blue: float, alpha: float
+) -> MarkerArray:
+    """Return a copy with every obstacle sphere recolored for display."""
+
+    result = deepcopy(message)
+    for marker in result.markers:
+        if marker.action != Marker.ADD or marker.type != Marker.SPHERE_LIST:
+            continue
+        marker.color.r = float(red)
+        marker.color.g = float(green)
+        marker.color.b = float(blue)
+        marker.color.a = float(alpha)
+    return result
+
+
 class VictimFusionNode(Node):
     """Fuse coarse mmWave range with small confirmed LiDAR obstacle clusters."""
 
@@ -288,7 +306,8 @@ class VictimFusionNode(Node):
             'sensor_yaw_offset_deg': 0.0,
             'sensor_horizontal_fov_deg': 100.0,
             'cluster_radius_m': 0.22,
-            'max_cluster_points': 3,
+            'min_cluster_points': 2,
+            'max_cluster_points': 8,
             'victim_follow_radius_m': 0.65,
             'victim_follow_ambiguity_margin_m': 0.15,
             'victim_history_spacing_m': 0.10,
@@ -322,6 +341,7 @@ class VictimFusionNode(Node):
             self.get_parameter('sensor_horizontal_fov_deg').value
         ))
         self.cluster_radius = float(self.get_parameter('cluster_radius_m').value)
+        self.min_cluster_points = int(self.get_parameter('min_cluster_points').value)
         self.max_cluster_points = int(self.get_parameter('max_cluster_points').value)
         self.victim_follow_radius = float(
             self.get_parameter('victim_follow_radius_m').value
@@ -363,7 +383,8 @@ class VictimFusionNode(Node):
         if (
             not self.fixed_frame
             or not self.base_frame
-            or self.max_cluster_points < 1
+            or self.min_cluster_points < 2
+            or self.max_cluster_points < self.min_cluster_points
             or any(value <= 0.0 for value in numeric)
             or not math.isfinite(self.sensor_yaw_offset)
             or not 0.0 < self.sensor_horizontal_fov <= 2.0 * math.pi
@@ -418,7 +439,7 @@ class VictimFusionNode(Node):
             String, '/waypoint_queue_status', self._mission_callback, 10
         )
         self.create_service(Trigger, '/clear_victims', self._clear_callback)
-        self.mode3_enabled = False
+        self.drive_mode = 1
         self.buffer = Buffer()
         self.listener = TransformListener(self.buffer, self)
         self.mmwave_presence = False
@@ -456,15 +477,19 @@ class VictimFusionNode(Node):
         )
 
     def _mode_callback(self, message: Int32) -> None:
-        enabled = int(message.data) == 3
-        if enabled == self.mode3_enabled:
+        mode = int(message.data)
+        if mode not in (1, 2, 3) or mode == self.drive_mode:
             return
-        self.mode3_enabled = enabled
-        self._publish_red()
+        self.drive_mode = mode
+        self.last_dynamic = None
+        self._publish_dynamic_display()
         self._publish_victims()
-        self.status_publisher.publish(String(
-            data='ACTIVE:MODE3' if enabled else 'INACTIVE:MODE_NOT_3'
-        ))
+        states = {
+            1: 'INACTIVE:MODE1',
+            2: 'ACTIVE:MODE2_DYNAMIC_CYAN',
+            3: 'ACTIVE:MODE3_RESCUE',
+        }
+        self.status_publisher.publish(String(data=states[mode]))
 
     def _mission_callback(self, message: String) -> None:
         state = message.data.strip().upper()
@@ -473,15 +498,15 @@ class VictimFusionNode(Node):
         self.tracker.clear()
         self.victim_history.clear()
         self.status_publisher.publish(String(data=f'CLEARED:{state}'))
-        self._publish_red()
+        self._publish_dynamic_display()
         self._publish_victims()
 
     def _dynamic_callback(self, message: MarkerArray) -> None:
         self.last_dynamic = message
-        self._publish_red()
+        self._publish_dynamic_display()
 
     def _observation_callback(self, message: MarkerArray) -> None:
-        if not self.mode3_enabled:
+        if self.drive_mode != 3:
             return
         now = time.monotonic()
         points = extract_dynamic_points(message)
@@ -489,6 +514,7 @@ class VictimFusionNode(Node):
             self.tracker.victims,
             points,
             cluster_radius_m=self.cluster_radius,
+            min_cluster_points=self.min_cluster_points,
             max_cluster_points=self.max_cluster_points,
             follow_radius_m=self.victim_follow_radius,
             ambiguity_margin_m=self.victim_follow_ambiguity_margin,
@@ -502,8 +528,8 @@ class VictimFusionNode(Node):
             ):
                 self.victim_history.append(position)
 
-        # Person inference remains independent from the >=5-point
-        # generic avoidance channel: C4001 candidates are 1..3 scan points.
+        # Person inference remains independent from the mode-specific
+        # generic obstacle channel: C4001 candidates are 2..8 scan points.
         discovery_points = points
         if self._mmwave_ready(now) and discovery_points:
             try:
@@ -527,6 +553,7 @@ class VictimFusionNode(Node):
                     horizontal_fov_rad=self.sensor_horizontal_fov,
                     mmwave_distance_m=float(self.mmwave_distance),
                     cluster_radius_m=self.cluster_radius,
+                    min_cluster_points=self.min_cluster_points,
                     max_cluster_points=self.max_cluster_points,
                     absolute_tolerance_m=self.distance_tolerance,
                     relative_tolerance=self.relative_tolerance,
@@ -550,7 +577,7 @@ class VictimFusionNode(Node):
                     self.tracker.expire(now)
         else:
             self.tracker.expire(now)
-        self._publish_red()
+        self._publish_dynamic_display()
         self._publish_victims()
 
     def _clear_callback(self, request, response):
@@ -559,27 +586,31 @@ class VictimFusionNode(Node):
         self.tracker.clear()
         self.victim_history.clear()
         self.status_publisher.publish(String(data='CLEARED:MANUAL'))
-        self._publish_red()
+        self._publish_dynamic_display()
         self._publish_victims()
         response.success = True
         response.message = f'{count}개 요구조자 기록을 삭제했습니다.'
         return response
 
-    def _publish_red(self) -> None:
-        if not self.mode3_enabled:
+    def _publish_dynamic_display(self) -> None:
+        if self.drive_mode == 1 or self.last_dynamic is None:
             clear = Marker()
             clear.header.frame_id = self.fixed_frame
             clear.header.stamp = self.get_clock().now().to_msg()
             clear.action = Marker.DELETEALL
             self.red_publisher.publish(MarkerArray(markers=[clear]))
             return
-        if self.last_dynamic is None:
-            return
-        self.red_publisher.publish(filtered_dynamic_markers(
-            self.last_dynamic,
-            self.victim_history,
-            self.red_suppression_radius,
-        ))
+        if self.drive_mode == 2:
+            display = recolored_dynamic_markers(
+                self.last_dynamic, 0.05, 0.85, 1.0, 0.90
+            )
+        else:
+            display = filtered_dynamic_markers(
+                self.last_dynamic,
+                self.victim_history,
+                self.red_suppression_radius,
+            )
+        self.red_publisher.publish(display)
 
     def _publish_victims(self) -> None:
         stamp = self.get_clock().now().to_msg()
@@ -601,7 +632,7 @@ class VictimFusionNode(Node):
         marker.color.g = 0.85
         marker.color.b = 1.0
         marker.color.a = 0.95
-        positions = self.tracker.victims if self.mode3_enabled else ()
+        positions = self.tracker.victims if self.drive_mode == 3 else ()
         marker.points = [
             Point(x=x, y=y, z=0.15) for x, y in positions
         ]

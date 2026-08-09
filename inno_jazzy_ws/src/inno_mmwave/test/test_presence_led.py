@@ -28,8 +28,8 @@ class FakeLgpio:
 
 
 def test_requested_bcm_to_physical_pin_order_is_fixed():
-    assert DEFAULT_GPIO_LINES == (17, 27, 22, 23, 24, 25, 5, 6, 16, 26)
-    assert DEFAULT_PHYSICAL_PINS == (11, 13, 15, 16, 18, 22, 29, 31, 36, 37)
+    assert DEFAULT_GPIO_LINES == (17, 27, 22, 23, 24)
+    assert DEFAULT_PHYSICAL_PINS == (11, 13, 15, 16, 18)
 
 
 def test_presence_latches_until_explicit_reset():

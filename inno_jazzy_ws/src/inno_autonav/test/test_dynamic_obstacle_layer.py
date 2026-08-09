@@ -4,7 +4,9 @@ from inno_autonav.dynamic_obstacle_layer import (
     LargeObstacleTracker,
     build_wall_exclusion_mask,
     cluster_scan_points,
+    dynamic_avoidance_enabled,
     is_clear_dynamic_candidate,
+    minimum_cluster_points_for_mode,
     scan_range_membership,
 )
 from inno_autonav.grid_utils import MapGrid
@@ -69,6 +71,20 @@ def test_large_obstacle_requires_at_least_five_clustered_scan_points():
     clusters = cluster_scan_points(five, 0.18, min_points=5)
     assert len(clusters) == 1
     assert set(clusters[0]) == set(five)
+
+
+def test_mode_two_uses_three_points_and_mode_three_uses_fifteen():
+    assert minimum_cluster_points_for_mode(1, 3, 15) is None
+    assert minimum_cluster_points_for_mode(2, 3, 15) == 3
+    assert minimum_cluster_points_for_mode(3, 3, 15) == 15
+    assert not dynamic_avoidance_enabled(2)
+    assert dynamic_avoidance_enabled(3)
+
+    fourteen = [(0.01 * index, 0.0) for index in range(14)]
+    fifteen = [(0.01 * index, 0.0) for index in range(15)]
+    assert len(cluster_scan_points(fourteen, 0.18, min_points=3)) == 1
+    assert cluster_scan_points(fourteen, 0.18, min_points=15) == []
+    assert len(cluster_scan_points(fifteen, 0.18, min_points=15)) == 1
 
 
 def test_rescuee_and_avoidance_scan_ranges_both_stop_at_four_metres():

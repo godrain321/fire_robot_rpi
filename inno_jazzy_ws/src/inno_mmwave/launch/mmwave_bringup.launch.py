@@ -14,13 +14,14 @@ def generate_launch_description():
         DeclareLaunchArgument('serial_port', default_value='/dev/ttyAMA0'),
         DeclareLaunchArgument('configure_sensor', default_value='true'),
         DeclareLaunchArgument('assist_check_sec', default_value='10.0'),
+        DeclareLaunchArgument('node_output', default_value='screen'),
     ]
 
     driver = Node(
         package='inno_mmwave',
         executable='c4001_node',
         name='c4001_node',
-        output='screen',
+        output=L('node_output'),
         emulate_tty=True,
         parameters=[
             share + '/config/c4001.yaml',
@@ -36,7 +37,7 @@ def generate_launch_description():
         package='inno_mmwave',
         executable='mmwave_mobility',
         name='mmwave_mobility',
-        output='screen',
+        output=L('node_output'),
         emulate_tty=True,
         parameters=[
             {
