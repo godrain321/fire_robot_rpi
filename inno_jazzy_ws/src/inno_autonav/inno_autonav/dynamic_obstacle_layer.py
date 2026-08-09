@@ -11,6 +11,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Bool
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -129,6 +130,9 @@ class DynamicObstacleLayer(Node):
         self.marker_publisher = self.create_publisher(
             MarkerArray, '/dynamic_obstacle_markers', grid_qos
         )
+        self.detected_publisher = self.create_publisher(
+            Bool, '/dynamic_obstacle_detected', grid_qos
+        )
         self.create_service(
             Trigger, '/clear_dynamic_obstacles', self._clear_callback
         )
@@ -232,6 +236,7 @@ class DynamicObstacleLayer(Node):
         message.info.origin.orientation.w = qw
         message.data = data.reshape(-1).astype(int).tolist()
         self.grid_publisher.publish(message)
+        self.detected_publisher.publish(Bool(data=bool(self.confirmed)))
         self._publish_markers(stamp)
 
     def _publish_markers(self, stamp) -> None:

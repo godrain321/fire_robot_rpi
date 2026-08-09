@@ -6,6 +6,7 @@ from typing import Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float32, String
 
 
@@ -15,6 +16,34 @@ MODE_TITLES = {
 }
 FILTERED_PRESENCE_TOPIC = '/mmwave/filtered_presence'
 FILTERED_DISTANCE_TOPIC = '/mmwave/filtered_distance_m'
+DYNAMIC_OBSTACLE_TOPIC = '/dynamic_obstacle_detected'
+
+
+def waypoint_log_text(state: str) -> Optional[str]:
+    """Format only operator-relevant waypoint progress events."""
+
+    raw = state.strip().upper()
+    if raw.startswith("RESTORED:"):
+        try:
+            return f"[웨이포인트] {int(raw.split(chr(58), 1)[1])}개 준비됨"
+        except (TypeError, ValueError):
+            return None
+    if raw.startswith("RUNNING:"):
+        try:
+            current, total = (
+                int(value) for value in raw.split(chr(58), 1)[1].split("/", 1)
+            )
+        except (TypeError, ValueError):
+            return None
+        if current <= 1:
+            return f"[웨이포인트] 출발 → 1 주행 중 (1/{total})"
+        return (
+            f"[웨이포인트] {current - 1} → {current} 주행 중 "
+            f"({current}/{total})"
+        )
+    if raw in ("MISSION_COMPLETE", "STEP_MISSION_COMPLETE"):
+        return "[웨이포인트] 전체 주행 완료"
+    return None
 
 
 class StatusConsole(Node):
@@ -51,12 +80,17 @@ class StatusConsole(Node):
         self._last_distance_log_m: Optional[float] = None
         self._last_distance_log_time = 0.0
         self._pending_detection = False
+        self._dynamic_detected: Optional[bool] = None
 
         self.create_subscription(
             String, '/drive_mode_status', self._on_drive_mode, 10
         )
+        waypoint_qos = QoSProfile(depth=1)
+        waypoint_qos.reliability = ReliabilityPolicy.RELIABLE
+        waypoint_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.create_subscription(
-            String, '/waypoint_queue_status', self._on_waypoint_state, 10
+            String, '/waypoint_queue_status', self._on_waypoint_state,
+            waypoint_qos,
         )
         self.create_subscription(
             String, '/follower_state', self._on_follower_state, 10
@@ -69,6 +103,9 @@ class StatusConsole(Node):
         )
         self.create_subscription(
             String, '/mmwave/sensor_state', self._on_sensor_state, 10
+        )
+        self.create_subscription(
+            Bool, DYNAMIC_OBSTACLE_TOPIC, self._on_dynamic_obstacle, 10
         )
         self._detection_timer = self.create_timer(
             self.detection_distance_wait, self._flush_pending_detection
@@ -98,27 +135,55 @@ class StatusConsole(Node):
             return
         self._mode = mode
         self._print_mode(mode)
+        if mode == 2:
+            text = waypoint_log_text(self._waypoint_state or "")
+            if text:
+                self._write(text)
+            if self._dynamic_detected:
+                self._write("[동적장애물] 감지됨 - 회피 경로 계산")
+            self._write("[조작] g=9개 웨이포인트 연속 주행")
 
     def _on_waypoint_state(self, message: String) -> None:
         state = message.data.strip()
         if not state or state == self._waypoint_state:
             return
         self._waypoint_state = state
-        self._write(f'[WAYPOINT] {state}')
+        if self._mode != 2:
+            return
+        text = waypoint_log_text(state)
+        if text:
+            self._write(text)
 
     def _on_follower_state(self, message: String) -> None:
         state = message.data.strip()
         if not state or state == self._follower_state:
             return
         self._follower_state = state
-        self._write(f'[FOLLOWER] {state}')
+        warnings = {
+            "EMERGENCY_STOP": "전방 안전 정지",
+            "NO_PATH": "회피 가능한 경로 없음",
+        }
+        if self._mode == 2 and state in warnings:
+            self._write(f"[주행 경고] {warnings[state]}")
+
+    def _on_dynamic_obstacle(self, message: Bool) -> None:
+        detected = bool(message.data)
+        previous = self._dynamic_detected
+        self._dynamic_detected = detected
+        if self._mode != 2 or detected == previous:
+            return
+        if detected:
+            self._write("[동적장애물] 감지됨 - 회피 경로 계산")
+        elif previous:
+            self._write("[동적장애물] 감지 해제 - 웨이포인트 경로 복귀")
 
     def _on_sensor_state(self, message: String) -> None:
         state = message.data.strip()
         if not state or state == self._sensor_state:
             return
         self._sensor_state = state
-        self._write(f'[MMWAVE] SENSOR, {state}')
+        if state.upper() not in ("ONLINE", "CONNECTING"):
+            self._write(f"[센서 경고] MMWAVE {state}")
 
     @staticmethod
     def _valid_distance(value: float) -> bool:
@@ -174,19 +239,9 @@ class StatusConsole(Node):
         if not self._presence:
             return
 
-        now = time.monotonic()
         if self._pending_detection:
             self._emit_detection()
-            return
-        if self._last_distance_log_m is None:
-            self._emit_detection()
-            return
-        if now - self._last_distance_log_time < self.distance_log_interval:
-            return
-        if abs(measured - self._last_distance_log_m) < self.distance_log_delta:
-            return
-        self._write(self._detection_text())
-        self._record_distance_log(now)
+        # Presence transitions are logged once; raw distance jitter stays quiet.
 
 
 def main(args=None) -> None:
