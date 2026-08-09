@@ -26,10 +26,12 @@ def generate_launch_description():
             'waypoint_file',
             default_value=project_path('maps', 'waypoint_queue_latest.yaml'),
         ),
+        DeclareLaunchArgument('waypoint_save_file', default_value=''),
         DeclareLaunchArgument('start_x', default_value='4.817799091339111'),
         DeclareLaunchArgument('start_y', default_value='-9.854209899902344'),
         DeclareLaunchArgument('start_yaw', default_value='-0.4439678115329046'),
         DeclareLaunchArgument('preview_goal_index', default_value='0'),
+        DeclareLaunchArgument('replace_waypoint_numbers', default_value=''),
         DeclareLaunchArgument('use_rviz', default_value='true'),
     ]
     map_server = Node(
@@ -60,6 +62,8 @@ def generate_launch_description():
         parameters=[
             {
                 'load_file': L('waypoint_file'),
+                'save_file': L('waypoint_save_file'),
+                'replace_waypoint_numbers': L('replace_waypoint_numbers'),
                 'preview_goal_index': ParameterValue(
                     L('preview_goal_index'), value_type=int
                 ),

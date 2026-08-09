@@ -7,6 +7,7 @@ import yaml
 from inno_autonav.waypoint_queue import (
     document_from_poses,
     poses_from_document,
+    replacement_indices_from_text,
     save_pose_document,
 )
 
@@ -84,3 +85,14 @@ def test_saved_queue_round_trip(tmp_path):
     restored = poses_from_document(document, 'map')
     assert document_from_poses(restored, 'map') == document
     assert restored[0].pose.position.y == -3.5
+
+
+def test_replacement_indices_preserve_requested_order():
+    assert replacement_indices_from_text("2,3,9", 9) == [1, 2, 8]
+    assert replacement_indices_from_text("", 9) == []
+
+
+@pytest.mark.parametrize("value", ["0", "10", "2,2", "two"])
+def test_replacement_indices_reject_invalid_input(value):
+    with pytest.raises(ValueError):
+        replacement_indices_from_text(value, 9)

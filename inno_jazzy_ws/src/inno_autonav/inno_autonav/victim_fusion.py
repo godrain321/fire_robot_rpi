@@ -307,7 +307,7 @@ class VictimFusionNode(Node):
             'sensor_horizontal_fov_deg': 100.0,
             'cluster_radius_m': 0.22,
             'min_cluster_points': 2,
-            'max_cluster_points': 8,
+            'max_cluster_points': 15,
             'victim_follow_radius_m': 0.65,
             'victim_follow_ambiguity_margin_m': 0.15,
             'victim_history_spacing_m': 0.10,
@@ -413,6 +413,9 @@ class VictimFusionNode(Node):
         )
         self.status_publisher = self.create_publisher(
             String, '/victim_fusion_status', qos
+        )
+        self.victim_detected_publisher = self.create_publisher(
+            Bool, '/victim_detected', qos
         )
         self.create_subscription(
             MarkerArray, '/dynamic_obstacle_markers', self._dynamic_callback, qos
@@ -529,7 +532,7 @@ class VictimFusionNode(Node):
                 self.victim_history.append(position)
 
         # Person inference remains independent from the mode-specific
-        # generic obstacle channel: C4001 candidates are 2..8 scan points.
+        # generic obstacle channel: C4001 candidates are 2..15 scan points.
         discovery_points = points
         if self._mmwave_ready(now) and discovery_points:
             try:
@@ -633,6 +636,7 @@ class VictimFusionNode(Node):
         marker.color.b = 1.0
         marker.color.a = 0.95
         positions = self.tracker.victims if self.drive_mode == 3 else ()
+        self.victim_detected_publisher.publish(Bool(data=bool(positions)))
         marker.points = [
             Point(x=x, y=y, z=0.15) for x, y in positions
         ]

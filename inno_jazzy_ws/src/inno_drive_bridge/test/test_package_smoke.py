@@ -1,6 +1,9 @@
 import pytest
 
 from inno_drive_bridge.cmd_vel_mode_mux import command_source_for_mode
+from inno_drive_bridge.keyboard_cmdvel_demo import (
+    waypoint_command_on_mode_select,
+)
 
 
 def test_drive_package_imports():
@@ -14,3 +17,11 @@ def test_mode_two_and_three_share_only_the_autonomous_input():
     assert command_source_for_mode(3) == 2
     with pytest.raises(ValueError, match='1, 2, or 3'):
         command_source_for_mode(4)
+
+
+def test_mode_two_starts_continuous_queue_automatically():
+    assert waypoint_command_on_mode_select(1) is None
+    assert waypoint_command_on_mode_select(2) == 'GO'
+    assert waypoint_command_on_mode_select(3) is None
+    with pytest.raises(ValueError, match='1, 2, or 3'):
+        waypoint_command_on_mode_select(0)

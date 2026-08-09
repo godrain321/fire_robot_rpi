@@ -25,10 +25,14 @@ class PresenceLatch:
 
     active: bool = False
 
-    def observe(self, detected: bool) -> bool:
+    def observe(
+        self, detected: bool, *, reset_on_false: bool = False
+    ) -> bool:
         previous = self.active
         if detected:
             self.active = True
+        elif reset_on_false:
+            self.active = False
         return self.active != previous
 
     def reset(self) -> bool:
@@ -118,18 +122,26 @@ class LgpioLedBank:
 
 
 class PresenceLedNode(Node):
-    """Drive five latched LEDs from the conservative filtered-presence topic."""
+    """Drive five LEDs from a configurable confirmed-detection topic."""
 
     def __init__(self, gpio_factory=LgpioLedBank) -> None:
         super().__init__('mmwave_presence_led')
         self.declare_parameter('gpio_chip', 4)
         self.declare_parameter('gpio_lines', list(DEFAULT_GPIO_LINES))
         self.declare_parameter('active_high', True)
+        self.declare_parameter('trigger_topic', PRESENCE_TOPIC)
+        self.declare_parameter('reset_on_false', False)
         chip = int(self.get_parameter('gpio_chip').value)
         lines = tuple(
             int(line) for line in self.get_parameter('gpio_lines').value
         )
         active_high = bool(self.get_parameter('active_high').value)
+        trigger_topic = str(self.get_parameter('trigger_topic').value)
+        self.reset_on_false = bool(
+            self.get_parameter('reset_on_false').value
+        )
+        if not trigger_topic:
+            raise ValueError('trigger_topic must not be empty')
 
         self.latch = PresenceLatch()
         self.output = gpio_factory(chip, lines, active_high=active_high)
@@ -142,23 +154,32 @@ class PresenceLedNode(Node):
         self.status_publisher = self.create_publisher(
             Bool, LED_STATUS_TOPIC, qos
         )
-        self.create_subscription(Bool, PRESENCE_TOPIC, self._presence, qos)
+        self.create_subscription(Bool, trigger_topic, self._presence, qos)
         self.create_service(Trigger, RESET_SERVICE, self._reset)
         self._publish_status()
         self.get_logger().info(
             f'5-LED bank ready: physical pins {DEFAULT_PHYSICAL_PINS}, '
-            f'BCM GPIOs {lines}, gpiochip{chip}; waiting for presence'
+            f'BCM GPIOs {lines}, gpiochip{chip}; trigger={trigger_topic}'
         )
 
     def _publish_status(self) -> None:
         self.status_publisher.publish(Bool(data=self.latch.active))
 
     def _presence(self, message: Bool) -> None:
-        if not self.latch.observe(bool(message.data)):
+        if not self.latch.observe(
+            bool(message.data), reset_on_false=self.reset_on_false
+        ):
             return
-        self.output.set_enabled(True)
+        self.output.set_enabled(self.latch.active)
         self._publish_status()
-        self.get_logger().warning('PERSON DETECTED: ALL 5 LEDS LATCHED ON')
+        if self.latch.active:
+            self.get_logger().warning(
+                'RESCUEE CONFIRMED: ALL 5 LEDS ON'
+            )
+        else:
+            self.get_logger().info(
+                'Rescue mission ended: all 5 LEDs off'
+            )
 
     def _reset(self, request, response):
         del request

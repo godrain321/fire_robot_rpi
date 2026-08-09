@@ -10,6 +10,13 @@ from rclpy.node import Node
 from std_msgs.msg import Int32, String
 
 
+def waypoint_command_on_mode_select(mode):
+    """Start MODE 2 continuously; MODE 1/3 keep their existing controls."""
+    if mode not in (1, 2, 3):
+        raise ValueError("drive mode must be 1, 2, or 3")
+    return "GO" if mode == 2 else None
+
+
 class KeyboardCmdVelDemo(Node):
     def __init__(self):
         super().__init__('keyboard_cmdvel_demo')
@@ -51,8 +58,8 @@ class KeyboardCmdVelDemo(Node):
         self.create_timer(0.02, self._poll_keyboard)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
         self.get_logger().info(
-            'Keyboard ready: 1=manual, 2=waypoint, 3=rescue waypoint, '
-            'g=run all, SPACE=run next waypoint, c=clear, '
+            'Keyboard ready: 1=manual, 2=waypoint auto-run, '
+            '3=rescue waypoint, g=run all, SPACE=run next waypoint, c=clear, '
             'w/x/a/d/s, q=quit'
         )
 
@@ -100,6 +107,15 @@ class KeyboardCmdVelDemo(Node):
                 3: 'MODE 3: RESCUE + DYNAMIC AVOIDANCE',
             }
             self.get_logger().info(labels[self.drive_mode])
+            waypoint_command = waypoint_command_on_mode_select(self.drive_mode)
+            if waypoint_command is not None:
+                self.waypoint_command_publisher.publish(
+                    String(data=waypoint_command)
+                )
+                self.get_logger().info(
+                    "MODE 2: requested continuous waypoint driving "
+                    "from first to last"
+                )
             return
         if key == 'g':
             if self.drive_mode not in (2, 3):

@@ -2,7 +2,10 @@
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription,
+)
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
 from launch_ros.actions import Node
@@ -16,9 +19,26 @@ def generate_launch_description():
     drive = get_package_share_directory('inno_drive_bridge')
     autonav = get_package_share_directory('inno_autonav')
     mmwave = get_package_share_directory('inno_mmwave')
+    thermal_dir = project_path(
+        'mlx90640', 'demo codes', 'mlx90640', 'python'
+    )
     args = [
-        DeclareLaunchArgument('esp32_port', default_value='/dev/ttyUSB0'),
-        DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB1'),
+        DeclareLaunchArgument(
+            'esp32_port',
+            default_value=(
+                '/dev/serial/by-id/'
+                'usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_'
+                'de2033aed827f0119bb79ad8346f00fe-if00-port0'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'lidar_port',
+            default_value=(
+                '/dev/serial/by-id/'
+                'usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_'
+                '4a5b9018526eef11bff6e0c2c169b110-if00-port0'
+            ),
+        ),
         DeclareLaunchArgument('mmwave_port', default_value='/dev/ttyAMA0'),
         DeclareLaunchArgument('mmwave_configure_sensor', default_value='true'),
         DeclareLaunchArgument('assist_check_sec', default_value='10.0'),
@@ -38,6 +58,7 @@ def generate_launch_description():
         DeclareLaunchArgument('drive_speed', default_value='0.20'),
         DeclareLaunchArgument('turn_speed', default_value='0.35'),
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
+        DeclareLaunchArgument('start_thermal_viewer', default_value='true'),
     ]
     localization = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(bringup + '/launch/lidar_amcl_localization.launch.py'),
@@ -59,6 +80,17 @@ def generate_launch_description():
         package='inno_mmwave', executable='mmwave_status_console',
         name='mmwave_status_console', output='screen', emulate_tty=True,
         output_format='{line}',
+    )
+    rescue_led = Node(
+        package='inno_mmwave', executable='mmwave_presence_led',
+        name='rescuee_led_bank', output='log', emulate_tty=True,
+        parameters=[{
+            'gpio_chip': 4,
+            'gpio_lines': [17, 27, 22, 23, 24],
+            'active_high': True,
+            'trigger_topic': '/victim_detected',
+            'reset_on_false': True,
+        }],
     )
     navigation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(autonav + '/launch/autonav_demo.launch.py'),
@@ -115,9 +147,17 @@ def generate_launch_description():
         package='rviz2', executable='rviz2', name='rviz2', output='log',
         arguments=['-d', bringup + '/rviz/inno_slam.rviz'],
     )
+    thermal_viewer = ExecuteProcess(
+        cmd=['python3', thermal_dir + '/mlx90640.py'],
+        cwd=thermal_dir,
+        name='mlx90640_viewer',
+        output='log',
+        condition=IfCondition(L('start_thermal_viewer')),
+    )
     return LaunchDescription(
         args + [
-            localization, mmwave_bringup, status_console, navigation, keyboard,
-            mux, serial, waypoint_queue, robot_heading, rviz,
+            localization, mmwave_bringup, status_console, rescue_led,
+            navigation, keyboard,
+            mux, serial, waypoint_queue, robot_heading, rviz, thermal_viewer,
         ]
     )

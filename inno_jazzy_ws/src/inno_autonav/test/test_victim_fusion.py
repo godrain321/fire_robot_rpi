@@ -7,6 +7,7 @@ from inno_autonav.victim_fusion import (
     LidarCluster,
     RescueeTracker,
     cluster_points,
+    extract_dynamic_points,
     filtered_dynamic_markers,
     recolored_dynamic_markers,
     follow_victim_positions,
@@ -25,7 +26,7 @@ def selection(points, distance):
         mmwave_distance_m=distance,
         cluster_radius_m=0.22,
         min_cluster_points=2,
-        max_cluster_points=8,
+        max_cluster_points=15,
         absolute_tolerance_m=0.8,
         relative_tolerance=0.25,
         maximum_tolerance_m=1.5,
@@ -33,7 +34,7 @@ def selection(points, distance):
     )
 
 
-def test_two_to_eight_nearby_lidar_points_form_one_person_cluster():
+def test_two_to_fifteen_nearby_lidar_points_form_one_person_cluster():
     groups = cluster_points(
         [(2.0, 0.0), (2.05, 0.03), (1.98, -0.02), (4.0, 1.0)],
         connection_radius_m=0.22,
@@ -85,12 +86,20 @@ def test_cluster_outside_forward_sensor_fov_is_not_a_person_candidate():
     ], distance=2.0) is not None
 
 
-def test_person_candidate_requires_two_to_eight_points():
+def test_person_candidate_requires_two_to_fifteen_points():
     assert selection([(2.0, 0.0)], distance=2.0) is None
-    eight = [(2.0 + 0.02 * index, 0.0) for index in range(8)]
-    nine = [(2.0 + 0.02 * index, 0.0) for index in range(9)]
-    assert selection(eight, distance=2.0) is not None
-    assert selection(nine, distance=2.0) is None
+    fifteen = [(2.0 + 0.01 * index, 0.0) for index in range(15)]
+    sixteen = [(2.0 + 0.01 * index, 0.0) for index in range(16)]
+    assert selection(fifteen, distance=2.0) is not None
+    assert selection(sixteen, distance=2.0) is None
+
+
+def test_dynamic_marker_points_are_not_duplicated_before_fusion():
+    marker = Marker(type=Marker.SPHERE_LIST, action=Marker.ADD)
+    marker.points = [Point(x=1.0, y=2.0), Point(x=1.1, y=2.1)]
+    assert extract_dynamic_points(MarkerArray(markers=[marker])) == [
+        (1.0, 2.0), (1.1, 2.1)
+    ]
 
 
 def test_moving_rescuee_keeps_its_classification_and_updates_position():
@@ -100,7 +109,7 @@ def test_moving_rescuee_keeps_its_classification_and_updates_position():
         [(2.35, 1.0), (2.38, 1.02)],
         cluster_radius_m=0.22,
         min_cluster_points=2,
-        max_cluster_points=8,
+        max_cluster_points=15,
         follow_radius_m=0.65,
         ambiguity_margin_m=0.15,
     )
@@ -111,20 +120,20 @@ def test_moving_rescuee_keeps_its_classification_and_updates_position():
         [],
         cluster_radius_m=0.22,
         min_cluster_points=2,
-        max_cluster_points=8,
+        max_cluster_points=15,
         follow_radius_m=0.65,
         ambiguity_margin_m=0.15,
     ) == moved
 
-    nine_point_cluster = [
-        (2.1 + 0.02 * index, 1.0) for index in range(9)
+    sixteen_point_cluster = [
+        (2.1 + 0.01 * index, 1.0) for index in range(16)
     ]
     assert follow_victim_positions(
         original,
-        nine_point_cluster,
+        sixteen_point_cluster,
         cluster_radius_m=0.22,
         min_cluster_points=2,
-        max_cluster_points=8,
+        max_cluster_points=15,
         follow_radius_m=0.65,
         ambiguity_margin_m=0.15,
     ) == original

@@ -43,6 +43,14 @@ def test_presence_latches_until_explicit_reset():
     assert not latch.active
 
 
+def test_rescue_trigger_can_reset_at_mission_end():
+    latch = PresenceLatch()
+    assert latch.observe(True, reset_on_false=True)
+    assert latch.active
+    assert latch.observe(False, reset_on_false=True)
+    assert not latch.active
+
+
 def test_active_high_bank_starts_and_closes_all_lines_low():
     fake = FakeLgpio()
     lines = (17, 27, 22)

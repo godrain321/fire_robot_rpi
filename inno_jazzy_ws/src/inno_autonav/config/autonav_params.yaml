@@ -39,7 +39,7 @@ victim_fusion:
     sensor_horizontal_fov_deg: 100.0
     cluster_radius_m: 0.22
     min_cluster_points: 2
-    max_cluster_points: 8
+    max_cluster_points: 15
     victim_follow_radius_m: 0.65
     victim_follow_ambiguity_margin_m: 0.15
     victim_history_spacing_m: 0.10

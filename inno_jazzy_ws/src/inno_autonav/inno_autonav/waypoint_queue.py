@@ -129,6 +129,25 @@ def save_pose_document(filename, poses, map_frame):
                 pass
 
 
+def replacement_indices_from_text(text, queue_size):
+    """Convert one-based waypoint numbers into validated zero-based indices."""
+    if not text.strip():
+        return []
+    try:
+        numbers = [int(item.strip()) for item in text.split(",")]
+    except ValueError as exc:
+        raise ValueError(
+            "replace_waypoint_numbers must be comma-separated integers"
+        ) from exc
+    if len(numbers) != len(set(numbers)):
+        raise ValueError("replace_waypoint_numbers must not contain duplicates")
+    if any(number < 1 or number > queue_size for number in numbers):
+        raise ValueError(
+            f"replacement waypoint number must be within 1..{queue_size}"
+        )
+    return [number - 1 for number in numbers]
+
+
 class WaypointQueue(Node):
     def __init__(self):
         super().__init__('waypoint_queue')
@@ -137,6 +156,7 @@ class WaypointQueue(Node):
         self.declare_parameter('save_file', '')
         self.declare_parameter('preview_goal_index', -1)
         self.declare_parameter('preview_delay_sec', 2.0)
+        self.declare_parameter('replace_waypoint_numbers', '')
         self.map_frame = str(self.get_parameter('map_frame').value)
         self.save_file = str(self.get_parameter('save_file').value).strip()
         qos = QoSProfile(depth=1)
@@ -160,6 +180,11 @@ class WaypointQueue(Node):
             MarkerArray, '/waypoint_markers', qos
         )
         self._load_saved_queue(str(self.get_parameter('load_file').value))
+        self.replacement_indices = replacement_indices_from_text(
+            str(self.get_parameter('replace_waypoint_numbers').value),
+            len(self.queue),
+        )
+        self.replacement_cursor = 0
         self._publish_queue()
         self._state(
             f'RESTORED:{len(self.queue)}' if self.queue
@@ -241,6 +266,31 @@ class WaypointQueue(Node):
             self._state(f'REJECTED_FRAME:{message.header.frame_id}')
             return
         message.header.frame_id = self.map_frame
+        if self.replacement_indices:
+            if self.replacement_cursor >= len(self.replacement_indices):
+                self._state('REPLACEMENT_COMPLETE:EXTRA_CLICK_IGNORED')
+                self.get_logger().warning(
+                    'All requested replacements are complete; click ignored.'
+                )
+                return
+            index = self.replacement_indices[self.replacement_cursor]
+            self.queue[index] = message
+            self.replacement_cursor += 1
+            self.current_index = None
+            self._save_queue()
+            self._publish_queue()
+            remaining = len(self.replacement_indices) - self.replacement_cursor
+            self._state(
+                f'REPLACED:{index + 1}/{len(self.queue)}:'
+                f'REMAINING:{remaining}'
+            )
+            self.get_logger().info(
+                f'Waypoint {index + 1} replaced: '
+                f'({message.pose.position.x:.3f}, '
+                f'{message.pose.position.y:.3f}); '
+                f'{remaining} replacement(s) remaining'
+            )
+            return
         self.queue.append(message)
         self.current_index = None
         self._save_queue()
