@@ -25,7 +25,7 @@ font = ImageFont.truetype("./lib/MiSans-Light.ttf",size=20)
 
 window = tk.Tk()
 window.title('SEENGREAT')
-window.geometry("400x320+0+0")
+window.geometry(f"{DISP_W}x{DISP_H}+0+0")
 
 def Temp_To_RGB(x, y, v): 
     # Heatmap code borrowed from: http://www.andrewnoske.com/wiki/Code_-_heatmaps_and_color_gradients
@@ -81,13 +81,10 @@ def Update_image():
                 for x in range(IMG_H):
                     val = mlx90640To[IMG_H * (IMG_W-1-y) + x]
                     Temp_To_RGB(y, x, val) # update image pixels colors
-            img_temp = img_src.filter(ImageFilter.BoxBlur(1.5))  # image blur
-
-            # 카메라를 반시계 방향 90도 설치했으므로
-            # 화면은 시계 방향 90도 회전
-            img_temp = img_temp.rotate(-90, expand=True)
-
-            img_show = img_temp.resize((DISP_W, DISP_H))
+            img_temp = img_src.filter(ImageFilter.BoxBlur(1.5)) # image blur
+            # Rotate the thermal view 90 degrees counterclockwise.
+            img_temp = img_temp.rotate(90, expand=True)
+            img_show = img_temp.resize((DISP_W,DISP_H))
             draw = ImageDraw.Draw(img_show)        
             show_text = str.format("Min:%d%s"%(int(minTemp),"°C"))
             draw.text((10,DISP_H-30),show_text,fill=(0,0,255),font=font)# draw minimum temperature
@@ -106,5 +103,3 @@ if __name__ == '__main__':
     thread.start()
     window.mainloop()
     thread.join()
-
-
