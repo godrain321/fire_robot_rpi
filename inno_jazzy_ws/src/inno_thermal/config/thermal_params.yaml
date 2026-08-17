@@ -1,0 +1,28 @@
+mlx90640_sensor_node:
+  ros__parameters:
+    i2c_address: 51
+    frame_id: thermal_camera_link
+    horizontal_fov_deg: 110.0
+    vertical_fov_deg: 75.0
+    projection_distance_m: 0.15
+    refresh_rate_hz: 8
+    publish_rate_hz: 4.0
+    flip_horizontal: false
+    flip_vertical: false
+    rotate_180: false
+    native_library_path: ""
+
+thermal_cost_layer:
+  ros__parameters:
+    static_grid_topic: /planning_grid_static
+    thermal_arc_topic: /thermal/arc_points
+    thermal_cost_grid_topic: /thermal_cost_grid
+    status_topic: /thermal_cost_status
+    target_frame: map
+    safe_temperature_c: 20.0
+    blocked_temperature_c: 60.0
+    temperature_power: 2.0
+    observation_timeout_sec: 2.0
+    inflation_radius_m: 0.0
+    publish_rate_hz: 4.0
+    tf_timeout_sec: 0.2
