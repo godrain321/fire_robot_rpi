@@ -26,6 +26,8 @@ def generate_launch_description() -> LaunchDescription:
     use_dynamic_obstacles = LaunchConfiguration('use_dynamic_obstacles')
     max_linear_speed = LaunchConfiguration('max_linear_speed')
     max_angular_speed = LaunchConfiguration('max_angular_speed')
+    require_thermal_grid = LaunchConfiguration('require_thermal_grid')
+    require_thermal_active = LaunchConfiguration('require_thermal_active')
 
     return LaunchDescription(
         [
@@ -35,6 +37,8 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('use_dynamic_obstacles', default_value='false'),
             DeclareLaunchArgument('max_linear_speed', default_value='0.06'),
             DeclareLaunchArgument('max_angular_speed', default_value='0.45'),
+            DeclareLaunchArgument('require_thermal_grid', default_value='true'),
+            DeclareLaunchArgument('require_thermal_active', default_value='true'),
             DeclareLaunchArgument(
                 'map_yaml',
                 default_value=project_path('maps', 'inno_map_nav.yaml'),
@@ -65,7 +69,17 @@ def generate_launch_description() -> LaunchDescription:
                 package='inno_autonav',
                 executable='astar_replanner',
                 name='astar_replanner',
-                parameters=[config_file],
+                parameters=[
+                    config_file,
+                    {
+                        'require_thermal_grid': ParameterValue(
+                            require_thermal_grid, value_type=bool
+                        ),
+                        'require_thermal_active': ParameterValue(
+                            require_thermal_active, value_type=bool
+                        ),
+                    },
+                ],
                 output='screen',
             ),
             Node(

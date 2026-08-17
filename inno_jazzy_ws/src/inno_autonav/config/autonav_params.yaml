@@ -26,6 +26,15 @@ astar_replanner:
     path_block_check_radius: 0.20
     start_clearance_radius: 0.18
     allow_diagonal: true
+    thermal_grid_topic: /thermal_cost_grid
+    thermal_status_topic: /thermal_cost_status
+    require_thermal_grid: true
+    require_thermal_active: true
+    thermal_grid_timeout_sec: 1.0
+    thermal_cost_weight: 8.0
+    thermal_cost_power: 2.0
+    simplification_maximum_risk_ratio: 1.0
+    simplification_risk_absolute_tolerance: 0.0
 
 skid_path_follower:
   ros__parameters:

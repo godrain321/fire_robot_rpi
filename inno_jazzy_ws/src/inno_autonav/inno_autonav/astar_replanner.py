@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import heapq
 import math
-import time
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid, Path
@@ -17,7 +15,6 @@ from std_msgs.msg import String
 
 from .grid_utils import (
     MapGrid,
-    bresenham,
     grid_to_world,
     inflate_occupied_cells,
     is_inside_grid,
@@ -28,6 +25,12 @@ from .grid_utils import (
     yaw_from_quaternion,
 )
 from .tf_utils import TfHelper
+from .safe_path_simplifier import simplify_path_safely
+from .weighted_planner import (
+    combine_cost_grids,
+    thermal_readiness_state,
+    weighted_astar_search,
+)
 
 
 Cell = Tuple[int, int]
@@ -40,75 +43,26 @@ def astar_search(
     unknown_is_occupied: bool = True,
     allow_diagonal: bool = True,
 ) -> List[Cell]:
-    height, width = data.shape
-
-    def blocked(cell: Cell) -> bool:
-        x, y = cell
-        if not (0 <= x < width and 0 <= y < height):
-            return True
-        value = int(data[y, x])
-        return value >= 100 or (value < 0 and unknown_is_occupied)
-
-    if blocked(start) or blocked(goal):
-        return []
-    straight = [(1, 0, 1.0), (-1, 0, 1.0), (0, 1, 1.0), (0, -1, 1.0)]
-    diagonal = [
-        (1, 1, math.sqrt(2.0)), (1, -1, math.sqrt(2.0)),
-        (-1, 1, math.sqrt(2.0)), (-1, -1, math.sqrt(2.0)),
-    ]
-    neighbors = straight + diagonal if allow_diagonal else straight
-    open_heap = [(0.0, 0.0, start)]
-    came_from: Dict[Cell, Cell] = {}
-    costs: Dict[Cell, float] = {start: 0.0}
-    closed = set()
-    while open_heap:
-        _, current_cost, current = heapq.heappop(open_heap)
-        if current in closed:
-            continue
-        if current == goal:
-            path = [current]
-            while current in came_from:
-                current = came_from[current]
-                path.append(current)
-            return list(reversed(path))
-        closed.add(current)
-        for dx, dy, move_cost in neighbors:
-            candidate = current[0] + dx, current[1] + dy
-            if blocked(candidate):
-                continue
-            # Do not cut across the corner of two occupied cells.
-            if dx and dy and (
-                blocked((current[0] + dx, current[1]))
-                or blocked((current[0], current[1] + dy))
-            ):
-                continue
-            new_cost = current_cost + move_cost
-            if new_cost >= costs.get(candidate, math.inf):
-                continue
-            costs[candidate] = new_cost
-            came_from[candidate] = current
-            heuristic = math.hypot(goal[0] - candidate[0], goal[1] - candidate[1])
-            heapq.heappush(open_heap, (new_cost + heuristic, new_cost, candidate))
-    return []
+    result = weighted_astar_search(
+        data, start, goal,
+        unknown_is_occupied=unknown_is_occupied,
+        allow_diagonal=allow_diagonal,
+        thermal_cost_weight=0.0,
+        thermal_cost_power=1.0,
+    )
+    return list(result.path)
 
 
 def simplify_path(
     path: List[Cell], data: np.ndarray, unknown_is_occupied: bool
 ) -> List[Cell]:
-    if len(path) <= 2:
-        return path
-    simplified = [path[0]]
-    anchor = 0
-    while anchor < len(path) - 1:
-        candidate = len(path) - 1
-        while candidate > anchor + 1:
-            cells = bresenham(path[anchor], path[candidate])
-            if not path_cells_collision(cells, data, unknown_is_occupied):
-                break
-            candidate -= 1
-        simplified.append(path[candidate])
-        anchor = candidate
-    return simplified
+    result = simplify_path_safely(
+        path, data,
+        unknown_is_occupied=unknown_is_occupied,
+        thermal_cost_weight=0.0,
+        thermal_cost_power=1.0,
+    )
+    return list(result.path)
 
 
 def message_to_grid(message: OccupancyGrid) -> MapGrid:
@@ -138,6 +92,15 @@ class AstarReplanner(Node):
             'path_block_check_radius': 0.20,
             'start_clearance_radius': 0.18,
             'allow_diagonal': True,
+            'thermal_grid_topic': '/thermal_cost_grid',
+            'thermal_status_topic': '/thermal_cost_status',
+            'require_thermal_grid': True,
+            'require_thermal_active': True,
+            'thermal_grid_timeout_sec': 1.0,
+            'thermal_cost_weight': 8.0,
+            'thermal_cost_power': 2.0,
+            'simplification_maximum_risk_ratio': 1.0,
+            'simplification_risk_absolute_tolerance': 0.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -154,9 +117,44 @@ class AstarReplanner(Node):
             self.get_parameter('start_clearance_radius').value
         )
         self.allow_diagonal = bool(self.get_parameter('allow_diagonal').value)
+        self.thermal_grid_topic = str(
+            self.get_parameter('thermal_grid_topic').value
+        )
+        self.thermal_status_topic = str(
+            self.get_parameter('thermal_status_topic').value
+        )
+        self.require_thermal_grid = bool(
+            self.get_parameter('require_thermal_grid').value
+        )
+        self.require_thermal_active = bool(
+            self.get_parameter('require_thermal_active').value
+        )
+        self.thermal_timeout = float(
+            self.get_parameter('thermal_grid_timeout_sec').value
+        )
+        self.thermal_cost_weight = float(
+            self.get_parameter('thermal_cost_weight').value
+        )
+        self.thermal_cost_power = float(
+            self.get_parameter('thermal_cost_power').value
+        )
+        self.simplification_maximum_risk_ratio = float(
+            self.get_parameter('simplification_maximum_risk_ratio').value
+        )
+        self.simplification_risk_absolute_tolerance = float(
+            self.get_parameter('simplification_risk_absolute_tolerance').value
+        )
         if (self.replan_rate <= 0.0 or self.clearance_radius < 0.0
-                or self.start_clearance_radius < 0.0):
-            raise ValueError('replan_rate는 양수, radius는 0 이상이어야 합니다.')
+                or self.start_clearance_radius < 0.0
+                or self.thermal_timeout < 0.0
+                or self.thermal_cost_weight < 0.0
+                or self.thermal_cost_power <= 0.0
+                or self.simplification_maximum_risk_ratio < 1.0
+                or self.simplification_risk_absolute_tolerance < 0.0):
+            raise ValueError(
+                'rate/power는 양수, radius/timeout/weight는 0 이상, '
+                'simplification risk ratio는 1 이상이어야 합니다.'
+            )
 
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE
@@ -164,9 +162,15 @@ class AstarReplanner(Node):
         self.tf = TfHelper(self)
         self.static_grid: Optional[MapGrid] = None
         self.dynamic_grid: Optional[MapGrid] = None
+        self.thermal_grid: Optional[MapGrid] = None
+        self.thermal_status = ''
+        self.thermal_received_ns: Optional[int] = None
+        self.thermal_geometry_mismatch = False
         self.combined_grid: Optional[MapGrid] = None
         self.goal: Optional[PoseStamped] = None
         self.current_path_cells: List[Cell] = []
+        self.current_simplified_cells: List[Cell] = []
+        self.current_path_total_cost = math.inf
         self._dirty = False
         self._last_plan = 0.0
         self.create_subscription(
@@ -174,6 +178,12 @@ class AstarReplanner(Node):
         )
         self.create_subscription(
             OccupancyGrid, '/dynamic_obstacle_grid', self._dynamic_callback, qos
+        )
+        self.create_subscription(
+            OccupancyGrid, self.thermal_grid_topic, self._thermal_callback, qos
+        )
+        self.create_subscription(
+            String, self.thermal_status_topic, self._thermal_status_callback, qos
         )
         self.create_subscription(PoseStamped, '/goal_pose', self._goal_callback, 10)
         self.grid_publisher = self.create_publisher(
@@ -192,6 +202,8 @@ class AstarReplanner(Node):
             and abs(first.resolution - second.resolution) < 1e-9
             and abs(first.origin_x - second.origin_x) < 1e-6
             and abs(first.origin_y - second.origin_y) < 1e-6
+            and abs(first.origin_yaw - second.origin_yaw) < 1e-9
+            and first.frame_id == second.frame_id
         )
 
     def _static_callback(self, message: OccupancyGrid) -> None:
@@ -200,10 +212,23 @@ class AstarReplanner(Node):
         except ValueError as exc:
             self.get_logger().error(str(exc))
             return
-        changed = self.static_grid is None or not np.array_equal(
-            self.static_grid.data, grid.data
+        changed = (
+            self.static_grid is None
+            or not self._same_geometry(self.static_grid, grid)
+            or not np.array_equal(self.static_grid.data, grid.data)
         )
         self.static_grid = grid
+        if self.dynamic_grid is not None and not self._same_geometry(
+            grid, self.dynamic_grid
+        ):
+            self.dynamic_grid = None
+            self.get_logger().warning(
+                'static geometry 변경으로 기존 dynamic grid를 초기화합니다.'
+            )
+        if self.thermal_grid is not None and not self._same_geometry(
+            grid, self.thermal_grid
+        ):
+            self.thermal_geometry_mismatch = True
         if changed:
             self._dirty = True
             self._combine_and_publish()
@@ -225,12 +250,60 @@ class AstarReplanner(Node):
             self._dirty = True
             self._combine_and_publish()
 
+    def _thermal_callback(self, message: OccupancyGrid) -> None:
+        try:
+            grid = message_to_grid(message)
+        except ValueError as exc:
+            self.get_logger().error(f'thermal grid 오류: {exc}')
+            return
+        if np.any((grid.data < 0) | (grid.data > 100)):
+            self.get_logger().error('thermal grid 값은 0~100이어야 합니다.')
+            return
+        if self.static_grid is not None and not self._same_geometry(
+            self.static_grid, grid
+        ):
+            self.thermal_geometry_mismatch = True
+            self._dirty = True
+            self._state('THERMAL_GRID_MISMATCH')
+            self._publish_empty_path()
+            self.get_logger().error('thermal grid geometry가 static grid와 다릅니다.')
+            return
+        changed = self.thermal_grid is None or not np.array_equal(
+            self.thermal_grid.data, grid.data
+        )
+        self.thermal_grid = grid
+        self.thermal_received_ns = self.get_clock().now().nanoseconds
+        self.thermal_geometry_mismatch = False
+        if changed:
+            self._dirty = True
+            self._combine_and_publish()
+
+    def _thermal_status_callback(self, message: String) -> None:
+        changed = message.data != self.thermal_status
+        self.thermal_status = message.data
+        if changed:
+            self._dirty = True
+        if self.require_thermal_active and message.data != 'ACTIVE':
+            self._state('WAITING_FOR_THERMAL_ACTIVE')
+            self._publish_empty_path()
+
     def _combine_and_publish(self) -> None:
         if self.static_grid is None:
             return
-        combined = self.static_grid.data.copy()
-        if self.dynamic_grid is not None:
-            combined[self.dynamic_grid.data >= 100] = 100
+        try:
+            combined = combine_cost_grids(
+                self.static_grid.data,
+                None if self.dynamic_grid is None else self.dynamic_grid.data,
+                (
+                    None
+                    if self.thermal_grid is None or self.thermal_geometry_mismatch
+                    else self.thermal_grid.data
+                ),
+                unknown_is_occupied=self.unknown_is_occupied,
+            )
+        except ValueError as exc:
+            self.get_logger().error(str(exc))
+            return
         planning_source = combined.copy()
         if self.unknown_is_occupied:
             planning_source[planning_source < 0] = 100
@@ -289,9 +362,35 @@ class AstarReplanner(Node):
         reason = 'GRID_UPDATE' if self._dirty else 'PERIODIC'
         self._plan(reason)
 
+    def _thermal_failure(self) -> Optional[str]:
+        age_sec = None
+        if self.thermal_received_ns is not None:
+            age_sec = max(
+                0.0,
+                (self.get_clock().now().nanoseconds - self.thermal_received_ns)
+                / 1_000_000_000.0,
+            )
+        return thermal_readiness_state(
+            require_grid=self.require_thermal_grid,
+            require_active=self.require_thermal_active,
+            grid_available=self.thermal_grid is not None,
+            geometry_matches=not self.thermal_geometry_mismatch,
+            status=self.thermal_status,
+            age_sec=age_sec,
+            timeout_sec=self.thermal_timeout,
+        )
+
     def _plan(self, reason: str) -> None:
         if self.goal is None or self.combined_grid is None:
             self._state('WAITING_FOR_GRID')
+            return
+        thermal_failure = self._thermal_failure()
+        if thermal_failure is not None:
+            self.current_path_cells = []
+            self.current_simplified_cells = []
+            self.current_path_total_cost = math.inf
+            self._state(thermal_failure)
+            self._publish_empty_path()
             return
         pose = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
         if pose is None:
@@ -334,29 +433,53 @@ class AstarReplanner(Node):
                 sx, sy = start[0] + dx, start[1] + dy
                 if 0 <= sy < planning_data.shape[0] and 0 <= sx < planning_data.shape[1]:
                     planning_data[sy, sx] = 0
-        path = astar_search(
+        result = weighted_astar_search(
             planning_data,
             start,
             goal,
-            self.unknown_is_occupied,
-            self.allow_diagonal,
+            unknown_is_occupied=self.unknown_is_occupied,
+            allow_diagonal=self.allow_diagonal,
+            thermal_cost_weight=self.thermal_cost_weight,
+            thermal_cost_power=self.thermal_cost_power,
         )
+        path = list(result.path)
         if not path:
             self.current_path_cells = []
+            self.current_simplified_cells = []
+            self.current_path_total_cost = math.inf
             self._state('NO_PATH')
             self._publish_empty_path()
             self.get_logger().error(f'A* 경로 없음: start={start}, goal={goal}')
             return
-        simplified = simplify_path(
-            path, planning_data, self.unknown_is_occupied
+        simplification = simplify_path_safely(
+            path,
+            planning_data,
+            unknown_is_occupied=self.unknown_is_occupied,
+            thermal_cost_weight=self.thermal_cost_weight,
+            thermal_cost_power=self.thermal_cost_power,
+            maximum_risk_ratio=self.simplification_maximum_risk_ratio,
+            risk_absolute_tolerance=self.simplification_risk_absolute_tolerance,
         )
+        if not simplification.safe or not simplification.path:
+            self.current_path_cells = []
+            self.current_simplified_cells = []
+            self.current_path_total_cost = math.inf
+            self._state('NO_SAFE_PATH')
+            self._publish_empty_path()
+            self.get_logger().error('thermal-aware 경로 단순화 안전 검증 실패')
+            return
+        simplified = list(simplification.path)
         self.current_path_cells = path
+        self.current_simplified_cells = simplified
+        self.current_path_total_cost = result.total_cost
         self._dirty = False
-        self._last_plan = time.monotonic()
+        self._last_plan = self.get_clock().now().nanoseconds / 1_000_000_000.0
         self._publish_path(simplified)
         self._state('PATH_READY')
         self.get_logger().debug(
-            f'A* {reason}: raw={len(path)} cells, simplified={len(simplified)} poses'
+            f'weighted A* {reason}: raw={len(path)}, simplified={len(simplified)}, '
+            f'cost={result.total_cost:.3f}, rejected_shortcuts='
+            f'{simplification.rejected_shortcuts}'
         )
 
     def _publish_path(self, cells: List[Cell]) -> None:

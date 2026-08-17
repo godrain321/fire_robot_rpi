@@ -13,7 +13,8 @@
 ```text
 inno_map_nav.yaml ─▶ /planning_grid_static ─┐
                                              ├─▶ /planning_grid ─▶ A* ─▶ /planned_path
-/scan + map TF ─▶ /dynamic_obstacle_grid ───┘                         │
+/scan + map TF ─▶ /dynamic_obstacle_grid ───┤                         │
+/thermal_cost_grid + /thermal_cost_status ──┘                         │
                                                                         ▼
 /mission_text ─▶ semantic goal ─▶ /goal_pose                  skid_path_follower
                                                                         │
@@ -39,10 +40,85 @@ map ─▶ odom ─▶ base_link ─▶ laser
 
 - `planning_grid_publisher`: `inno_map_nav.yaml`을 `/planning_grid_static`으로 발행
 - `dynamic_obstacle_layer`: static-free 공간의 새 scan endpoint를 확인·팽창하여 persistent obstacle로 저장
-- `astar_replanner`: static/dynamic grid를 합치고 현재 TF pose에서 goal까지 A* 수행
+- `astar_replanner`: static/dynamic/thermal grid를 합치고 현재 TF pose에서 weighted A* 수행
 - `skid_path_follower`: 큰 heading error에서는 제자리 회전, 작으면 저속 전진 보정
 - `mission_commander`: 문자열 mission을 semantic `/goal_pose`로 변환
 - `go_to`: `/mission_text` CLI publisher
+
+## Thermal-aware weighted A* (6단계)
+
+`astar_replanner`는 `/thermal_cost_grid`를 static/dynamic grid와 동일한 cell
+geometry로 결합한다. Static obstacle, dynamic cost 100, thermal cost 100은 통행
+불가다. Thermal cost 1~99는 통행 가능하지만 다음 multiplier로 이동 비용을 높인다.
+
+```text
+normalized = clamp(thermal_cost / 99, 0, 1)
+multiplier = 1 + thermal_cost_weight * normalized ** thermal_cost_power
+step_cost = geometric_step_length * multiplier
+```
+
+기본 `thermal_cost_weight=8`, `thermal_cost_power=2`이므로 thermal 0의
+multiplier는 1, thermal 99의 multiplier는 9다. A* heuristic은 최소 multiplier
+1만 사용하므로 admissible하며, 대각선 이동 시 두 측면 cell이 막힌 corner를
+통과하지 않는다. `/planning_grid`에는 결합된 0~100 thermal cost가 표시되지만
+원본 `/planning_grid_static`, `/dynamic_obstacle_grid`, `/thermal_cost_grid`는
+수정하지 않는다.
+
+경로 단순화는 일반 Bresenham 시야선 대신 conservative supercover를 사용한다.
+선분이 만지는 모든 cell과 exact corner의 양쪽 cell을 확인하고, shortcut의 누적
+thermal exposure가 원래 raw A* 구간보다 커지면 그 shortcut을 거부한다. 따라서
+raw A*는 안전하지만 단순화된 직선이 뜨거운 영역을 다시 가로지르는 문제를 막는다.
+
+Thermal fail-safe 기본값은 다음과 같다.
+
+```text
+require_thermal_grid: true
+require_thermal_active: true
+thermal_grid_timeout_sec: 1.0
+```
+
+Thermal grid가 없거나 stale이거나 geometry가 static grid와 다르거나 status가
+`ACTIVE`가 아니면 빈 `/planned_path`를 발행한다. 기존 `skid_path_follower`는 빈
+path를 받으면 `EMPTY_PATH`로 정지한다. Thermal이 정상으로 복구되면 기존 goal은
+유지된 채 다음 planner timer에서 현재 TF 위치로 다시 계획한다.
+
+Thermal 없이 기존 static/dynamic 기능만 점검해야 할 때에만 명시적으로 끈다.
+
+```bash
+ros2 launch inno_autonav autonav_demo.launch.py \
+  use_serial:=false \
+  require_thermal_grid:=false \
+  require_thermal_active:=false
+```
+
+실제 thermal 연동 dry-run:
+
+```bash
+# terminal 1: thermal sensor and map-frame cost layer
+ros2 launch inno_thermal thermal_sensor.launch.py enable_cost_layer:=true
+
+# terminal 2: localization 준비 후, motor serial 없이 autonav
+ros2 launch inno_autonav autonav_demo.launch.py \
+  use_serial:=false \
+  require_thermal_grid:=true \
+  require_thermal_active:=true
+```
+
+확인 토픽:
+
+```bash
+ros2 topic echo /thermal_cost_status
+ros2 topic echo /thermal_cost_grid --once
+ros2 topic echo /planning_grid --once
+ros2 topic echo /planned_path
+ros2 topic echo /planner_state
+ros2 topic echo /follower_state
+```
+
+이 단계는 thermal-aware 계획까지만 구현한다. Thermal grid 변경 때마다 A*를
+실행하지 않고 현재 위치 이후 경로 영향만 평가하는 event-driven 실시간 재계획은
+다음 7단계에서 연결한다. 실제 모터 시험 전에는 반드시 `use_serial:=false`와
+RViz에서 cost/grid/path 방향 및 빈 path 정지를 검증해야 한다.
 
 ## semantic 이름
 
