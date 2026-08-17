@@ -1,5 +1,7 @@
 """Record RViz waypoint clicks, display the queue, then execute it sequentially."""
 
+from pathlib import Path as FilePath
+
 from geometry_msgs.msg import PoseArray, PoseStamped
 from nav_msgs.msg import Path
 import rclpy
@@ -17,12 +19,14 @@ class WaypointQueue(Node):
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('load_file', '')
         self.map_frame = str(self.get_parameter('map_frame').value)
+        self.load_file = str(self.get_parameter('load_file').value)
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.queue = []
         self.current_index = None
         self.waiting_for_departure = False
+        self.edit_first_on_next_click = False
         self.queue_path = self.create_publisher(Path, '/waypoint_queue', qos)
         self.queue_poses = self.create_publisher(PoseArray, '/waypoint_poses', qos)
         self.goal = self.create_publisher(PoseStamped, '/goal_pose', 10)
@@ -30,7 +34,7 @@ class WaypointQueue(Node):
         self.create_subscription(PoseStamped, '/waypoint_click', self._click, 10)
         self.create_subscription(String, '/waypoint_queue_command', self._command, 10)
         self.create_subscription(String, '/follower_state', self._follower, 10)
-        self._load_saved_queue(str(self.get_parameter('load_file').value))
+        self._load_saved_queue(self.load_file)
         self._publish_queue()
         self._state(
             f'RESTORED:{len(self.queue)}' if self.queue
@@ -71,6 +75,30 @@ class WaypointQueue(Node):
             self._state(f'REJECTED_FRAME:{message.header.frame_id}')
             return
         message.header.frame_id = self.map_frame
+        if self.edit_first_on_next_click:
+            self.edit_first_on_next_click = False
+            if not self.queue:
+                self._state('EMPTY:CANNOT_EDIT_FIRST')
+                return
+            self.queue[0] = message
+            self.current_index = None
+            self.waiting_for_departure = False
+            self._publish_queue()
+            if self.load_file:
+                try:
+                    self._save_queue(self.load_file)
+                except (OSError, yaml.YAMLError) as exc:
+                    self._state(f'EDITED_FIRST:SAVE_FAILED:{exc}')
+                    self.get_logger().error(
+                        f'Waypoint 1 changed in memory but YAML save failed: {exc}'
+                    )
+                    return
+            self._state('EDITED_FIRST:SAVED' if self.load_file else 'EDITED_FIRST')
+            self.get_logger().info(
+                'Waypoint 1 replaced: '
+                f'({message.pose.position.x:.3f}, {message.pose.position.y:.3f})'
+            )
+            return
         self.queue.append(message)
         self.current_index = None
         self._publish_queue()
@@ -88,12 +116,56 @@ class WaypointQueue(Node):
             self.waiting_for_departure = False
             self._publish_queue()
             self._state('CLEARED')
+        elif command == 'EDIT_FIRST':
+            if not self.queue:
+                self._state('EMPTY:CANNOT_EDIT_FIRST')
+                return
+            if self.current_index is not None:
+                self._state('RUNNING:CANNOT_EDIT_FIRST')
+                return
+            self.edit_first_on_next_click = True
+            self._state('EDIT_FIRST_READY: click RViz 2D Goal Pose')
         elif command == 'GO':
             if not self.queue:
                 self._state('EMPTY:CANNOT_GO')
                 return
             self.current_index = 0
             self._send_current_goal()
+
+    def _save_queue(self, filename):
+        """Atomically persist the current queue in the loadable PoseArray form."""
+        document = {
+            'header': {
+                'stamp': {'sec': 0, 'nanosec': 0},
+                'frame_id': self.map_frame,
+            },
+            'poses': [],
+        }
+        for waypoint in self.queue:
+            position = waypoint.pose.position
+            orientation = waypoint.pose.orientation
+            document['poses'].append({
+                'header': {
+                    'stamp': {'sec': 0, 'nanosec': 0},
+                    'frame_id': self.map_frame,
+                },
+                'pose': {
+                    'position': {
+                        'x': float(position.x), 'y': float(position.y),
+                        'z': float(position.z),
+                    },
+                    'orientation': {
+                        'x': float(orientation.x), 'y': float(orientation.y),
+                        'z': float(orientation.z), 'w': float(orientation.w),
+                    },
+                },
+            })
+        destination = FilePath(filename)
+        temporary = destination.with_suffix(destination.suffix + '.tmp')
+        temporary.write_text(
+            yaml.safe_dump(document, sort_keys=False), encoding='utf-8'
+        )
+        temporary.replace(destination)
 
     def _send_current_goal(self):
         goal = self.queue[self.current_index]
