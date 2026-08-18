@@ -90,6 +90,10 @@ Thermal grid가 없거나 stale이거나 geometry가 static grid와 다르거나
 path를 받으면 `EMPTY_PATH`로 정지한다. Thermal이 정상으로 복구되면 기존 goal은
 유지된 채 다음 planner timer에서 현재 TF 위치로 다시 계획한다.
 
+Thermal cost layer의 기본값은 factory_v5와 같은 누적 belief 방식이다. 센서가
+끊겨 fail-safe 정지하더라도 기존 관측 셀을 0으로 만들지 않으며, 같은 셀의 최신
+온도 관측이나 `/clear_thermal_costs` 호출로만 값이 변경된다.
+
 Thermal 없이 기존 static/dynamic 기능만 점검해야 할 때에만 명시적으로 끈다.
 
 ```bash

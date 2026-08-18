@@ -193,13 +193,19 @@ def inflate_cell_costs(
 class ThermalCostState:
     """ROS-independent full-grid storage with per-cell ROS-time timestamps."""
 
-    def __init__(self, observation_timeout_sec: float, inflation_radius_m: float):
+    def __init__(
+        self,
+        observation_timeout_sec: float,
+        inflation_radius_m: float,
+        persistent_observations: bool = False,
+    ):
         if not math.isfinite(observation_timeout_sec) or observation_timeout_sec < 0.0:
             raise ValueError("observation_timeout_sec must be finite and non-negative")
         if not math.isfinite(inflation_radius_m) or inflation_radius_m < 0.0:
             raise ValueError("inflation_radius_m must be finite and non-negative")
         self.timeout_ns = int(round(observation_timeout_sec * 1_000_000_000))
         self.inflation_radius_m = float(inflation_radius_m)
+        self.persistent_observations = bool(persistent_observations)
         self.geometry: GridGeometry | None = None
         self.costs = np.zeros((0, 0), dtype=np.int8)
         self.last_observed_ns: dict[tuple[int, int], int] = {}
@@ -219,7 +225,7 @@ class ThermalCostState:
             raise RuntimeError("thermal state has no static grid geometry")
         if now_ns < 0:
             raise ValueError("ROS time must be non-negative")
-        if self.timeout_ns == 0:
+        if self.timeout_ns == 0 and not self.persistent_observations:
             self.clear()
         expanded = inflate_cell_costs(
             frame_costs, self.geometry, self.inflation_radius_m
@@ -235,6 +241,8 @@ class ThermalCostState:
 
     def expire(self, now_ns: int) -> int:
         if self.geometry is None:
+            return 0
+        if self.persistent_observations:
             return 0
         cutoff = int(now_ns) - self.timeout_ns
         expired = [

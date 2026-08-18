@@ -132,18 +132,21 @@ double-exponent behavior. When multiple arc points enter one map cell, only
 that frame's maximum cost is used. This is needed because the 32
 points on a 15 cm arc can quantize into fewer map cells.
 
-Each nonzero cell stores its last observation in ROS clock time. A newly
-observed value replaces the previous value, including a safe reading clearing a
-hot cell. Unobserved cells remain for `observation_timeout_sec` (default 2 s)
-and then return to zero. With timeout exactly `0.0`, old cells are cleared on
-the next thermal frame or publish timer cycle. Values are not permanent maxima.
+The default `persistent_observations=true` matches the factory_v5 belief map.
+Each observed map cell retains its latest thermal cost indefinitely; merely
+leaving the camera field of view does not erase it. Reobserving the same cell
+replaces the previous value, so a lower reading reduces the cost and a safe
+reading clears it to zero. Geometry changes and `/clear_thermal_costs` still
+reset the accumulated map. `observation_timeout_sec` is only used as a fallback
+when `persistent_observations=false`.
 
-Sensor-stream liveness is checked separately from cell expiry. If no
+Sensor-stream liveness is checked separately from belief retention. If no
 `/thermal/arc_points` message arrives for `thermal_data_timeout_sec` (default
-1.0 s), status changes from `ACTIVE` to `THERMAL_DATA_STALE`. Costs still obey
-their independent 2.0 s observation timeout. A later valid frame automatically
-restores `ACTIVE`. All timeout calculations use the ROS clock, including
-`use_sim_time`; a backward clock jump also enters the stale fail-safe state.
+1.0 s), status changes from `ACTIVE` to `THERMAL_DATA_STALE`, but accumulated
+cost cells are preserved. A planner requiring active thermal data stops through
+its fail-safe. A later valid frame automatically restores `ACTIVE`. All timeout
+calculations use the ROS clock, including `use_sim_time`; a backward clock jump
+also enters the stale fail-safe state.
 
 `inflation_radius_m` defaults to `0.0`, which writes only the exact observed
 cells. A positive radius applies bounded Euclidean inflation with decreasing
@@ -203,8 +206,9 @@ For map-frame cost inspection, use `map` as Fixed Frame and add:
 - TF display
 
 Check that left/right heat affects the corresponding robot-relative side, that
-the arc rotates and translates with the robot in the map, stale arcs disappear
-after two seconds, and temperatures at or above 60 °C produce cost 100. The
+the arc rotates and translates with the robot in the map, previously observed
+cells remain until reobserved or explicitly cleared, and temperatures at or
+above 60 °C produce cost 100. The
 static map must remain unchanged.
 
 ## Tests

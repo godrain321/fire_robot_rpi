@@ -54,6 +54,7 @@ class ThermalCostLayer(Node):
             # Store the linear normalized ratio. The factory_v5 exponent is
             # applied exactly once by inno_autonav's weighted planner.
             "temperature_power": 1.0,
+            "persistent_observations": True,
             "observation_timeout_sec": 2.0,
             "thermal_data_timeout_sec": 1.0,
             "inflation_radius_m": 0.0,
@@ -79,6 +80,9 @@ class ThermalCostLayer(Node):
             self.get_parameter("blocked_temperature_c").value
         )
         self.temperature_power = float(self.get_parameter("temperature_power").value)
+        self.persistent_observations = bool(
+            self.get_parameter("persistent_observations").value
+        )
         observation_timeout_sec = float(
             self.get_parameter("observation_timeout_sec").value
         )
@@ -90,7 +94,11 @@ class ThermalCostLayer(Node):
         self.tf_timeout_sec = float(self.get_parameter("tf_timeout_sec").value)
         self._validate_parameters(observation_timeout_sec, inflation_radius_m)
 
-        self.state = ThermalCostState(observation_timeout_sec, inflation_radius_m)
+        self.state = ThermalCostState(
+            observation_timeout_sec,
+            inflation_radius_m,
+            persistent_observations=self.persistent_observations,
+        )
         self._static_info = None
         self._static_frame_id = ""
         self._status = None
@@ -124,7 +132,8 @@ class ThermalCostLayer(Node):
         self._set_status(WAITING_FOR_STATIC_GRID)
         self.get_logger().info(
             f"thermal cost layer: static={self.static_grid_topic}, "
-            f"arc={self.thermal_arc_topic}, output={self.cost_grid_topic}"
+            f"arc={self.thermal_arc_topic}, output={self.cost_grid_topic}, "
+            f"persistent_observations={self.persistent_observations}"
         )
 
     def _validate_parameters(

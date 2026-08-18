@@ -30,6 +30,18 @@ def test_safe_observation_replaces_prior_high_cost():
     assert (1, 1) not in state.last_observed_ns
 
 
+def test_persistent_observation_does_not_expire_and_latest_scan_replaces_it():
+    state = ThermalCostState(2.0, 0.0, persistent_observations=True)
+    state.set_geometry(geometry())
+    state.apply_frame({(1, 1): 90}, 1_000_000_000)
+    assert state.expire(100_000_000_000) == 0
+    assert state.costs[1, 1] == 90
+    state.apply_frame({(1, 1): 15}, 101_000_000_000)
+    assert state.costs[1, 1] == 15
+    state.apply_frame({(1, 1): 0}, 102_000_000_000)
+    assert state.costs[1, 1] == 0
+
+
 def test_geometry_change_resets_state_and_data_shape():
     state = ThermalCostState(2.0, 0.0)
     first = geometry()
