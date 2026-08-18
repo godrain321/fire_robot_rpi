@@ -1,20 +1,12 @@
 # Seengreat Thermal Camera MLX90640 demo codes
 # Author(s):Andy Li from Seengreat
 
-import os
 import time,threading
 import math
 import tkinter as tk
 from ctypes import *
 import numpy as np
 from PIL import ImageDraw, Image, ImageFont, ImageTk, ImageFilter
-
-try:
-    import rclpy
-    from std_msgs.msg import Float32
-except ImportError:
-    rclpy = None
-    Float32 = None
 
 DEV_ADDR  = 0x33
 IMG_W     = 24
@@ -34,25 +26,6 @@ font = ImageFont.truetype("./lib/MiSans-Light.ttf",size=20)
 window = tk.Tk()
 window.title('SEENGREAT')
 window.geometry("320x400+0+0")
-
-I2C_DEVICE = "/dev/i2c-1"
-thermal_ros_node = None
-thermal_max_publisher = None
-
-def publish_max_temperature(value):
-    if thermal_max_publisher is not None and math.isfinite(value):
-        thermal_max_publisher.publish(Float32(data=float(value)))
-
-
-def check_i2c_access():
-    if not os.path.exists(I2C_DEVICE):
-        return False, f"{I2C_DEVICE} 장치가 없습니다. I2C 활성화를 확인하세요."
-    if not os.access(I2C_DEVICE, os.R_OK | os.W_OK):
-        return False, (
-            f"{I2C_DEVICE} 접근 권한이 없습니다. "
-            "seeno04 사용자를 i2c 그룹에 추가한 뒤 재로그인하세요."
-        )
-    return True, ""
 
 def Temp_To_RGB(x, y, v): 
     # Heatmap code borrowed from: http://www.andrewnoske.com/wiki/Code_-_heatmaps_and_color_gradients
@@ -104,17 +77,12 @@ def Update_image():
                     minTemp = mlx90640To[i]
                 if(maxTemp < mlx90640To[i]):
                     maxTemp = mlx90640To[i]
-            publish_max_temperature(maxTemp)
             for y in range(IMG_W):  # set pixel color
                 for x in range(IMG_H):
                     val = mlx90640To[IMG_H * (IMG_W-1-y) + x]
                     Temp_To_RGB(y, x, val) # update image pixels colors
-            img_temp = img_src.filter(ImageFilter.BoxBlur(1.5))  # image blur
-
-            # 장착 방향에 맞춰 기본 영상을 180도 회전
-            img_temp = img_temp.rotate(180, expand=True)
-
-            img_show = img_temp.resize((DISP_W, DISP_H))
+            img_temp= img_src.filter(ImageFilter.BoxBlur(1.5)) # image blur
+            img_show = img_temp.resize((DISP_W,DISP_H))
             draw = ImageDraw.Draw(img_show)        
             show_text = str.format("Min:%d%s"%(int(minTemp),"°C"))
             draw.text((10,DISP_H-30),show_text,fill=(0,0,255),font=font)# draw minimum temperature
@@ -128,42 +96,10 @@ def Update_image():
             label.place(x=0,y=0)
 
 if __name__ == '__main__':
-    print("mlx90640 for python demo")
-    if rclpy is not None:
-        try:
-            rclpy.init(args=None)
-            thermal_ros_node = rclpy.create_node("mlx90640_thermal_viewer")
-            thermal_max_publisher = thermal_ros_node.create_publisher(
-                Float32, "/thermal/max_temperature_c", 10
-            )
-        except Exception as exc:
-            print(f"MLX90640 ROS publisher disabled: {exc}", flush=True)
-            thermal_ros_node = None
-            thermal_max_publisher = None
-    else:
-        print("MLX90640 ROS publisher disabled: rclpy unavailable", flush=True)
-    i2c_ok, i2c_error = check_i2c_access()
-    if i2c_ok:
-        thread = threading.Thread(target=Update_image, daemon=True)
-        thread.start()
-    else:
-        print(f"MLX90640 ERROR: {i2c_error}", flush=True)
-        error_label = tk.Label(
-            window,
-            text="MLX90640 연결 오류\n\n" + i2c_error,
-            fg="white",
-            bg="#111827",
-            font=("Sans", 13),
-            justify="center",
-            wraplength=280,
-        )
-        error_label.pack(fill="both", expand=True)
-    try:
-        window.mainloop()
-    finally:
-        if thermal_ros_node is not None:
-            thermal_ros_node.destroy_node()
-        if rclpy is not None and rclpy.ok():
-            rclpy.shutdown()
+    print("mlx90640 for python demo")    
+    thread = threading.Thread(target=Update_image)
+    thread.start()
+    window.mainloop()
+    thread.join()
 
 
