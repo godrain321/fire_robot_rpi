@@ -114,20 +114,21 @@ copied: every unobserved thermal cell is zero and `-1` is never used. This exact
 geometry match allows later consumers to combine corresponding cell indices
 without resampling, while keeping the static map immutable.
 
-For temperature `T`, safe threshold `Ts`, blocked threshold `Tb`, and exponent
-`p`, the risk is:
+For temperature `T`, safe threshold `Ts`, and blocked threshold `Tb`, the grid
+stores the linear normalized temperature ratio:
 
 ```text
 ratio = clamp((T - Ts) / (Tb - Ts), 0, 1)
-risk = ratio ** p
 ```
 
 - `T <= Ts`: cost 0
-- `Ts < T < Tb`: `max(1, min(99, round(99 * risk)))`
+- `Ts < T < Tb`: `max(1, min(99, round(99 * ratio)))`
 - `T >= Tb`: cost 100
 
-Defaults are 20 °C, 60 °C, and power 2. When multiple arc points enter one map
-cell, only that frame's maximum cost is used. This is needed because the 32
+Defaults are 20 °C, 60 °C, and encoding power 1. The nonlinear factory_v5
+temperature exponent is applied once by `inno_autonav`, avoiding the old
+double-exponent behavior. When multiple arc points enter one map cell, only
+that frame's maximum cost is used. This is needed because the 32
 points on a 15 cm arc can quantize into fewer map cells.
 
 Each nonzero cell stores its last observation in ROS clock time. A newly

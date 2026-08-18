@@ -49,7 +49,9 @@ class ThermalCostLayer(Node):
             "target_frame": "map",
             "safe_temperature_c": 20.0,
             "blocked_temperature_c": 60.0,
-            "temperature_power": 2.0,
+            # Store the linear normalized ratio. The factory_v5 exponent is
+            # applied exactly once by inno_autonav's weighted planner.
+            "temperature_power": 1.0,
             "observation_timeout_sec": 2.0,
             "inflation_radius_m": 0.0,
             "publish_rate_hz": 4.0,

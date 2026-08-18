@@ -77,18 +77,55 @@ def combine_cost_grids(
 
 
 def traversal_multiplier(
-    cell_value: float, thermal_cost_weight: float, thermal_cost_power: float
+    cell_value: float,
+    thermal_cost_weight: float,
+    thermal_cost_power: float,
+    fixed_co_ppm: float = 0.0,
+    co_safe_ppm: float = 0.0,
+    co_blocked_ppm: float = 1600.0,
+    co_cost_weight: float = 8.0,
+    co_cost_power: float = 2.0,
 ) -> float:
-    """Convert OccupancyGrid thermal value 0..99 to a finite move multiplier."""
+    """Apply the factory_v5 temperature/CO traversal-cost equation.
+
+    ``cell_value`` is the linearly encoded temperature ratio (0..99) emitted
+    by ``thermal_cost_layer``.  The real robot currently has no CO sensor in
+    this pipeline, so ``fixed_co_ppm`` defaults to the explicit 0 ppm requested
+    for parity testing.
+    """
     if thermal_cost_weight < 0.0 or not math.isfinite(thermal_cost_weight):
         raise ValueError("thermal_cost_weight must be finite and non-negative")
     if thermal_cost_power <= 0.0 or not math.isfinite(thermal_cost_power):
         raise ValueError("thermal_cost_power must be finite and positive")
+    co_values = (
+        fixed_co_ppm, co_safe_ppm, co_blocked_ppm,
+        co_cost_weight, co_cost_power,
+    )
+    if not all(math.isfinite(value) for value in co_values):
+        raise ValueError("CO cost inputs must be finite")
+    if fixed_co_ppm < 0.0:
+        raise ValueError("fixed_co_ppm must be non-negative")
+    if co_blocked_ppm <= co_safe_ppm:
+        raise ValueError("co_blocked_ppm must exceed co_safe_ppm")
+    if co_cost_weight < 0.0:
+        raise ValueError("co_cost_weight must be non-negative")
+    if co_cost_power <= 0.0:
+        raise ValueError("co_cost_power must be positive")
     value = float(cell_value)
     if not math.isfinite(value):
         return math.inf
-    normalized = min(99.0, max(0.0, value)) / 99.0
-    return 1.0 + thermal_cost_weight * normalized ** thermal_cost_power
+    if value >= 100.0 or fixed_co_ppm >= co_blocked_ppm:
+        return math.inf
+    temperature_normalized = min(99.0, max(0.0, value)) / 99.0
+    co_normalized = min(1.0, max(
+        0.0,
+        (fixed_co_ppm - co_safe_ppm) / (co_blocked_ppm - co_safe_ppm),
+    ))
+    return (
+        1.0
+        + thermal_cost_weight * temperature_normalized ** thermal_cost_power
+        + co_cost_weight * co_normalized ** co_cost_power
+    )
 
 
 def cell_is_blocked(
@@ -111,19 +148,31 @@ def step_cost(
     end: Cell,
     thermal_cost_weight: float,
     thermal_cost_power: float,
+    fixed_co_ppm: float = 0.0,
+    co_safe_ppm: float = 0.0,
+    co_blocked_ppm: float = 1600.0,
+    co_cost_weight: float = 8.0,
+    co_cost_power: float = 2.0,
 ) -> float:
     distance = math.hypot(end[0] - start[0], end[1] - start[1])
     return distance * traversal_multiplier(
-        float(data[end[1], end[0]]), thermal_cost_weight, thermal_cost_power
+        float(data[end[1], end[0]]), thermal_cost_weight, thermal_cost_power,
+        fixed_co_ppm, co_safe_ppm, co_blocked_ppm,
+        co_cost_weight, co_cost_power,
     )
 
 
 def path_cost(
     path: Sequence[Cell],
     data: np.ndarray,
-    thermal_cost_weight: float = 8.0,
-    thermal_cost_power: float = 2.0,
+    thermal_cost_weight: float = 24.0,
+    thermal_cost_power: float = 1.5,
     unknown_is_occupied: bool = True,
+    fixed_co_ppm: float = 0.0,
+    co_safe_ppm: float = 0.0,
+    co_blocked_ppm: float = 1600.0,
+    co_cost_weight: float = 8.0,
+    co_cost_power: float = 2.0,
 ) -> float:
     cells = tuple((int(x), int(y)) for x, y in path)
     if not cells:
@@ -131,7 +180,11 @@ def path_cost(
     if any(cell_is_blocked(data, cell, unknown_is_occupied) for cell in cells):
         return math.inf
     return sum(
-        step_cost(data, first, second, thermal_cost_weight, thermal_cost_power)
+        step_cost(
+            data, first, second, thermal_cost_weight, thermal_cost_power,
+            fixed_co_ppm, co_safe_ppm, co_blocked_ppm,
+            co_cost_weight, co_cost_power,
+        )
         for first, second in zip(cells, cells[1:])
     )
 
@@ -143,14 +196,23 @@ def weighted_astar_search(
     *,
     unknown_is_occupied: bool = True,
     allow_diagonal: bool = True,
-    thermal_cost_weight: float = 8.0,
-    thermal_cost_power: float = 2.0,
+    thermal_cost_weight: float = 24.0,
+    thermal_cost_power: float = 1.5,
+    fixed_co_ppm: float = 0.0,
+    co_safe_ppm: float = 0.0,
+    co_blocked_ppm: float = 1600.0,
+    co_cost_weight: float = 8.0,
+    co_cost_power: float = 2.0,
 ) -> WeightedPathResult:
     """Run 8-connected A* without diagonal corner cutting."""
     costs = np.asarray(data, dtype=float)
     if costs.ndim != 2:
         raise ValueError("planning data must be a two-dimensional array")
-    traversal_multiplier(0.0, thermal_cost_weight, thermal_cost_power)
+    traversal_multiplier(
+        0.0, thermal_cost_weight, thermal_cost_power,
+        fixed_co_ppm, co_safe_ppm, co_blocked_ppm,
+        co_cost_weight, co_cost_power,
+    )
     start = int(start[0]), int(start[1])
     goal = int(goal[0]), int(goal[1])
     if cell_is_blocked(costs, start, unknown_is_occupied) or cell_is_blocked(
@@ -189,7 +251,9 @@ def weighted_astar_search(
             ):
                 continue
             candidate_cost = current_cost + step_cost(
-                costs, current, candidate, thermal_cost_weight, thermal_cost_power
+                costs, current, candidate, thermal_cost_weight, thermal_cost_power,
+                fixed_co_ppm, co_safe_ppm, co_blocked_ppm,
+                co_cost_weight, co_cost_power,
             )
             if candidate_cost >= best_cost.get(candidate, math.inf) - 1e-12:
                 continue

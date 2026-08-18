@@ -31,8 +31,14 @@ astar_replanner:
     require_thermal_grid: true
     require_thermal_active: true
     thermal_grid_timeout_sec: 1.0
-    thermal_cost_weight: 8.0
-    thermal_cost_power: 2.0
+    # Match factory_v5/config/evacuation.yaml sensor_costmap.
+    thermal_cost_weight: 24.0
+    thermal_cost_power: 1.5
+    fixed_co_ppm: 0.0
+    co_safe_ppm: 0.0
+    co_blocked_ppm: 1600.0
+    co_cost_weight: 8.0
+    co_cost_power: 2.0
     simplification_maximum_risk_ratio: 1.0
     simplification_risk_absolute_tolerance: 0.0
 

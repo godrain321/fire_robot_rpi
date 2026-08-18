@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import pytest
 
 from inno_autonav.weighted_planner import (
     path_cost,
@@ -43,8 +44,33 @@ def test_thermal_multiplier_and_path_cost_use_power():
     data = np.zeros((1, 3), dtype=np.int8)
     data[0, 1] = 50
     expected = traversal_multiplier(50, 8.0, 2.0) + 1.0
-    assert path_cost([(0, 0), (1, 0), (2, 0)], data) == expected
+    assert path_cost(
+        [(0, 0), (1, 0), (2, 0)], data,
+        thermal_cost_weight=8.0, thermal_cost_power=2.0,
+    ) == expected
     assert traversal_multiplier(99, 8.0, 2.0) == 9.0
+
+
+def test_factory_v5_evacuation_formula_with_co_fixed_to_zero():
+    # thermal grid value 49.5 represents temperature ratio 0.5 before integer
+    # OccupancyGrid quantization. This must match factory_v5's configured
+    # 1 + 24 * ratio**1.5 + 8 * co_ratio**2 equation.
+    result = traversal_multiplier(
+        49.5, 24.0, 1.5,
+        fixed_co_ppm=0.0,
+        co_safe_ppm=0.0,
+        co_blocked_ppm=1600.0,
+        co_cost_weight=8.0,
+        co_cost_power=2.0,
+    )
+    assert result == pytest.approx(1.0 + 24.0 * 0.5 ** 1.5)
+
+
+def test_factory_v5_co_term_is_explicit_and_zero_at_zero_ppm():
+    zero_co = traversal_multiplier(0.0, 24.0, 1.5, fixed_co_ppm=0.0)
+    half_co = traversal_multiplier(0.0, 24.0, 1.5, fixed_co_ppm=800.0)
+    assert zero_co == 1.0
+    assert half_co == pytest.approx(1.0 + 8.0 * 0.5 ** 2.0)
 
 
 def test_unknown_policy_is_preserved():

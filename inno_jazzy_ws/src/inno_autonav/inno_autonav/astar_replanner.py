@@ -97,8 +97,13 @@ class AstarReplanner(Node):
             'require_thermal_grid': True,
             'require_thermal_active': True,
             'thermal_grid_timeout_sec': 1.0,
-            'thermal_cost_weight': 8.0,
-            'thermal_cost_power': 2.0,
+            'thermal_cost_weight': 24.0,
+            'thermal_cost_power': 1.5,
+            'fixed_co_ppm': 0.0,
+            'co_safe_ppm': 0.0,
+            'co_blocked_ppm': 1600.0,
+            'co_cost_weight': 8.0,
+            'co_cost_power': 2.0,
             'simplification_maximum_risk_ratio': 1.0,
             'simplification_risk_absolute_tolerance': 0.0,
         }
@@ -138,21 +143,46 @@ class AstarReplanner(Node):
         self.thermal_cost_power = float(
             self.get_parameter('thermal_cost_power').value
         )
+        self.fixed_co_ppm = float(self.get_parameter('fixed_co_ppm').value)
+        self.co_safe_ppm = float(self.get_parameter('co_safe_ppm').value)
+        self.co_blocked_ppm = float(
+            self.get_parameter('co_blocked_ppm').value
+        )
+        self.co_cost_weight = float(
+            self.get_parameter('co_cost_weight').value
+        )
+        self.co_cost_power = float(
+            self.get_parameter('co_cost_power').value
+        )
         self.simplification_maximum_risk_ratio = float(
             self.get_parameter('simplification_maximum_risk_ratio').value
         )
         self.simplification_risk_absolute_tolerance = float(
             self.get_parameter('simplification_risk_absolute_tolerance').value
         )
-        if (self.replan_rate <= 0.0 or self.clearance_radius < 0.0
+        numeric_parameters = (
+            self.replan_rate, self.clearance_radius, self.start_clearance_radius,
+            self.thermal_timeout, self.thermal_cost_weight,
+            self.thermal_cost_power, self.fixed_co_ppm, self.co_safe_ppm,
+            self.co_blocked_ppm, self.co_cost_weight, self.co_cost_power,
+            self.simplification_maximum_risk_ratio,
+            self.simplification_risk_absolute_tolerance,
+        )
+        if (not all(math.isfinite(value) for value in numeric_parameters)
+                or self.replan_rate <= 0.0 or self.clearance_radius < 0.0
                 or self.start_clearance_radius < 0.0
                 or self.thermal_timeout < 0.0
                 or self.thermal_cost_weight < 0.0
                 or self.thermal_cost_power <= 0.0
+                or self.fixed_co_ppm < 0.0
+                or self.co_blocked_ppm <= self.co_safe_ppm
+                or self.co_cost_weight < 0.0
+                or self.co_cost_power <= 0.0
                 or self.simplification_maximum_risk_ratio < 1.0
                 or self.simplification_risk_absolute_tolerance < 0.0):
             raise ValueError(
-                'rate/power는 양수, radius/timeout/weight는 0 이상, '
+                'rate/power는 양수, radius/timeout/weight/CO는 0 이상, '
+                'co_blocked_ppm은 co_safe_ppm보다 커야 하고, '
                 'simplification risk ratio는 1 이상이어야 합니다.'
             )
 
@@ -441,6 +471,11 @@ class AstarReplanner(Node):
             allow_diagonal=self.allow_diagonal,
             thermal_cost_weight=self.thermal_cost_weight,
             thermal_cost_power=self.thermal_cost_power,
+            fixed_co_ppm=self.fixed_co_ppm,
+            co_safe_ppm=self.co_safe_ppm,
+            co_blocked_ppm=self.co_blocked_ppm,
+            co_cost_weight=self.co_cost_weight,
+            co_cost_power=self.co_cost_power,
         )
         path = list(result.path)
         if not path:
@@ -457,6 +492,11 @@ class AstarReplanner(Node):
             unknown_is_occupied=self.unknown_is_occupied,
             thermal_cost_weight=self.thermal_cost_weight,
             thermal_cost_power=self.thermal_cost_power,
+            fixed_co_ppm=self.fixed_co_ppm,
+            co_safe_ppm=self.co_safe_ppm,
+            co_blocked_ppm=self.co_blocked_ppm,
+            co_cost_weight=self.co_cost_weight,
+            co_cost_power=self.co_cost_power,
             maximum_risk_ratio=self.simplification_maximum_risk_ratio,
             risk_absolute_tolerance=self.simplification_risk_absolute_tolerance,
         )

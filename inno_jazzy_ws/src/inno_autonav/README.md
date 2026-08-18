@@ -53,12 +53,18 @@ geometry로 결합한다. Static obstacle, dynamic cost 100, thermal cost 100은
 
 ```text
 normalized = clamp(thermal_cost / 99, 0, 1)
-multiplier = 1 + thermal_cost_weight * normalized ** thermal_cost_power
+temperature_cost = thermal_cost_weight * normalized ** thermal_cost_power
+co_ratio = clamp((fixed_co_ppm - co_safe_ppm) / (co_blocked_ppm - co_safe_ppm), 0, 1)
+co_cost = co_cost_weight * co_ratio ** co_cost_power
+multiplier = 1 + temperature_cost + co_cost
 step_cost = geometric_step_length * multiplier
 ```
 
-기본 `thermal_cost_weight=8`, `thermal_cost_power=2`이므로 thermal 0의
-multiplier는 1, thermal 99의 multiplier는 9다. A* heuristic은 최소 multiplier
+현재 값은 `factory_v5/config/evacuation.yaml`과 동일하게
+`thermal_cost_weight=24`, `thermal_cost_power=1.5`, `co_cost_weight=8`,
+`co_cost_power=2`를 사용한다. 실제 로봇 파이프라인에는 아직 CO 입력이
+없으므로 `fixed_co_ppm=0`을 명시적으로 동일 수식에 넣으며 CO cost는 0이다.
+thermal 0의 multiplier는 1, thermal 99의 multiplier는 25다. A* heuristic은 최소 multiplier
 1만 사용하므로 admissible하며, 대각선 이동 시 두 측면 cell이 막힌 corner를
 통과하지 않는다. `/planning_grid`에는 결합된 0~100 thermal cost가 표시되지만
 원본 `/planning_grid_static`, `/dynamic_obstacle_grid`, `/thermal_cost_grid`는

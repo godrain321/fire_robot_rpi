@@ -21,7 +21,9 @@ thermal_cost_layer:
     target_frame: map
     safe_temperature_c: 20.0
     blocked_temperature_c: 60.0
-    temperature_power: 2.0
+    # Encode the linear 20-60 C ratio as 0-99. The factory_v5 exponent is
+    # applied once by inno_autonav's weighted planner, not duplicated here.
+    temperature_power: 1.0
     observation_timeout_sec: 2.0
     inflation_radius_m: 0.0
     publish_rate_hz: 4.0

@@ -99,8 +99,13 @@ def simplify_path_safely(
     data: np.ndarray,
     *,
     unknown_is_occupied: bool = True,
-    thermal_cost_weight: float = 8.0,
-    thermal_cost_power: float = 2.0,
+    thermal_cost_weight: float = 24.0,
+    thermal_cost_power: float = 1.5,
+    fixed_co_ppm: float = 0.0,
+    co_safe_ppm: float = 0.0,
+    co_blocked_ppm: float = 1600.0,
+    co_cost_weight: float = 8.0,
+    co_cost_power: float = 2.0,
     maximum_risk_ratio: float = 1.0,
     risk_absolute_tolerance: float = 0.0,
 ) -> SimplifiedPathResult:
@@ -114,7 +119,9 @@ def simplify_path_safely(
     if risk_absolute_tolerance < 0.0 or not math.isfinite(risk_absolute_tolerance):
         raise ValueError("risk_absolute_tolerance must be finite and non-negative")
     raw_cost = path_cost(
-        source, costs, thermal_cost_weight, thermal_cost_power, unknown_is_occupied
+        source, costs, thermal_cost_weight, thermal_cost_power,
+        unknown_is_occupied, fixed_co_ppm, co_safe_ppm, co_blocked_ppm,
+        co_cost_weight, co_cost_power,
     )
     if not source or not math.isfinite(raw_cost):
         return SimplifiedPathResult((), False, raw_cost, math.inf, 0)
@@ -151,7 +158,9 @@ def simplify_path_safely(
         not cell_is_blocked(costs, cell, unknown_is_occupied) for cell in expanded
     )
     simplified_cost = path_cost(
-        expanded, costs, thermal_cost_weight, thermal_cost_power, unknown_is_occupied
+        expanded, costs, thermal_cost_weight, thermal_cost_power,
+        unknown_is_occupied, fixed_co_ppm, co_safe_ppm, co_blocked_ppm,
+        co_cost_weight, co_cost_power,
     )
     return SimplifiedPathResult(
         tuple(simplified), bool(safe and math.isfinite(simplified_cost)),
