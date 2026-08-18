@@ -19,8 +19,8 @@ except ImportError:
 DEV_ADDR  = 0x33
 IMG_W     = 24
 IMG_H     = 32
-DISP_W    = 320
-DISP_H    = 400
+DISP_W    = 400
+DISP_H    = 320
 REFRESH_RATE  = 16  #define refresh rate to 64HZ
 
 mlx = cdll.LoadLibrary('./lib/libmlx90640.so')
@@ -33,7 +33,7 @@ font = ImageFont.truetype("./lib/MiSans-Light.ttf",size=20)
 
 window = tk.Tk()
 window.title('SEENGREAT')
-window.geometry("320x400+0+0")
+window.geometry("400x320+0+0")
 
 I2C_DEVICE = "/dev/i2c-1"
 thermal_ros_node = None
@@ -111,7 +111,10 @@ def Update_image():
                     Temp_To_RGB(y, x, val) # update image pixels colors
             img_temp = img_src.filter(ImageFilter.BoxBlur(1.5))  # image blur
 
-            # 장착 방향에 맞춰 기본 영상을 180도 회전
+            # 카메라를 반시계 방향 90도 설치했으므로
+            # 화면은 시계 방향 90도 회전
+            img_temp = img_temp.rotate(-90, expand=True)
+            # 현재 화면 방향을 기준으로 180도 뒤집기
             img_temp = img_temp.rotate(180, expand=True)
 
             img_show = img_temp.resize((DISP_W, DISP_H))
@@ -155,7 +158,7 @@ if __name__ == '__main__':
             bg="#111827",
             font=("Sans", 13),
             justify="center",
-            wraplength=280,
+            wraplength=360,
         )
         error_label.pack(fill="both", expand=True)
     try:
@@ -165,5 +168,4 @@ if __name__ == '__main__':
             thermal_ros_node.destroy_node()
         if rclpy is not None and rclpy.ok():
             rclpy.shutdown()
-
 
