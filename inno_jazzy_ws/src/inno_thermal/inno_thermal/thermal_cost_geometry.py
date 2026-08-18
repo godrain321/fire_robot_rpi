@@ -9,6 +9,18 @@ from typing import Mapping
 import numpy as np
 
 
+def thermal_stream_is_stale(
+    last_received_ns: int, now_ns: int, timeout_sec: float
+) -> bool:
+    """Return whether a ROS-clock sensor stream has exceeded its timeout."""
+    if not math.isfinite(timeout_sec) or timeout_sec < 0.0:
+        raise ValueError("thermal data timeout must be finite and non-negative")
+    if last_received_ns < 0 or now_ns < 0:
+        raise ValueError("ROS timestamps must be non-negative")
+    timeout_ns = int(round(timeout_sec * 1_000_000_000))
+    return now_ns < last_received_ns or now_ns - last_received_ns > timeout_ns
+
+
 @dataclass(frozen=True)
 class GridGeometry:
     width: int

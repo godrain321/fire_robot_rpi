@@ -314,7 +314,10 @@ class AstarReplanner(Node):
         if changed:
             self._dirty = True
         if self.require_thermal_active and message.data != 'ACTIVE':
-            self._state('WAITING_FOR_THERMAL_ACTIVE')
+            if message.data == 'THERMAL_DATA_STALE':
+                self._state('THERMAL_GRID_STALE')
+            else:
+                self._state('WAITING_FOR_THERMAL_ACTIVE')
             self._publish_empty_path()
 
     def _combine_and_publish(self) -> None:

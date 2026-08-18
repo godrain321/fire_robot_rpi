@@ -138,6 +138,13 @@ hot cell. Unobserved cells remain for `observation_timeout_sec` (default 2 s)
 and then return to zero. With timeout exactly `0.0`, old cells are cleared on
 the next thermal frame or publish timer cycle. Values are not permanent maxima.
 
+Sensor-stream liveness is checked separately from cell expiry. If no
+`/thermal/arc_points` message arrives for `thermal_data_timeout_sec` (default
+1.0 s), status changes from `ACTIVE` to `THERMAL_DATA_STALE`. Costs still obey
+their independent 2.0 s observation timeout. A later valid frame automatically
+restores `ACTIVE`. All timeout calculations use the ROS clock, including
+`use_sim_time`; a backward clock jump also enters the stale fail-safe state.
+
 `inflation_radius_m` defaults to `0.0`, which writes only the exact observed
 cells. A positive radius applies bounded Euclidean inflation with decreasing
 cost away from the observation; the centre retains its original value.

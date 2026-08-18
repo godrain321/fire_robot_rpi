@@ -1,6 +1,11 @@
 import numpy as np
+import pytest
 
-from inno_thermal.thermal_cost_geometry import GridGeometry, ThermalCostState
+from inno_thermal.thermal_cost_geometry import (
+    GridGeometry,
+    ThermalCostState,
+    thermal_stream_is_stale,
+)
 
 
 def geometry(width=5, height=4, resolution=0.1, origin_x=0.0):
@@ -70,3 +75,19 @@ def test_ros_clock_jump_backwards_expires_future_timestamps():
     state.apply_frame({(1, 1): 70}, 10_000_000_000)
     assert state.expire(1_000_000_000) == 1
     assert state.costs[1, 1] == 0
+
+
+def test_thermal_stream_becomes_stale_only_after_timeout():
+    last = 1_000_000_000
+    assert not thermal_stream_is_stale(last, 2_000_000_000, 1.0)
+    assert thermal_stream_is_stale(last, 2_000_000_001, 1.0)
+
+
+def test_thermal_stream_clock_jump_is_fail_safe():
+    assert thermal_stream_is_stale(10_000_000_000, 1_000_000_000, 1.0)
+
+
+@pytest.mark.parametrize("timeout", [-0.1, float("nan"), float("inf")])
+def test_thermal_stream_timeout_must_be_valid(timeout):
+    with pytest.raises(ValueError, match="timeout"):
+        thermal_stream_is_stale(0, 0, timeout)

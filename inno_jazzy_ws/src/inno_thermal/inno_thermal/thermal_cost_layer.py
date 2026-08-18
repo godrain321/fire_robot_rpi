@@ -22,6 +22,7 @@ from inno_thermal.thermal_cost_geometry import (
     ThermalCostState,
     aggregate_cell_costs,
     temperature_to_cost,
+    thermal_stream_is_stale,
     transform_point,
     world_to_grid,
 )
@@ -31,6 +32,7 @@ WAITING_FOR_STATIC_GRID = "WAITING_FOR_STATIC_GRID"
 WAITING_FOR_TF = "WAITING_FOR_TF"
 ACTIVE = "ACTIVE"
 INVALID_POINTCLOUD = "INVALID_POINTCLOUD"
+THERMAL_DATA_STALE = "THERMAL_DATA_STALE"
 REQUIRED_POINT_FIELDS = ("x", "y", "z", "intensity")
 
 
@@ -53,6 +55,7 @@ class ThermalCostLayer(Node):
             # applied exactly once by inno_autonav's weighted planner.
             "temperature_power": 1.0,
             "observation_timeout_sec": 2.0,
+            "thermal_data_timeout_sec": 1.0,
             "inflation_radius_m": 0.0,
             "publish_rate_hz": 4.0,
             "tf_timeout_sec": 0.2,
@@ -79,6 +82,9 @@ class ThermalCostLayer(Node):
         observation_timeout_sec = float(
             self.get_parameter("observation_timeout_sec").value
         )
+        self.thermal_data_timeout_sec = float(
+            self.get_parameter("thermal_data_timeout_sec").value
+        )
         inflation_radius_m = float(self.get_parameter("inflation_radius_m").value)
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.tf_timeout_sec = float(self.get_parameter("tf_timeout_sec").value)
@@ -88,6 +94,7 @@ class ThermalCostLayer(Node):
         self._static_info = None
         self._static_frame_id = ""
         self._status = None
+        self._last_arc_received_ns = self.get_clock().now().nanoseconds
 
         transient_qos = QoSProfile(depth=1)
         transient_qos.reliability = ReliabilityPolicy.RELIABLE
@@ -132,6 +139,9 @@ class ThermalCostLayer(Node):
         )
         if not math.isfinite(observation_timeout_sec) or observation_timeout_sec < 0.0:
             raise ValueError("observation_timeout_sec must be finite and non-negative")
+        if (not math.isfinite(self.thermal_data_timeout_sec)
+                or self.thermal_data_timeout_sec < 0.0):
+            raise ValueError("thermal_data_timeout_sec must be finite and non-negative")
         if not math.isfinite(inflation_radius_m) or inflation_radius_m < 0.0:
             raise ValueError("inflation_radius_m must be finite and non-negative")
         if not math.isfinite(self.publish_rate_hz) or self.publish_rate_hz <= 0.0:
@@ -198,6 +208,8 @@ class ThermalCostLayer(Node):
         self._publish_grid()
 
     def _thermal_arc_callback(self, message: PointCloud2) -> None:
+        # Use receipt time from the ROS clock so use_sim_time remains coherent.
+        self._last_arc_received_ns = self.get_clock().now().nanoseconds
         if self.state.geometry is None:
             self._set_status(WAITING_FOR_STATIC_GRID)
             return
@@ -289,7 +301,12 @@ class ThermalCostLayer(Node):
         if self.state.geometry is None:
             self._set_status(WAITING_FOR_STATIC_GRID)
             return
-        self.state.expire(self.get_clock().now().nanoseconds)
+        now_ns = self.get_clock().now().nanoseconds
+        self.state.expire(now_ns)
+        if thermal_stream_is_stale(
+            self._last_arc_received_ns, now_ns, self.thermal_data_timeout_sec
+        ):
+            self._set_status(THERMAL_DATA_STALE)
         self._publish_grid()
 
     def _publish_grid(self) -> None:

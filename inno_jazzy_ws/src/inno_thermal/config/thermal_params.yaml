@@ -26,6 +26,7 @@ thermal_cost_layer:
     # applied once by inno_autonav's weighted planner, not duplicated here.
     temperature_power: 1.0
     observation_timeout_sec: 2.0
+    thermal_data_timeout_sec: 1.0
     inflation_radius_m: 0.0
     publish_rate_hz: 4.0
     tf_timeout_sec: 0.2

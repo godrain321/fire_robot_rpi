@@ -84,7 +84,9 @@ thermal_grid_timeout_sec: 1.0
 ```
 
 Thermal grid가 없거나 stale이거나 geometry가 static grid와 다르거나 status가
-`ACTIVE`가 아니면 빈 `/planned_path`를 발행한다. 기존 `skid_path_follower`는 빈
+`ACTIVE`가 아니면 빈 `/planned_path`를 발행한다. Thermal arc가 1초 이상
+끊겨 cost layer가 `THERMAL_DATA_STALE`를 발행하면 planner 상태는
+`THERMAL_GRID_STALE`가 된다. 기존 `skid_path_follower`는 빈
 path를 받으면 `EMPTY_PATH`로 정지한다. Thermal이 정상으로 복구되면 기존 goal은
 유지된 채 다음 planner timer에서 현재 TF 위치로 다시 계획한다.
 
