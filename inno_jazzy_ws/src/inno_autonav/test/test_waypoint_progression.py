@@ -68,3 +68,54 @@ def test_step_mode_stops_after_one_waypoint():
     assert queue.current_index is None
     assert queue.step_index == 1
     assert states == ['STEP_COMPLETE:1/2:SPACE_FOR:2']
+
+
+def test_mode4_reaches_first_goal_then_waits_for_space():
+    queue = object.__new__(WaypointQueue)
+    queue.queue = [PoseStamped() for _ in range(6)]
+    queue.waypoint_names = [f'w{i}' for i in range(1, 7)]
+    queue.current_index = None
+    queue.waiting_for_departure = False
+    queue.step_index = 0
+    queue.execution_mode = 'continuous'
+    queue.mode4_names = []
+    queue.mode4_indices = []
+    queue.mode4_next_position = 0
+    queue.mode4_current_position = None
+    states = []
+    sent = []
+    queue._state = states.append
+    queue._publish_queue = lambda: None
+    queue._send_current_goal = lambda: sent.append(queue.current_index)
+
+    queue._start_mode4('w1,w5,w6')
+    assert queue.current_index == 0
+    assert sent == [0]
+
+    queue.waiting_for_departure = False
+    queue._follower(String(data='GOAL_REACHED'))
+    assert queue.current_index is None
+    assert queue.mode4_next_position == 1
+    assert states[-1] == 'MODE4_REACHED:w1:SPACE_FOR:w5'
+
+    queue._mode4_next()
+    assert queue.current_index == 4
+    assert sent == [0, 4]
+
+
+def test_mode4_space_while_driving_does_not_skip_goal():
+    queue = object.__new__(WaypointQueue)
+    queue.execution_mode = 'mode4'
+    queue.mode4_names = ['w1', 'w5']
+    queue.mode4_indices = [0, 4]
+    queue.mode4_next_position = 0
+    queue.mode4_current_position = 0
+    queue.current_index = 0
+    states = []
+    queue._state = states.append
+
+    queue._mode4_next()
+
+    assert queue.current_index == 0
+    assert queue.mode4_next_position == 0
+    assert states == ['MODE4_BUSY:w1']

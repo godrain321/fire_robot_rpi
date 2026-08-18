@@ -9,6 +9,8 @@ from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from std_msgs.msg import Int32, String
 
+from .mode4_input import parse_mode4_waypoints
+
 
 class KeyboardCmdVelDemo(Node):
     def __init__(self):
@@ -24,6 +26,7 @@ class KeyboardCmdVelDemo(Node):
         if publish_rate <= 0.0:
             raise ValueError('publish_rate_hz must be greater than zero')
         self._owns_input_stream = False
+        self._owns_terminal_output = False
         if sys.stdin.isatty():
             self._input_stream = sys.stdin
         else:
@@ -34,6 +37,13 @@ class KeyboardCmdVelDemo(Node):
                 raise RuntimeError(
                     'keyboard input requires an interactive terminal (TTY)'
                 ) from error
+        try:
+            self._terminal_output = open(
+                '/dev/tty', 'w', encoding='utf-8', buffering=1
+            )
+            self._owns_terminal_output = True
+        except OSError:
+            self._terminal_output = sys.stdout
 
         self.publisher = self.create_publisher(
             Twist, str(self.get_parameter('cmd_vel_topic').value), 10
@@ -42,8 +52,13 @@ class KeyboardCmdVelDemo(Node):
         self.waypoint_command_publisher = self.create_publisher(
             String, '/waypoint_queue_command', 10
         )
+        self.create_subscription(
+            String, '/waypoint_queue_status', self._waypoint_status, 10
+        )
         self.drive_mode = 1
         self.command = Twist()
+        self._mode4_collecting = False
+        self._mode4_buffer = ''
         self._terminal_settings = termios.tcgetattr(self._input_stream)
         tty.setcbreak(self._input_stream.fileno())
 
@@ -51,9 +66,66 @@ class KeyboardCmdVelDemo(Node):
         self.create_timer(0.02, self._poll_keyboard)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
         self.get_logger().info(
-            'Keyboard ready: 1=manual, 2=autonomous, g=run all, '
-            'SPACE=run next waypoint, c=clear, w/x/a/d/s, q=quit'
+            'Keyboard ready: 1=manual, 2=RViz autonomous, '
+            '4=select named waypoints, g=run all, SPACE=next, '
+            'c=clear, w/x/a/d/s, q=quit'
         )
+
+    def _write_terminal(self, text):
+        try:
+            self._terminal_output.write(text)
+            self._terminal_output.flush()
+        except (OSError, ValueError):
+            pass
+
+    def _render_mode4_prompt(self):
+        self._write_terminal(
+            '\r\033[2KMODE 4 waypoints (example w1,w5,w6) > '
+            + self._mode4_buffer
+        )
+
+    def _begin_mode4_input(self):
+        self._mode4_collecting = True
+        self._mode4_buffer = ''
+        self._write_terminal('\n')
+        self._render_mode4_prompt()
+
+    def _poll_mode4_input(self, key):
+        if key in ('\r', '\n'):
+            self._write_terminal('\n')
+            try:
+                labels = parse_mode4_waypoints(self._mode4_buffer)
+            except ValueError as error:
+                self.get_logger().warning(f'MODE 4 input rejected: {error}')
+                self._mode4_buffer = ''
+                self._render_mode4_prompt()
+                return
+            self._mode4_collecting = False
+            command = 'MODE4_SET:' + ','.join(labels)
+            self.waypoint_command_publisher.publish(String(data=command))
+            self.get_logger().info(
+                'MODE 4 requested: ' + ' -> '.join(labels)
+            )
+            return
+        if key == '\x1b':
+            self._mode4_collecting = False
+            self._mode4_buffer = ''
+            self._write_terminal('\r\033[2KMODE 4 input cancelled\n')
+            return
+        if key in ('\x7f', '\b'):
+            self._mode4_buffer = self._mode4_buffer[:-1]
+            self._render_mode4_prompt()
+            return
+        if key.isprintable() and len(self._mode4_buffer) < 1024:
+            self._mode4_buffer += key.lower()
+            self._render_mode4_prompt()
+
+    def _waypoint_status(self, message):
+        if not message.data.startswith('MODE4_'):
+            return
+        self._write_terminal(f'\r\033[2K[MODE 4] {message.data}\n')
+        if self._mode4_collecting:
+            self._render_mode4_prompt()
 
     def _set_speed_parameters(self, parameters):
         linear_speed = self.linear_speed
@@ -84,40 +156,75 @@ class KeyboardCmdVelDemo(Node):
         readable, _, _ = select.select([self._input_stream], [], [], 0.0)
         if not readable:
             return
-        key = self._input_stream.read(1).lower()
+        key = self._input_stream.read(1)
+        if self._mode4_collecting:
+            self._poll_mode4_input(key)
+            return
+        key = key.lower()
 
         command = Twist()
         label = None
-        if key in ('1', '2'):
+        if key in ('1', '2', '4'):
             self.drive_mode = int(key)
             self.command = command
             self._publish_command()
             self.mode_publisher.publish(Int32(data=self.drive_mode))
-            self.get_logger().info(
-                'MODE 1: KEYBOARD' if self.drive_mode == 1
-                else 'MODE 2: RViz / AUTONOMOUS'
-            )
+            if self.drive_mode == 1:
+                label = 'MODE 1: KEYBOARD'
+            elif self.drive_mode == 2:
+                label = 'MODE 2: RViz / AUTONOMOUS'
+            else:
+                label = 'MODE 4: NAMED WAYPOINT STEP MISSION'
+            self.get_logger().info(label)
+            if self.drive_mode == 4:
+                self._begin_mode4_input()
             return
         if key == 'g':
             if self.drive_mode != 2:
-                self.get_logger().warning('Press 2 before starting waypoint driving.')
+                self.get_logger().warning(
+                    'Press 2 before starting waypoint driving.'
+                )
                 return
             self.waypoint_command_publisher.publish(String(data='GO'))
             self.get_logger().info('Requested sequential waypoint driving')
             return
         if key == ' ':
+            if self.drive_mode == 4:
+                self.waypoint_command_publisher.publish(
+                    String(data='MODE4_NEXT')
+                )
+                self.get_logger().info(
+                    'MODE 4 requested next selected waypoint'
+                )
+                return
             if self.drive_mode != 2:
-                self.get_logger().warning('Press 2 before stepping waypoints.')
+                self.get_logger().warning(
+                    'Press 2 or 4 before stepping waypoints.'
+                )
                 return
             self.waypoint_command_publisher.publish(String(data='STEP'))
             self.get_logger().info('Requested next waypoint only')
             return
         if key == 'c':
-            self.waypoint_command_publisher.publish(String(data='CLEAR'))
-            self.get_logger().info('Requested waypoint queue clear')
+            if self.drive_mode == 4:
+                self.waypoint_command_publisher.publish(
+                    String(data='MODE4_CANCEL')
+                )
+                self.get_logger().info('Requested MODE 4 selection cancel')
+            else:
+                self.waypoint_command_publisher.publish(String(data='CLEAR'))
+                self.get_logger().info('Requested waypoint queue clear')
+            return
+        if key == 's' and self.drive_mode != 1:
+            self._stop_all_motion()
+            self.get_logger().warning(
+                'AUTONOMOUS STOP: zero velocity and MODE 1 selected'
+            )
             return
         if self.drive_mode != 1 and key in ('w', 'x', 'a', 'd'):
-            self.get_logger().warning('Press 1 before using manual drive keys.')
+            self.get_logger().warning(
+                'Press 1 before using manual drive keys.'
+            )
             return
         if key == 'w':
             command.linear.x = self.linear_speed
@@ -134,8 +241,7 @@ class KeyboardCmdVelDemo(Node):
         elif key == 's':
             label = 'STOP'
         elif key == 'q':
-            self.command = command
-            self._publish_command()
+            self._stop_all_motion()
             self.get_logger().info('STOP, then quit')
             self.restore_terminal()
             raise KeyboardInterrupt
@@ -153,6 +259,13 @@ class KeyboardCmdVelDemo(Node):
         if self.drive_mode == 1:
             self.publisher.publish(self.command)
 
+    def _stop_all_motion(self):
+        """Select the manual source and publish zero even from auto modes."""
+        self.command = Twist()
+        self.publisher.publish(self.command)
+        self.mode_publisher.publish(Int32(data=1))
+        self.drive_mode = 1
+
     def restore_terminal(self):
         if self._terminal_settings is not None:
             termios.tcsetattr(
@@ -162,10 +275,12 @@ class KeyboardCmdVelDemo(Node):
         if self._owns_input_stream:
             self._input_stream.close()
             self._owns_input_stream = False
+        if self._owns_terminal_output:
+            self._terminal_output.close()
+            self._owns_terminal_output = False
 
     def destroy_node(self):
-        self.command = Twist()
-        self._publish_command()
+        self._stop_all_motion()
         self.restore_terminal()
         super().destroy_node()
 

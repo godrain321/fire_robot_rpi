@@ -17,6 +17,41 @@ export ROS_LOCALHOST_ONLY=0
 ros2 launch inno_bringup lidar_with_tf.launch.py
 ```
 
+## Camera Module 3 연결 및 화각 확인
+
+개발 대상은 Raspberry Pi Camera Module 3 Wide의 IMX708이다. USB 웹캠은 이 실행
+경로의 대체 장치로 사용하지 않는다. 현재처럼 카메라를 연결하지 않은 개발 PC에서
+IMX708 미검출이 나오는 것은 정상이며, 실제 Raspberry Pi 5에서 CSI 케이블을 연결한
+뒤 실행한다.
+
+처음 한 번 Camera Module 3 런타임과 두 ROS workspace를 빌드한다.
+
+```bash
+cd ~/fire_robot_rpi
+./build_rpi_camera_runtime.sh
+
+source /opt/ros/jazzy/setup.bash
+cd camera_ws
+colcon build --symlink-install
+source install/setup.bash
+
+cd ../inno_jazzy_ws
+colcon build --symlink-install --packages-up-to \
+  inno_camera_tools inno_drive_bridge inno_robot_bringup
+```
+
+줄자로 카메라와 사람 사이 거리를 재고 같은 값을 넘겨 영상을 연다.
+
+```bash
+cd ~/fire_robot_rpi
+./run_camera_fov_check.sh --distance 2.0
+```
+
+스크립트는 영상 실행 전에 IMX708과 Pi 5 `rp1-cfe` 연결을 검사한다. 영상에는 3x3
+구도선, 수평·수직 화각, 해당 거리에서 보이는 폭·높이와 1.7m 사람의 예상 픽셀
+높이가 표시된다. `+`/`-`로 거리를 조절하고 `s` 또는 `Space`로 원본과 주석 사진을
+`data/fov_check/`에 저장하며 `q`로 종료한다.
+
 ## Camera Module 3 Wide Rational 8계수 캘리브레이션
 
 현재 배포 기준은 **원본 카메라 영상으로 계산하는 OpenCV Rational Polynomial
@@ -100,6 +135,54 @@ LiDAR 지원점이 없으면 값을 추측하지 않고 `NO_LIDAR_SUPPORT`로 �
 - `inno_jazzy_ws/maps/fire_demo_20260729_182054.pgm`: SLAM으로 생성한 occupancy grid 지도 이미지
 
 이 두 파일을 한 쌍으로 유지하며, 향후 로컬 노트북에서 AMCL 위치 추정과 A1/A2 웨이포인트를 지정할 때 사용할 기준 지도다.
+
+## 모드 4: 이름으로 선택한 waypoint를 Space로 한 점씩 주행
+
+통합 주행 launch를 실행하고 AMCL 초기 위치를 지정한 다음, launch를 실행한 터미널에
+포커스를 두고 `4`를 누른다. 나타나는 프롬프트에 waypoint를 두 개 이상 입력하고
+Enter를 누른다.
+
+```text
+MODE 4 waypoints (example w1,w5,w6) > w1,w5,w6
+```
+
+로봇은 현재 위치에서 첫 목적지 `w1`로 즉시 출발한다. `w1` 도착 후 터미널에
+`MODE4_REACHED:w1:SPACE_FOR:w5`가 표시되면 Space를 눌러 `w5`로 출발한다. 다시
+도착한 뒤 Space를 누르면 `w6`로 이동한다. 입력하지 않은 waypoint로는 이동하지
+않으므로 `w1,w5`만 입력했다면 두 번째 목적지는 `w5`다.
+
+- 쉼표와 공백을 섞어 입력할 수 있으며 대소문자를 구분하지 않는다.
+- 존재하지 않는 이름, `w0`, waypoint 한 개뿐인 입력은 출발 전에 거절한다.
+- 주행 중 Space를 눌러도 다음 목적지를 건너뛰지 않고 `MODE4_BUSY`를 표시한다.
+- 모드 4도 기존 A*, LiDAR/mmWave 동적 장애물 회피와 `/cmd_vel_auto`를 그대로 쓴다.
+- 상태는 `ros2 topic echo /waypoint_queue_status`에서도 확인할 수 있다.
+
+관련 빌드 명령:
+
+```bash
+cd ~/fire_robot_rpi/inno_jazzy_ws
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install --packages-select \
+  inno_drive_bridge inno_autonav inno_robot_bringup
+source install/setup.bash
+```
+
+## 전체 주행 rosbag 기록
+
+위 workspace 빌드를 마치고 통합 bringup을 먼저 실행한 뒤, 별도 터미널에서 다음
+도구를 실행한다.
+
+```bash
+cd ~/fire_robot_rpi
+./record_robot_bag.sh
+```
+
+좌·우 모터 목표 STEP/s, LiDAR `/scan`, TF, 지도, 실제·계획 경로, waypoint/A*
+상태, 동적장애물과 mmWave raw/filtered 값을 한 번에 기록한다. 시작 전 각 토픽을
+`수신`, `대기`, `없음`으로 표시하지만 일부 센서가 없더라도 rosbag은 그대로
+시작하며, 실행 뒤에 나타난 토픽도 기록 대상으로 유지한다. 결과는
+`bags/fire_robot_날짜_시간/`, 점검 결과는 같은 이름의 `.topics.txt`에 저장한다.
+안전한 종료는 `Ctrl-C`다.
 
 ## Git
 

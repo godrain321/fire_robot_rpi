@@ -83,6 +83,32 @@ launch를 실행한 터미널에서 `1`, 그 다음 `w/a/s/d/x`를 사용한다.
 주행한다. 각 waypoint가 `GOAL_REACHED`가 되어야 다음 waypoint가 전달된다. follower는
 10Hz로 명령을 계속 보내므로 0.5초 watchdog에 걸리지 않는다.
 
+## 4. 모드 4: 저장된 waypoint 이름을 골라 한 점씩 주행
+
+`maps/waypoint_queue_latest.yaml`에 `w1`, `w2`처럼 이름이 지정된 waypoint가 있어야
+한다. 키보드 터미널에서 `4`를 누른 뒤, 프롬프트에 목적지를 두 개 이상 입력하고
+Enter를 누른다.
+
+```text
+MODE 4 waypoints (example w1,w5,w6) > w1,w5,w6
+```
+
+Enter 즉시 현재 로봇 위치에서 `w1`로 출발한다. `w1`에 도착하여 다음 상태가
+표시된 뒤에만 Space를 누른다.
+
+```text
+[MODE 4] MODE4_REACHED:w1:SPACE_FOR:w5
+```
+
+그러면 `w5`로 출발하고, `w5` 도착 후 Space를 다시 누르면 `w6`로 출발한다.
+즉 입력 순서를 그대로 따르므로 `w1,w5`를 입력한 경우 Space 다음 목적지는 `w5`다.
+주행 중 Space는 `MODE4_BUSY`로 거절되어 목적지가 건너뛰어지지 않는다. 존재하지
+않는 이름이나 waypoint 한 개뿐인 입력도 출발 전에 거절된다.
+
+모드 4는 별도 직선 제어가 아니라 모드 2와 같은 A* 및 동적 장애물 회피 경로를
+사용한다. 차이는 첫 점 이후 자동으로 다음 점을 보내지 않고 Space를 기다린다는
+것이다.
+
 속도는 펌웨어를 다시 굽지 않고 launch 명령의 `manual_linear_speed`,
 `manual_angular_speed`, `auto_linear_speed`, `auto_angular_speed`로 조절한다. 먼저 바퀴를
 띄운 상태에서 낮은 값으로 확인한 다음 현장 바닥에 맞춰 조금씩 올린다.

@@ -34,6 +34,7 @@ mlx90640/demo codes/mlx90640/cpp/main
 .camera_build/
 .camera_runtime/
 data/intrinsic/
+data/fov_check/
 data/extrinsic/screenshots/
 outputs/
 

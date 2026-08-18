@@ -1,4 +1,4 @@
-"""Safety mux: exactly one of keyboard or autonomous control reaches the ESP32."""
+"""Select exactly one keyboard or autonomous command source for the ESP32."""
 
 import time
 
@@ -6,6 +6,8 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from std_msgs.msg import Int32, String
+
+from .mode4_input import command_source_for_drive_mode
 
 
 class CmdVelModeMux(Node):
@@ -22,8 +24,18 @@ class CmdVelModeMux(Node):
         self.received = {1: 0.0, 2: 0.0}
         self.output = self.create_publisher(Twist, '/cmd_vel', 10)
         self.status = self.create_publisher(String, '/drive_mode_status', 10)
-        self.create_subscription(Twist, '/cmd_vel_keyboard', lambda m: self._cmd(1, m), 10)
-        self.create_subscription(Twist, '/cmd_vel_auto', lambda m: self._cmd(2, m), 10)
+        self.create_subscription(
+            Twist,
+            '/cmd_vel_keyboard',
+            lambda message: self._cmd(1, message),
+            10,
+        )
+        self.create_subscription(
+            Twist,
+            '/cmd_vel_auto',
+            lambda message: self._cmd(2, message),
+            10,
+        )
         self.create_subscription(Int32, '/drive_mode', self._mode, 10)
         self.create_timer(1.0 / rate, self._publish)
         self.get_logger().info('Drive mode 1 (keyboard) selected')
@@ -33,18 +45,26 @@ class CmdVelModeMux(Node):
         self.received[source] = time.monotonic()
 
     def _mode(self, message):
-        if message.data not in (1, 2):
-            self.get_logger().warning('drive_mode must be 1 or 2')
+        try:
+            command_source_for_drive_mode(message.data)
+        except ValueError as error:
+            self.get_logger().warning(str(error))
             return
         self.output.publish(Twist())
         self.mode = int(message.data)
-        label = 'KEYBOARD' if self.mode == 1 else 'AUTONOMOUS'
+        labels = {
+            1: 'KEYBOARD',
+            2: 'RVIZ_AUTONOMOUS',
+            4: 'NAMED_WAYPOINT_STEP',
+        }
+        label = labels[self.mode]
         self.status.publish(String(data=f'{self.mode}:{label}'))
         self.get_logger().info(f'Drive mode {self.mode} ({label}) selected')
 
     def _publish(self):
-        command = self.commands[self.mode]
-        if time.monotonic() - self.received[self.mode] > self.timeout:
+        source = command_source_for_drive_mode(self.mode)
+        command = self.commands[source]
+        if time.monotonic() - self.received[source] > self.timeout:
             command = Twist()
         self.output.publish(command)
 
