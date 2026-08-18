@@ -127,7 +127,9 @@ class Mlx90640SensorNode(Node):
         self.declare_parameter("projection_distance_m", 0.15)
         self.declare_parameter("refresh_rate_hz", 8)
         self.declare_parameter("publish_rate_hz", 4.0)
-        self.declare_parameter("flip_horizontal", False)
+        # Hardware calibration: the native sensor order is horizontally
+        # mirrored relative to physical left/right on the installed camera.
+        self.declare_parameter("flip_horizontal", True)
         self.declare_parameter("flip_vertical", False)
         self.declare_parameter("rotate_180", False)
         self.declare_parameter("native_library_path", "")

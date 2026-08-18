@@ -10,10 +10,11 @@ The native API writes 768 `float` values. The legacy demo indexes them as
 `raw[32 * row + column]`, so this package reshapes the buffer in C order to
 `(24, 32)`. No display colors, resizing, Pillow operations, or blur are used.
 
-The default orientation is unchanged. `flip_horizontal`, `flip_vertical`, and
-`rotate_180` are applied to the raw 24x32 array before column maxima are
-calculated. They all default to `false`; determine their real values during a
-later mounting-direction calibration.
+`flip_horizontal`, `flip_vertical`, and `rotate_180` are applied to the raw
+24x32 array before column maxima are calculated. Raspberry Pi hardware test 2
+confirmed that the native order is horizontally mirrored on the installed
+camera, so `flip_horizontal` now defaults to `true`. Physical left therefore
+maps to column 0 and ROS `+y`; `flip_vertical` and `rotate_180` remain `false`.
 
 The sensor node rejects a complete frame if any of its 768 samples is NaN or
 infinite and retries on the next timer tick. The pure `compute_column_max()`
@@ -212,7 +213,7 @@ colcon test-result --verbose
 
 ## Deliberately not implemented
 
-- physical left/right or up/down camera orientation calibration
+- physical vertical camera orientation calibration
 - `base_link -> thermal_camera_link` TF
 - merging `/thermal_cost_grid` into `/planning_grid`
 - a Nav2 costmap plugin

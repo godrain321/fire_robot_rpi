@@ -7,7 +7,8 @@ mlx90640_sensor_node:
     projection_distance_m: 0.15
     refresh_rate_hz: 8
     publish_rate_hz: 4.0
-    flip_horizontal: false
+    # Test 2 calibration: physical left maps to column 0 / ROS +y.
+    flip_horizontal: true
     flip_vertical: false
     rotate_180: false
     native_library_path: ""
