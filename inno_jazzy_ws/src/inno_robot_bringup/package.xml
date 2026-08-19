@@ -10,6 +10,8 @@
   <buildtool_depend>ament_python</buildtool_depend>
 
   <exec_depend>inno_camera_tools</exec_depend>
+  <exec_depend>inno_autonav</exec_depend>
+  <exec_depend>inno_drive_bridge</exec_depend>
   <exec_depend>inno_mmwave</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

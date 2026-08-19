@@ -35,15 +35,28 @@ declare -a topics=(
   /waypoint_markers
   /waypoint_queue_status
   /waypoint_queue_command
+  /obstacle_inspection_command
   /planned_path
   /planner_state
   /follower_state
   /planning_grid
   /dynamic_obstacle_grid
   /dynamic_obstacle_markers
+  /dynamic_obstacle_candidates
+  /dynamic_obstacle_person
   /dynamic_obstacle_observations
   /dynamic_obstacle_markers_display
   /dynamic_obstacle_detected
+  /mode3_status
+  /mode3_classification
+  /mode4_status
+  /mode4_classification
+  /autonomy_cancel
+  /camera/image_raw
+  /camera/camera_info
+  /camera/person_detections
+  /camera/person_detector_status
+  /camera/person_detection_image
   /victim_markers
   /victim_detected
   /victim_fusion_status

@@ -30,6 +30,8 @@ setup(
             'go_to = inno_autonav.go_to:main',
             'planning_grid_publisher = inno_autonav.planning_grid_publisher:main',
             'dynamic_obstacle_layer = inno_autonav.dynamic_obstacle_layer:main',
+            'mode3_inspector = inno_autonav.mode3_inspector:main',
+            'mode4_inspector = inno_autonav.mode4_inspector:main',
             'astar_replanner = inno_autonav.astar_replanner:main',
             'skid_path_follower = inno_autonav.skid_path_follower:main',
             'waypoint_queue = inno_autonav.waypoint_queue:main',

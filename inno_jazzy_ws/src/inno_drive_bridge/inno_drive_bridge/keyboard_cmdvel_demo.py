@@ -7,9 +7,9 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
-from std_msgs.msg import Int32, String
+from std_msgs.msg import Empty, Int32, String
 
-from .mode4_input import parse_mode4_waypoints
+from .named_waypoint_input import parse_named_waypoints
 
 
 class KeyboardCmdVelDemo(Node):
@@ -49,16 +49,22 @@ class KeyboardCmdVelDemo(Node):
             Twist, str(self.get_parameter('cmd_vel_topic').value), 10
         )
         self.mode_publisher = self.create_publisher(Int32, '/drive_mode', 10)
+        self.autonomy_cancel_publisher = self.create_publisher(
+            Empty, '/autonomy_cancel', 10
+        )
         self.waypoint_command_publisher = self.create_publisher(
             String, '/waypoint_queue_command', 10
+        )
+        self.inspection_command_publisher = self.create_publisher(
+            String, '/obstacle_inspection_command', 10
         )
         self.create_subscription(
             String, '/waypoint_queue_status', self._waypoint_status, 10
         )
         self.drive_mode = 1
         self.command = Twist()
-        self._mode4_collecting = False
-        self._mode4_buffer = ''
+        self._waypoint_collecting = False
+        self._waypoint_buffer = ''
         self._terminal_settings = termios.tcgetattr(self._input_stream)
         tty.setcbreak(self._input_stream.fileno())
 
@@ -66,9 +72,10 @@ class KeyboardCmdVelDemo(Node):
         self.create_timer(0.02, self._poll_keyboard)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
         self.get_logger().info(
-            'Keyboard ready: 1=manual, 2=RViz autonomous, '
-            '4=select named waypoints, g=run all, SPACE=next, '
-            'c=clear, w/x/a/d/s, q=quit'
+            'Keyboard ready: 1=manual, 2=select named waypoints, '
+            '3=mmWave inspection, 4=camera+LiDAR inspection, '
+            'SPACE=start/next, '
+            'c=cancel mission, w/x/a/d/s, q=quit'
         )
 
     def _write_terminal(self, text):
@@ -78,54 +85,54 @@ class KeyboardCmdVelDemo(Node):
         except (OSError, ValueError):
             pass
 
-    def _render_mode4_prompt(self):
+    def _render_waypoint_prompt(self):
         self._write_terminal(
-            '\r\033[2KMODE 4 waypoints (example w1,w5,w6) > '
-            + self._mode4_buffer
+            '\r\033[2KMODE 2 waypoints (example w1,w5,w6) > '
+            + self._waypoint_buffer
         )
 
-    def _begin_mode4_input(self):
-        self._mode4_collecting = True
-        self._mode4_buffer = ''
+    def _begin_waypoint_input(self):
+        self._waypoint_collecting = True
+        self._waypoint_buffer = ''
         self._write_terminal('\n')
-        self._render_mode4_prompt()
+        self._render_waypoint_prompt()
 
-    def _poll_mode4_input(self, key):
+    def _poll_waypoint_input(self, key):
         if key in ('\r', '\n'):
             self._write_terminal('\n')
             try:
-                labels = parse_mode4_waypoints(self._mode4_buffer)
+                labels = parse_named_waypoints(self._waypoint_buffer)
             except ValueError as error:
-                self.get_logger().warning(f'MODE 4 input rejected: {error}')
-                self._mode4_buffer = ''
-                self._render_mode4_prompt()
+                self.get_logger().warning(f'MODE 2 input rejected: {error}')
+                self._waypoint_buffer = ''
+                self._render_waypoint_prompt()
                 return
-            self._mode4_collecting = False
-            command = 'MODE4_SET:' + ','.join(labels)
+            self._waypoint_collecting = False
+            command = 'MODE2_SET:' + ','.join(labels)
             self.waypoint_command_publisher.publish(String(data=command))
             self.get_logger().info(
-                'MODE 4 requested: ' + ' -> '.join(labels)
+                'MODE 2 requested: ' + ' -> '.join(labels)
             )
             return
         if key == '\x1b':
-            self._mode4_collecting = False
-            self._mode4_buffer = ''
-            self._write_terminal('\r\033[2KMODE 4 input cancelled\n')
+            self._waypoint_collecting = False
+            self._waypoint_buffer = ''
+            self._write_terminal('\r\033[2KMODE 2 input cancelled\n')
             return
         if key in ('\x7f', '\b'):
-            self._mode4_buffer = self._mode4_buffer[:-1]
-            self._render_mode4_prompt()
+            self._waypoint_buffer = self._waypoint_buffer[:-1]
+            self._render_waypoint_prompt()
             return
-        if key.isprintable() and len(self._mode4_buffer) < 1024:
-            self._mode4_buffer += key.lower()
-            self._render_mode4_prompt()
+        if key.isprintable() and len(self._waypoint_buffer) < 1024:
+            self._waypoint_buffer += key.lower()
+            self._render_waypoint_prompt()
 
     def _waypoint_status(self, message):
-        if not message.data.startswith('MODE4_'):
+        if not message.data.startswith('MODE2_'):
             return
-        self._write_terminal(f'\r\033[2K[MODE 4] {message.data}\n')
-        if self._mode4_collecting:
-            self._render_mode4_prompt()
+        self._write_terminal(f'\r\033[2K[MODE 2] {message.data}\n')
+        if self._waypoint_collecting:
+            self._render_waypoint_prompt()
 
     def _set_speed_parameters(self, parameters):
         linear_speed = self.linear_speed
@@ -157,14 +164,22 @@ class KeyboardCmdVelDemo(Node):
         if not readable:
             return
         key = self._input_stream.read(1)
-        if self._mode4_collecting:
-            self._poll_mode4_input(key)
+        if self._waypoint_collecting:
+            self._poll_waypoint_input(key)
             return
         key = key.lower()
 
         command = Twist()
         label = None
-        if key in ('1', '2', '4'):
+        if key in ('1', '2', '3', '4'):
+            previous_mode = self.drive_mode
+            self.autonomy_cancel_publisher.publish(Empty())
+            # Clear any stale planner goal before selecting/reselecting the
+            # autonomous velocity source.
+            if previous_mode == 2 or key == '2':
+                self.waypoint_command_publisher.publish(
+                    String(data='MODE2_CANCEL')
+                )
             self.drive_mode = int(key)
             self.command = command
             self._publish_command()
@@ -172,48 +187,49 @@ class KeyboardCmdVelDemo(Node):
             if self.drive_mode == 1:
                 label = 'MODE 1: KEYBOARD'
             elif self.drive_mode == 2:
-                label = 'MODE 2: RViz / AUTONOMOUS'
+                label = 'MODE 2: NAMED WAYPOINT STEP MISSION'
+            elif self.drive_mode == 3:
+                label = 'MODE 3: MMWAVE OBSTACLE INSPECTION'
             else:
-                label = 'MODE 4: NAMED WAYPOINT STEP MISSION'
+                label = 'MODE 4: CAMERA + LIDAR SURVIVOR INSPECTION'
             self.get_logger().info(label)
-            if self.drive_mode == 4:
-                self._begin_mode4_input()
-            return
-        if key == 'g':
-            if self.drive_mode != 2:
-                self.get_logger().warning(
-                    'Press 2 before starting waypoint driving.'
-                )
-                return
-            self.waypoint_command_publisher.publish(String(data='GO'))
-            self.get_logger().info('Requested sequential waypoint driving')
+            if self.drive_mode == 2:
+                self._begin_waypoint_input()
             return
         if key == ' ':
-            if self.drive_mode == 4:
+            if self.drive_mode == 2:
                 self.waypoint_command_publisher.publish(
-                    String(data='MODE4_NEXT')
+                    String(data='MODE2_NEXT')
                 )
                 self.get_logger().info(
-                    'MODE 4 requested next selected waypoint'
+                    'MODE 2 requested next selected waypoint'
                 )
                 return
-            if self.drive_mode != 2:
+            if self.drive_mode in (3, 4):
+                command = f'MODE{self.drive_mode}_START'
+                self.inspection_command_publisher.publish(String(data=command))
+                self.get_logger().info(
+                    f'MODE {self.drive_mode} requested nearest-obstacle inspection'
+                )
+                return
+            if self.drive_mode == 1:
                 self.get_logger().warning(
-                    'Press 2 or 4 before stepping waypoints.'
+                    'Select MODE 2, 3, or 4 before pressing Space.'
                 )
-                return
-            self.waypoint_command_publisher.publish(String(data='STEP'))
-            self.get_logger().info('Requested next waypoint only')
             return
         if key == 'c':
-            if self.drive_mode == 4:
-                self.waypoint_command_publisher.publish(
-                    String(data='MODE4_CANCEL')
+            if self.drive_mode in (3, 4):
+                cancelled_mode = self.drive_mode
+                self._stop_all_motion()
+                self.get_logger().warning(
+                    f'MODE {cancelled_mode} CANCELLED: '
+                    'zero velocity and MODE 1 selected'
                 )
-                self.get_logger().info('Requested MODE 4 selection cancel')
-            else:
-                self.waypoint_command_publisher.publish(String(data='CLEAR'))
-                self.get_logger().info('Requested waypoint queue clear')
+                return
+            self.waypoint_command_publisher.publish(
+                String(data='MODE2_CANCEL')
+            )
+            self.get_logger().info('Requested MODE 2 mission cancel')
             return
         if key == 's' and self.drive_mode != 1:
             self._stop_all_motion()
@@ -261,6 +277,11 @@ class KeyboardCmdVelDemo(Node):
 
     def _stop_all_motion(self):
         """Select the manual source and publish zero even from auto modes."""
+        self.autonomy_cancel_publisher.publish(Empty())
+        if self.drive_mode == 2:
+            self.waypoint_command_publisher.publish(
+                String(data='MODE2_CANCEL')
+            )
         self.command = Twist()
         self.publisher.publish(self.command)
         self.mode_publisher.publish(Int32(data=1))

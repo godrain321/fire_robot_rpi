@@ -1,12 +1,12 @@
 import pytest
 
 from inno_autonav.waypoint_selection import (
-    resolve_mode4_waypoints,
+    resolve_named_waypoints,
     waypoint_names_from_document,
 )
 
 
-def test_named_waypoints_keep_yaml_names_for_mode4():
+def test_named_waypoints_keep_yaml_names():
     document = {
         'frame_id': 'map',
         'poses': {
@@ -16,7 +16,7 @@ def test_named_waypoints_keep_yaml_names_for_mode4():
         },
     }
     names = waypoint_names_from_document(document)
-    selected_names, indices = resolve_mode4_waypoints('W1,w5,w6', names)
+    selected_names, indices = resolve_named_waypoints('W1,w5,w6', names)
     assert selected_names == ['w1', 'w5', 'w6']
     assert indices == [0, 1, 2]
 
@@ -26,6 +26,6 @@ def test_positional_snapshot_gets_stable_w_names():
 
 
 @pytest.mark.parametrize('selection', ['w1', 'w1,w999', 'exit1,w5'])
-def test_invalid_mode4_selection_is_rejected(selection):
+def test_invalid_named_selection_is_rejected(selection):
     with pytest.raises(ValueError):
-        resolve_mode4_waypoints(selection, ['w1', 'w5', 'w6'])
+        resolve_named_waypoints(selection, ['w1', 'w5', 'w6'])

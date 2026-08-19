@@ -34,3 +34,21 @@ cd ~/fire_robot_rpi
 
 `s`를 누를 때마다 `data/camera_capture/`에 사진 한 장이 저장되고, `q` 또는
 `Esc`로 종료합니다.
+
+## MODE 4 YOLO 추론
+
+학습된 사람 검출 weight를 받은 뒤 Camera Module 3 ROS 영상에서 추론하는 노드는
+`camera_person_detector`다. Ultralytics는 ROS 노드를 실행할 Python 환경에 별도로
+설치되어 있어야 하며 모델이나 패키지가 없으면 노드는 오류 상태만 발행하고 사람으로
+오판하지 않는다.
+
+```bash
+ros2 run inno_camera_tools camera_person_detector --ros-args \
+  -p model_path:="$HOME/fire_robot_rpi/models/mode4_person.pt"
+```
+
+출력 토픽은 `/camera/person_detections`, `/camera/person_detector_status`,
+`/camera/person_detection_image`다. 기본 설정에서는 MODE 4가 1.5m 검사 위치에 도착해
+`MODE4_CAMERA_YOLO_OBSERVING` 상태가 된 동안에만 실제 추론한다. 바운딩박스 JSON은
+`image_width`, `image_height`, `x_min`, `y_min`, `x_max`, `y_max`, `confidence`를
+포함하며 mode4 inspector가 LiDAR 점과 방향 기준으로 결합한다.

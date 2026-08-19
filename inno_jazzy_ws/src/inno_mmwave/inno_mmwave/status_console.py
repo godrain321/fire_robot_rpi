@@ -12,7 +12,9 @@ from std_msgs.msg import Bool, Float32, String
 
 MODE_TITLES = {
     1: 'KEYBOARD',
-    2: 'WAYPOINT AUTONOMOUS',
+    2: 'NAMED WAYPOINT STEP',
+    3: 'MMWAVE OBSTACLE INSPECTION',
+    4: 'CAMERA + LIDAR SURVIVOR INSPECTION',
 }
 FILTERED_PRESENCE_TOPIC = '/mmwave/filtered_presence'
 FILTERED_DISTANCE_TOPIC = '/mmwave/filtered_distance_m'
@@ -43,6 +45,26 @@ def waypoint_log_text(state: str) -> Optional[str]:
         )
     if raw in ("MISSION_COMPLETE", "STEP_MISSION_COMPLETE"):
         return "[웨이포인트] 전체 주행 완료"
+    if raw.startswith('MODE2_RUNNING:'):
+        try:
+            progress, name = raw.split(':', 1)[1].rsplit(':', 1)
+            current, total = progress.split('/', 1)
+            return f'[웨이포인트] {name.lower()} 주행 중 ({current}/{total})'
+        except (TypeError, ValueError):
+            return None
+    if raw.startswith('MODE2_REACHED:') and ':SPACE_FOR:' in raw:
+        try:
+            reached, following = raw.split(':', 1)[1].split(':SPACE_FOR:', 1)
+            return (
+                f'[웨이포인트] {reached.lower()} 도착 - '
+                f'Space를 누르면 {following.lower()} 출발'
+            )
+        except (TypeError, ValueError):
+            return None
+    if raw.startswith('MODE2_MISSION_COMPLETE'):
+        return '[웨이포인트] 선택 경로 주행 완료'
+    if raw == 'MODE2_CANCELLED':
+        return '[웨이포인트] 선택 경로 취소됨'
     return None
 
 
@@ -81,6 +103,8 @@ class StatusConsole(Node):
         self._last_distance_log_time = 0.0
         self._pending_detection = False
         self._dynamic_detected: Optional[bool] = None
+        self._mode3_state: Optional[str] = None
+        self._mode4_state: Optional[str] = None
 
         self.create_subscription(
             String, '/drive_mode_status', self._on_drive_mode, 10
@@ -106,6 +130,12 @@ class StatusConsole(Node):
         )
         self.create_subscription(
             Bool, DYNAMIC_OBSTACLE_TOPIC, self._on_dynamic_obstacle, 10
+        )
+        self.create_subscription(
+            String, '/mode3_status', self._on_mode3_state, 10
+        )
+        self.create_subscription(
+            String, '/mode4_status', self._on_mode4_state, 10
         )
         self._detection_timer = self.create_timer(
             self.detection_distance_wait, self._flush_pending_detection
@@ -141,7 +171,35 @@ class StatusConsole(Node):
                 self._write(text)
             if self._dynamic_detected:
                 self._write("[동적장애물] 감지됨 - 회피 경로 계산")
-            self._write("[조작] g=9개 웨이포인트 연속 주행")
+            self._write(
+                '[조작] w번호를 2개 이상 입력, 도착 후 Space=다음 지점'
+            )
+        elif mode == 3:
+            self._write(
+                '[검사] Space를 누르면 가장 가까운 빨간 장애물의 '
+                '1.5m 앞까지 이동 후 mmWave 판별'
+            )
+        elif mode == 4:
+            self._write(
+                '[검사] Space를 누르면 가장 가까운 빨간 장애물의 '
+                '1.5m 앞까지 이동 후 카메라+LiDAR 요구조자 판별'
+            )
+
+    def _on_mode3_state(self, message: String) -> None:
+        state = message.data.strip()
+        if not state or state == self._mode3_state:
+            return
+        self._mode3_state = state
+        if self._mode == 3:
+            self._write(f'[MODE 3] {state}')
+
+    def _on_mode4_state(self, message: String) -> None:
+        state = message.data.strip()
+        if not state or state == self._mode4_state:
+            return
+        self._mode4_state = state
+        if self._mode == 4:
+            self._write(f'[MODE 4] {state}')
 
     def _on_waypoint_state(self, message: String) -> None:
         state = message.data.strip()
@@ -163,7 +221,7 @@ class StatusConsole(Node):
             "EMERGENCY_STOP": "전방 안전 정지",
             "NO_PATH": "회피 가능한 경로 없음",
         }
-        if self._mode == 2 and state in warnings:
+        if self._mode in (2, 3, 4) and state in warnings:
             self._write(f"[주행 경고] {warnings[state]}")
 
     def _on_dynamic_obstacle(self, message: Bool) -> None:

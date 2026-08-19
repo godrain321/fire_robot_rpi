@@ -7,7 +7,7 @@ from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from std_msgs.msg import Int32, String
 
-from .mode4_input import command_source_for_drive_mode
+from .named_waypoint_input import command_source_for_drive_mode
 
 
 class CmdVelModeMux(Node):
@@ -54,8 +54,9 @@ class CmdVelModeMux(Node):
         self.mode = int(message.data)
         labels = {
             1: 'KEYBOARD',
-            2: 'RVIZ_AUTONOMOUS',
-            4: 'NAMED_WAYPOINT_STEP',
+            2: 'NAMED_WAYPOINT_STEP',
+            3: 'MMWAVE_OBSTACLE_INSPECTION',
+            4: 'CAMERA_LIDAR_SURVIVOR_INSPECTION',
         }
         label = labels[self.mode]
         self.status.publish(String(data=f'{self.mode}:{label}'))

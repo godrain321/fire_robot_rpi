@@ -130,7 +130,7 @@ Visualization Manager:
       Alpha: 0.30
       Draw Behind: false
     - Class: rviz_default_plugins/MarkerArray
-      Name: Dynamic LiDAR Obstacles (Red)
+      Name: Dynamic Obstacles (Red) / People-Survivors (Blue)
       Enabled: true
       Topic:
         Value: /dynamic_obstacle_markers

@@ -10,12 +10,12 @@ import rclpy
 from rclpy.node import Node
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
 import yaml
 
 from .grid_utils import quaternion_from_yaw
 from .waypoint_selection import (
-    resolve_mode4_waypoints,
+    resolve_named_waypoints,
     waypoint_names_from_document,
 )
 
@@ -150,15 +150,18 @@ class WaypointQueue(Node):
         self.waypoint_names = []
         self.current_index = None
         self.waiting_for_departure = False
-        self.mode4_names = []
-        self.mode4_indices = []
-        self.mode4_next_position = 0
-        self.mode4_current_position = None
+        self.selected_names = []
+        self.selected_indices = []
+        self.selected_next_position = 0
+        self.selected_current_position = None
         self.queue_path = self.create_publisher(Path, '/waypoint_queue', qos)
         self.queue_poses = self.create_publisher(
             PoseArray, '/waypoint_poses', qos
         )
         self.goal = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        self.autonomy_cancel = self.create_publisher(
+            Empty, '/autonomy_cancel', 10
+        )
         self.step_index = 0
         self.execution_mode = 'continuous'
         self.status = self.create_publisher(
@@ -180,7 +183,7 @@ class WaypointQueue(Node):
         self._publish_queue()
         self._state(
             f'RESTORED:{len(self.queue)}' if self.queue
-            else 'EMPTY: press 2, then click RViz 2D Goal Pose'
+            else 'EMPTY: add waypoints with RViz 2D Goal Pose'
         )
         preview_index = int(self.get_parameter('preview_goal_index').value)
         preview_delay = float(self.get_parameter('preview_delay_sec').value)
@@ -267,8 +270,8 @@ class WaypointQueue(Node):
         )
 
     def _click(self, message):
-        if self.execution_mode == 'mode4' and self.current_index is not None:
-            self._state('MODE4_REJECTED:BUSY:CANNOT_RECORD')
+        if self.execution_mode == 'named' and self.current_index is not None:
+            self._state('MODE2_REJECTED:BUSY:CANNOT_RECORD')
             return
         if (
             message.header.frame_id
@@ -284,7 +287,7 @@ class WaypointQueue(Node):
             next_number += 1
         self.waypoint_names.append(f'w{next_number}')
         self.current_index = None
-        self._reset_mode4_selection()
+        self._reset_named_selection()
         self._save_queue()
         self._publish_queue()
         self._state(f'RECORDED:{len(self.queue)}')
@@ -296,29 +299,24 @@ class WaypointQueue(Node):
     def _command(self, message):
         raw_command = message.data.strip()
         command = raw_command.upper()
-        if command.startswith('MODE4_SET:'):
-            self._start_mode4(raw_command.split(':', 1)[1])
+        if command.startswith('MODE2_SET:'):
+            self._start_named_mission(raw_command.split(':', 1)[1])
             return
-        if command == 'MODE4_NEXT':
-            self._mode4_next()
+        if command == 'MODE2_NEXT':
+            self._named_next()
             return
-        if command == 'MODE4_CANCEL':
-            if self.current_index is not None:
-                self._state('MODE4_REJECTED:BUSY:PRESS_1_TO_STOP')
-                return
-            self._reset_mode4_selection()
-            self.execution_mode = 'continuous'
-            self._publish_queue()
-            self._state('MODE4_CANCELLED')
+        if command == 'MODE2_CANCEL':
+            self._cancel_named_mission()
             return
         if command == 'CLEAR':
+            self._publish_autonomy_cancel()
             self.queue.clear()
             self.waypoint_names.clear()
             self.current_index = None
             self.waiting_for_departure = False
             self.step_index = 0
             self.execution_mode = 'continuous'
-            self._reset_mode4_selection()
+            self._reset_named_selection()
             self._save_queue()
             self._publish_queue()
             self._state('CLEARED')
@@ -326,7 +324,7 @@ class WaypointQueue(Node):
             if not self.queue:
                 self._state('EMPTY:CANNOT_GO')
                 return
-            self._reset_mode4_selection()
+            self._reset_named_selection()
             self.step_index = 0
             self.execution_mode = 'continuous'
             self.current_index = 0
@@ -340,56 +338,68 @@ class WaypointQueue(Node):
                 return
             if self.step_index >= len(self.queue):
                 self.step_index = 0
-            self._reset_mode4_selection()
+            self._reset_named_selection()
             self.execution_mode = 'step'
             self.current_index = self.step_index
             self._send_current_goal()
 
-    def _reset_mode4_selection(self):
-        self.mode4_names = []
-        self.mode4_indices = []
-        self.mode4_next_position = 0
-        self.mode4_current_position = None
+    def _reset_named_selection(self):
+        self.selected_names = []
+        self.selected_indices = []
+        self.selected_next_position = 0
+        self.selected_current_position = None
 
-    def _start_mode4(self, selection_text):
+    def _start_named_mission(self, selection_text):
         if self.current_index is not None:
-            self._state('MODE4_REJECTED:BUSY')
+            self._state('MODE2_REJECTED:BUSY')
             return
         try:
-            names, indices = resolve_mode4_waypoints(
+            names, indices = resolve_named_waypoints(
                 selection_text, self.waypoint_names
             )
         except ValueError as error:
-            self._state(f'MODE4_REJECTED:{error}')
+            self._state(f'MODE2_REJECTED:{error}')
             return
-        self.mode4_names = names
-        self.mode4_indices = indices
-        self.mode4_next_position = 0
-        self.mode4_current_position = None
+        self.selected_names = names
+        self.selected_indices = indices
+        self.selected_next_position = 0
+        self.selected_current_position = None
         self.step_index = 0
-        self.execution_mode = 'mode4'
+        self.execution_mode = 'named'
         self._publish_queue()
-        self._state('MODE4_ACCEPTED:' + '->'.join(self.mode4_names))
-        self._send_next_mode4_goal()
+        self._state('MODE2_ACCEPTED:' + '->'.join(self.selected_names))
+        self._send_next_named_goal()
 
-    def _mode4_next(self):
-        if self.execution_mode != 'mode4' or not self.mode4_indices:
-            self._state('MODE4_REJECTED:NO_SELECTION:PRESS_4')
+    def _named_next(self):
+        if self.execution_mode != 'named' or not self.selected_indices:
+            self._state('MODE2_REJECTED:NO_SELECTION:PRESS_2')
             return
         if self.current_index is not None:
-            active = self.mode4_names[self.mode4_current_position]
-            self._state(f'MODE4_BUSY:{active}')
+            active = self.selected_names[self.selected_current_position]
+            self._state(f'MODE2_BUSY:{active}')
             return
-        if self.mode4_next_position >= len(self.mode4_indices):
-            self._state('MODE4_MISSION_COMPLETE')
+        if self.selected_next_position >= len(self.selected_indices):
+            self._state('MODE2_MISSION_COMPLETE')
             return
-        self._send_next_mode4_goal()
+        self._send_next_named_goal()
 
-    def _send_next_mode4_goal(self):
-        position = self.mode4_next_position
-        self.mode4_current_position = position
-        self.current_index = self.mode4_indices[position]
+    def _send_next_named_goal(self):
+        position = self.selected_next_position
+        self.selected_current_position = position
+        self.current_index = self.selected_indices[position]
         self._send_current_goal()
+
+    def _publish_autonomy_cancel(self):
+        self.autonomy_cancel.publish(Empty())
+
+    def _cancel_named_mission(self):
+        self._publish_autonomy_cancel()
+        self.current_index = None
+        self.waiting_for_departure = False
+        self.execution_mode = 'idle'
+        self._reset_named_selection()
+        self._publish_queue()
+        self._state('MODE2_CANCELLED')
 
     def _send_current_goal(self):
         goal = self.queue[self.current_index]
@@ -397,11 +407,11 @@ class WaypointQueue(Node):
         self.goal.publish(goal)
         self.waiting_for_departure = True
         self._publish_queue()
-        if self.execution_mode == 'mode4':
-            position = self.mode4_current_position
-            name = self.mode4_names[position]
+        if self.execution_mode == 'named':
+            position = self.selected_current_position
+            name = self.selected_names[position]
             self._state(
-                f'MODE4_RUNNING:{position + 1}/{len(self.mode4_names)}:{name}'
+                f'MODE2_RUNNING:{position + 1}/{len(self.selected_names)}:{name}'
             )
         else:
             self._state(f'RUNNING:{self.current_index + 1}/{len(self.queue)}')
@@ -416,21 +426,22 @@ class WaypointQueue(Node):
             self.waiting_for_departure = False
         if message.data != 'GOAL_REACHED' or self.waiting_for_departure:
             return
-        if self.execution_mode == 'mode4':
-            completed_position = self.mode4_current_position
-            completed_name = self.mode4_names[completed_position]
-            self.mode4_next_position = completed_position + 1
-            self.mode4_current_position = None
+        if self.execution_mode == 'named':
+            completed_position = self.selected_current_position
+            completed_name = self.selected_names[completed_position]
+            self.selected_next_position = completed_position + 1
+            self.selected_current_position = None
             self.current_index = None
+            self._publish_autonomy_cancel()
             self._publish_queue()
-            if self.mode4_next_position >= len(self.mode4_names):
+            if self.selected_next_position >= len(self.selected_names):
                 self._state(
-                    f'MODE4_MISSION_COMPLETE:{completed_name}'
+                    f'MODE2_MISSION_COMPLETE:{completed_name}'
                 )
             else:
-                next_name = self.mode4_names[self.mode4_next_position]
+                next_name = self.selected_names[self.selected_next_position]
                 self._state(
-                    f'MODE4_REACHED:{completed_name}:SPACE_FOR:{next_name}'
+                    f'MODE2_REACHED:{completed_name}:SPACE_FOR:{next_name}'
                 )
             return
         completed = self.current_index
@@ -470,11 +481,11 @@ class WaypointQueue(Node):
         clear.header = path.header
         clear.action = Marker.DELETEALL
         marker_array.markers.append(clear)
-        completed_mode4 = set(
-            self.mode4_indices[:self.mode4_next_position]
+        completed_selected = set(
+            self.selected_indices[:self.selected_next_position]
         )
-        pending_mode4 = set(
-            self.mode4_indices[self.mode4_next_position:]
+        pending_selected = set(
+            self.selected_indices[self.selected_next_position:]
         )
         for index, waypoint in enumerate(self.queue):
             marker = Marker()
@@ -496,10 +507,10 @@ class WaypointQueue(Node):
             if index == self.current_index:
                 marker.text = f'ACTIVE {name}'
                 marker.color.r, marker.color.g, marker.color.b = 0.1, 1.0, 0.1
-            elif self.execution_mode == 'mode4' and index in pending_mode4:
+            elif self.execution_mode == 'named' and index in pending_selected:
                 marker.text = f'SELECTED {name}'
                 marker.color.r, marker.color.g, marker.color.b = 0.1, 0.7, 1.0
-            elif self.execution_mode == 'mode4' and index in completed_mode4:
+            elif self.execution_mode == 'named' and index in completed_selected:
                 marker.text = f'DONE {name}'
                 marker.color.r = marker.color.g = marker.color.b = 0.5
             elif index < self.step_index:

@@ -18,6 +18,7 @@ def generate_launch_description():
     bringup = get_package_share_directory('inno_robot_bringup')
     drive = get_package_share_directory('inno_drive_bridge')
     autonav = get_package_share_directory('inno_autonav')
+    camera = get_package_share_directory('inno_camera_tools')
     mmwave = get_package_share_directory('inno_mmwave')
     thermal_dir = project_path(
         'mlx90640', 'demo codes', 'mlx90640', 'python'
@@ -43,6 +44,12 @@ def generate_launch_description():
         DeclareLaunchArgument('drive_speed', default_value='0.12'),
         DeclareLaunchArgument('turn_speed', default_value='0.45'),
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
+        DeclareLaunchArgument('use_camera_mode4', default_value='false'),
+        DeclareLaunchArgument(
+            'yolo_model_path',
+            default_value=project_path('models', 'mode4_person.pt'),
+        ),
+        DeclareLaunchArgument('yolo_confidence', default_value='0.50'),
         DeclareLaunchArgument('start_thermal_viewer', default_value='true'),
     ]
     localization = IncludeLaunchDescription(
@@ -62,6 +69,32 @@ def generate_launch_description():
     status_console = Node(
         package='inno_mmwave', executable='mmwave_status_console',
         name='mmwave_status_console', output='screen', emulate_tty=True,
+    )
+    camera_bringup = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            camera + '/launch/camera_module_3.launch.py'
+        ),
+        launch_arguments={
+            'width': '1280',
+            'height': '720',
+            'rectify': 'false',
+        }.items(),
+        condition=IfCondition(L('use_camera_mode4')),
+    )
+    person_detector = Node(
+        package='inno_camera_tools',
+        executable='camera_person_detector',
+        name='camera_person_detector',
+        output='screen',
+        emulate_tty=True,
+        parameters=[{
+            'model_path': L('yolo_model_path'),
+            'confidence_threshold': ParameterValue(
+                L('yolo_confidence'), value_type=float
+            ),
+            'only_during_mode4_observation': True,
+        }],
+        condition=IfCondition(L('use_camera_mode4')),
     )
     navigation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(autonav + '/launch/autonav_demo.launch.py'),
@@ -116,7 +149,8 @@ def generate_launch_description():
     )
     return LaunchDescription(
         args + [
-            localization, mmwave_bringup, status_console, navigation, keyboard,
-            mux, serial, waypoint_queue, rviz, thermal_viewer,
+            localization, mmwave_bringup, status_console, camera_bringup,
+            person_detector, navigation, keyboard, mux, serial,
+            waypoint_queue, rviz, thermal_viewer,
         ]
     )

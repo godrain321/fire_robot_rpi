@@ -10,7 +10,7 @@ from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import String
+from std_msgs.msg import Int32, String
 
 from .grid_utils import normalize_angle, yaw_from_quaternion
 from .tf_utils import TfHelper
@@ -54,7 +54,10 @@ class SkidPathFollower(Node):
         self.rotate_threshold = float(
             self.get_parameter('rotate_in_place_threshold').value
         )
-        self.align_goal_yaw = bool(self.get_parameter('align_goal_yaw').value)
+        self.default_align_goal_yaw = bool(
+            self.get_parameter('align_goal_yaw').value
+        )
+        self.align_goal_yaw = self.default_align_goal_yaw
         self.max_linear = float(self.get_parameter('max_linear_speed').value)
         self.max_angular = float(self.get_parameter('max_angular_speed').value)
         self.k_linear = float(self.get_parameter('k_linear').value)
@@ -96,6 +99,7 @@ class SkidPathFollower(Node):
         self.create_subscription(Path, '/planned_path', self._path_callback, qos)
         self.create_subscription(String, '/planner_state', self._planner_callback, 10)
         self.create_subscription(LaserScan, self.scan_topic, self._scan_callback, 10)
+        self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
         self.create_timer(1.0 / control_rate, self._control)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
         self._publish_stop('WAITING_FOR_PATH')
@@ -143,6 +147,13 @@ class SkidPathFollower(Node):
         if message.data in ('NO_PATH', 'WAITING_FOR_TF', 'WAITING_FOR_GRID'):
             self.path = None
             self._publish_stop(message.data)
+
+    def _mode_callback(self, message: Int32) -> None:
+        # MODE 3/4 must finish facing the inspected obstacle so the forward
+        # mmWave sensor or camera observes it at the standoff point.
+        self.align_goal_yaw = (
+            self.default_align_goal_yaw or int(message.data) in (3, 4)
+        )
 
     def _scan_callback(self, scan: LaserScan) -> None:
         angle = float(scan.angle_min)

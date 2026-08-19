@@ -3,7 +3,7 @@
 import re
 
 
-_MODE4_WAYPOINT_PATTERN = re.compile(r'w[1-9][0-9]*', re.IGNORECASE)
+_WAYPOINT_PATTERN = re.compile(r'w[1-9][0-9]*', re.IGNORECASE)
 
 
 def waypoint_names_from_document(document):
@@ -26,14 +26,14 @@ def waypoint_names_from_document(document):
     return names
 
 
-def resolve_mode4_waypoints(text, available_names):
-    """Resolve a mode-4 selection to canonical names and queue indices."""
+def resolve_named_waypoints(text, available_names):
+    """Resolve a named selection to canonical names and queue indices."""
     requested = [item.strip() for item in text.split(',') if item.strip()]
     if len(requested) < 2:
-        raise ValueError('MODE 4는 waypoint를 2개 이상 입력해야 합니다.')
+        raise ValueError('MODE 2는 waypoint를 2개 이상 입력해야 합니다.')
     for name in requested:
-        if _MODE4_WAYPOINT_PATTERN.fullmatch(name) is None:
-            raise ValueError(f'MODE 4 waypoint 이름 형식 오류: {name!r}')
+        if _WAYPOINT_PATTERN.fullmatch(name) is None:
+            raise ValueError(f'MODE 2 waypoint 이름 형식 오류: {name!r}')
     lookup = {
         name.casefold(): (index, name)
         for index, name in enumerate(available_names)
