@@ -17,40 +17,28 @@ export ROS_LOCALHOST_ONLY=0
 ros2 launch inno_bringup lidar_with_tf.launch.py
 ```
 
-## Camera Module 3 연결 및 화각 확인
+## Camera Module 3 바로 켜기
 
-개발 대상은 Raspberry Pi Camera Module 3 Wide의 IMX708이다. USB 웹캠은 이 실행
-경로의 대체 장치로 사용하지 않는다. 현재처럼 카메라를 연결하지 않은 개발 PC에서
-IMX708 미검출이 나오는 것은 정상이며, 실제 Raspberry Pi 5에서 CSI 케이블을 연결한
-뒤 실행한다.
+이 실행물은 ROS, `colcon`, 화각 계산 없이 Raspberry Pi Camera Module 3
+IMX708의 원본 영상만 연다. Raspberry Pi 5에 CSI 케이블을 연결한 뒤 Picamera2와
+OpenCV가 없다면 처음 한 번만 설치한다.
 
-처음 한 번 Camera Module 3 런타임과 두 ROS workspace를 빌드한다.
+```bash
+sudo apt update
+sudo apt install -y python3-picamera2 python3-opencv
+```
+
+이후에는 다음 한 줄로 실행한다.
 
 ```bash
 cd ~/fire_robot_rpi
-./build_rpi_camera_runtime.sh
-
-source /opt/ros/jazzy/setup.bash
-cd camera_ws
-colcon build --symlink-install
-source install/setup.bash
-
-cd ../inno_jazzy_ws
-colcon build --symlink-install --packages-up-to \
-  inno_camera_tools inno_drive_bridge inno_robot_bringup
+./run_camera.sh
 ```
 
-줄자로 카메라와 사람 사이 거리를 재고 같은 값을 넘겨 영상을 연다.
-
-```bash
-cd ~/fire_robot_rpi
-./run_camera_fov_check.sh --distance 2.0
-```
-
-스크립트는 영상 실행 전에 IMX708과 Pi 5 `rp1-cfe` 연결을 검사한다. 영상에는 3x3
-구도선, 수평·수직 화각, 해당 거리에서 보이는 폭·높이와 1.7m 사람의 예상 픽셀
-높이가 표시된다. `+`/`-`로 거리를 조절하고 `s` 또는 `Space`로 원본과 주석 사진을
-`data/fov_check/`에 저장하며 `q`로 종료한다.
+영상 창에서 `s`를 누를 때마다 JPEG 사진이 한 장씩
+`data/camera_capture/`에 저장된다. 여러 장이 필요하면 `s`를 여러 번 누른다.
+`q` 또는 `Esc`로 종료한다. 기본 해상도는 1280x720이며, 필요하면
+`./run_camera.sh --width 1920 --height 1080`처럼 바꿀 수 있다.
 
 ## Camera Module 3 Wide Rational 8계수 캘리브레이션
 

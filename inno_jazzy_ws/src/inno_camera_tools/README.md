@@ -23,23 +23,14 @@ ros2 run camera_calibration cameracalibrator \
 `--size`, `--square`는 실제 체커보드의 내부 코너 수와 한 칸 길이(m)로
 바꿔야 합니다.
 
-## 화각과 사람 촬영 거리 확인
+## ROS 없이 영상만 확인하고 사진 저장
 
-저장소 루트의 실행 도구는 시작 전에 IMX708과 Pi 5 `rp1-cfe` 연결을 확인합니다.
-줄자로 카메라와 사람 사이 거리를 잰 뒤 같은 값을 넘겨 실행합니다.
+단순 미리보기와 사진 촬영에는 위 ROS launch를 빌드할 필요가 없습니다.
 
 ```bash
 cd ~/fire_robot_rpi
-./run_camera_fov_check.sh --distance 2.0
+./run_camera.sh
 ```
 
-영상에는 3x3 구도선, 캘리브레이션 기준 수평/수직 화각, 해당 거리 평면에서 보이는
-대략적인 폭/높이, 1.7m 사람의 예상 픽셀 높이가 표시됩니다. `+`/`-`로 표시 거리를
-0.25m씩 조절하고 `s` 또는 `Space`로 원본과 주석 이미지를
-`data/fov_check/`에 함께 저장합니다. 종료 키는 `q`입니다.
-
-카메라가 이미 `/camera/image_raw`을 발행 중이면 중복 실행하지 않습니다.
-
-```bash
-./run_camera_fov_check.sh --use-running-camera --distance 2.0
-```
+`s`를 누를 때마다 `data/camera_capture/`에 사진 한 장이 저장되고, `q` 또는
+`Esc`로 종료합니다.
