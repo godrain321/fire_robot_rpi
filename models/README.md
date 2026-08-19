@@ -1,13 +1,27 @@
 # MODE 4 YOLO weights
 
-Camera Module 3 데이터로 학습한 최종 사람 검출 weight를 기본적으로 다음 이름으로
-둔다.
+## 현재 임시 시험 모델
 
 ```text
-models/mode4_person.pt
+models/yolov8n_best.onnx
 ```
 
-모델 파일(`*.pt`, `*.onnx`)은 크기가 크므로 `.gitignore` 대상이다. 다른 경로 또는
-이름을 사용할 때는 통합 launch에 `yolo_model_path:=절대경로`를 넘긴다. 사람 class
-ID의 기본값은 `0`이며 다른 데이터셋 구성이면 `camera_person_detector`의
-`person_class_ids` 파라미터를 바꿔야 한다.
+ONNX 메타데이터와 무결성 확인 결과:
+
+- task: `detect`
+- architecture: `YOLOv8n`
+- input: dynamic batch, `3 x height x width` (기본 `640 x 640`)
+- output: `batch x 5 x anchors`
+- classes: `{0: person}`
+- opset: `16`
+- SHA-256: `9d24faab26bebe6f25de708e235f02ec8733848cb0025ff67e60e4685a37e739`
+- embedded license metadata: [`AGPL-3.0`](https://www.gnu.org/licenses/agpl-3.0.html)
+
+이 프로젝트에서 직접 학습한 모델이 아니고 원 출처는 확인되지 않았다. 임시 사람
+검출·모드 4 연동 시험에만 사용하며, 외부 배포 전 모델 출처와 재배포 권한을 반드시
+확인한다. 실제 운영 전에는 Camera Module 3 현장 데이터로 학습한 검증 모델로
+교체한다.
+
+다른 모델을 사용할 때는 통합 launch에 `yolo_model_path:=절대경로`를 넘긴다.
+사람 class ID 기본값은 `0`이며 다른 class 구성이면 `camera_person_detector`의
+`person_class_ids` 파라미터도 함께 변경한다.

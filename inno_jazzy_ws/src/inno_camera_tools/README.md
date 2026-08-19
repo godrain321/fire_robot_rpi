@@ -38,13 +38,13 @@ cd ~/fire_robot_rpi
 ## MODE 4 YOLO 추론
 
 학습된 사람 검출 weight를 받은 뒤 Camera Module 3 ROS 영상에서 추론하는 노드는
-`camera_person_detector`다. Ultralytics는 ROS 노드를 실행할 Python 환경에 별도로
-설치되어 있어야 하며 모델이나 패키지가 없으면 노드는 오류 상태만 발행하고 사람으로
-오판하지 않는다.
+`camera_person_detector`다. `.onnx` 모델은 ONNX Runtime CPU backend로 직접
+실행하며, `.pt` 모델을 사용할 때만 Ultralytics가 필요하다. 모델이나 runtime이
+없으면 노드는 오류 상태만 발행하고 사람으로 오판하지 않는다.
 
 ```bash
 ros2 run inno_camera_tools camera_person_detector --ros-args \
-  -p model_path:="$HOME/fire_robot_rpi/models/mode4_person.pt"
+  -p model_path:="$HOME/fire_robot_rpi/models/yolov8n_best.onnx"
 ```
 
 출력 토픽은 `/camera/person_detections`, `/camera/person_detector_status`,

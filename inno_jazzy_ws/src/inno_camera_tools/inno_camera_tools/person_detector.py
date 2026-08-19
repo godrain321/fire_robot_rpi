@@ -1,4 +1,4 @@
-"""Run a configurable Ultralytics YOLO model on Camera Module 3 images."""
+"""Run a YOLO person model on Camera Module 3 images."""
 
 from __future__ import annotations
 
@@ -7,10 +7,11 @@ import json
 import math
 from pathlib import Path
 import time
-from typing import Iterable, List
+from typing import Iterable, List, Sequence, Set
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
+import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import (
@@ -33,6 +34,168 @@ class DetectionBox:
     y_max: float
     confidence: float
     class_id: int
+
+
+@dataclass(frozen=True)
+class LetterboxGeometry:
+    """Mapping between a source frame and square YOLO input."""
+
+    source_width: int
+    source_height: int
+    scale: float
+    pad_x: int
+    pad_y: int
+
+
+def prepare_yolo_input(frame, image_size: int):
+    """Letterbox a BGR frame and return NCHW RGB float input."""
+    if image_size <= 0 or frame is None or frame.ndim != 3:
+        raise ValueError('YOLO input frame is invalid')
+    source_height, source_width = frame.shape[:2]
+    if source_width <= 0 or source_height <= 0:
+        raise ValueError('YOLO input frame is empty')
+    scale = min(
+        float(image_size) / source_width,
+        float(image_size) / source_height,
+    )
+    resized_width = max(1, round(source_width * scale))
+    resized_height = max(1, round(source_height * scale))
+    resized = cv2.resize(
+        frame, (resized_width, resized_height), interpolation=cv2.INTER_LINEAR
+    )
+    pad_x = (image_size - resized_width) // 2
+    pad_y = (image_size - resized_height) // 2
+    canvas = np.full((image_size, image_size, 3), 114, dtype=np.uint8)
+    canvas[
+        pad_y:pad_y + resized_height,
+        pad_x:pad_x + resized_width,
+    ] = resized
+    blob = cv2.dnn.blobFromImage(
+        canvas,
+        scalefactor=1.0 / 255.0,
+        size=(image_size, image_size),
+        swapRB=True,
+        crop=False,
+    )
+    geometry = LetterboxGeometry(
+        source_width=source_width,
+        source_height=source_height,
+        scale=scale,
+        pad_x=pad_x,
+        pad_y=pad_y,
+    )
+    return blob, geometry
+
+
+def decode_yolov8_output(
+    raw_output,
+    geometry: LetterboxGeometry,
+    confidence_threshold: float,
+    person_class_ids: Set[int],
+    nms_iou_threshold: float = 0.45,
+) -> List[DetectionBox]:
+    """Decode YOLOv8 ``[batch, 4+classes, anchors]`` output with NMS."""
+    output = np.asarray(raw_output, dtype=np.float32)
+    if output.ndim == 3:
+        if output.shape[0] != 1:
+            raise ValueError('YOLO output batch must be one')
+        output = output[0]
+    if output.ndim != 2:
+        raise ValueError('YOLO output must have two or three dimensions')
+    if output.shape[1] < 5 or output.shape[0] < output.shape[1]:
+        output = output.T
+    if output.shape[1] < 5:
+        raise ValueError('YOLO output does not contain class scores')
+
+    boxes_xywh = []
+    scores = []
+    class_ids = []
+    for prediction in output:
+        class_scores = prediction[4:]
+        class_id = int(np.argmax(class_scores))
+        confidence = float(class_scores[class_id])
+        if (
+            class_id not in person_class_ids
+            or confidence < confidence_threshold
+        ):
+            continue
+        center_x, center_y, width, height = (
+            float(value) for value in prediction[:4]
+        )
+        left = center_x - 0.5 * width
+        top = center_y - 0.5 * height
+        boxes_xywh.append([left, top, width, height])
+        scores.append(confidence)
+        class_ids.append(class_id)
+
+    if not boxes_xywh:
+        return []
+    selected = cv2.dnn.NMSBoxes(
+        boxes_xywh,
+        scores,
+        confidence_threshold,
+        nms_iou_threshold,
+    )
+    detections = []
+    for raw_index in selected:
+        index = int(np.asarray(raw_index).reshape(-1)[0])
+        left, top, width, height = boxes_xywh[index]
+        x_min = (left - geometry.pad_x) / geometry.scale
+        y_min = (top - geometry.pad_y) / geometry.scale
+        x_max = (left + width - geometry.pad_x) / geometry.scale
+        y_max = (top + height - geometry.pad_y) / geometry.scale
+        x_min = max(0.0, min(float(geometry.source_width), x_min))
+        y_min = max(0.0, min(float(geometry.source_height), y_min))
+        x_max = max(0.0, min(float(geometry.source_width), x_max))
+        y_max = max(0.0, min(float(geometry.source_height), y_max))
+        if x_max <= x_min or y_max <= y_min:
+            continue
+        detections.append(
+            DetectionBox(
+                x_min=x_min,
+                y_min=y_min,
+                x_max=x_max,
+                y_max=y_max,
+                confidence=scores[index],
+                class_id=class_ids[index],
+            )
+        )
+    return detections
+
+
+class OnnxYoloBackend:
+    """Small CPU ONNX Runtime backend for exported YOLOv8 detect models."""
+
+    def __init__(self, path: Path, image_size: int) -> None:
+        try:
+            import onnxruntime as ort
+        except ImportError as error:
+            raise RuntimeError('ONNXRUNTIME_NOT_INSTALLED') from error
+        self.session = ort.InferenceSession(
+            str(path), providers=['CPUExecutionProvider']
+        )
+        self.input_name = self.session.get_inputs()[0].name
+        self.output_names = [item.name for item in self.session.get_outputs()]
+        self.image_size = image_size
+
+    def predict(
+        self,
+        frame,
+        confidence_threshold: float,
+        person_class_ids: Set[int],
+    ) -> List[DetectionBox]:
+        blob, geometry = prepare_yolo_input(frame, self.image_size)
+        outputs: Sequence[np.ndarray] = self.session.run(
+            self.output_names, {self.input_name: blob}
+        )
+        if not outputs:
+            return []
+        return decode_yolov8_output(
+            outputs[0],
+            geometry,
+            confidence_threshold,
+            person_class_ids,
+        )
 
 
 def encode_detection_message(
@@ -179,6 +342,20 @@ class PersonDetector(Node):
         if not self.model_path.is_file():
             self._set_status(f'MODEL_NOT_FOUND:{self.model_path}')
             return
+        if self.model_path.suffix.lower() == '.onnx':
+            try:
+                self.model = OnnxYoloBackend(
+                    self.model_path, self.image_size
+                )
+            except Exception as error:
+                state = str(error)
+                if state != 'ONNXRUNTIME_NOT_INSTALLED':
+                    state = f'MODEL_LOAD_ERROR:{type(error).__name__}'
+                    self.get_logger().error(str(error))
+                self._set_status(state)
+                return
+            self._model_ready()
+            return
         try:
             from ultralytics import YOLO
         except ImportError:
@@ -190,6 +367,9 @@ class PersonDetector(Node):
             self._set_status(f'MODEL_LOAD_ERROR:{type(error).__name__}')
             self.get_logger().error(str(error))
             return
+        self._model_ready()
+
+    def _model_ready(self) -> None:
         ready_state = (
             'READY_WAITING_FOR_MODE4'
             if self.only_during_mode4
@@ -260,17 +440,24 @@ class PersonDetector(Node):
             self.get_logger().error(str(error))
             return
         try:
-            arguments = {
-                'source': frame,
-                'conf': self.confidence,
-                'classes': sorted(self.person_class_ids),
-                'imgsz': self.image_size,
-                'verbose': False,
-            }
-            if self.device and self.device.lower() != 'auto':
-                arguments['device'] = self.device
-            results = self.model.predict(**arguments)
-            detections = self._boxes_from_result(results[0]) if results else []
+            if isinstance(self.model, OnnxYoloBackend):
+                detections = self.model.predict(
+                    frame, self.confidence, self.person_class_ids
+                )
+            else:
+                arguments = {
+                    'source': frame,
+                    'conf': self.confidence,
+                    'classes': sorted(self.person_class_ids),
+                    'imgsz': self.image_size,
+                    'verbose': False,
+                }
+                if self.device and self.device.lower() != 'auto':
+                    arguments['device'] = self.device
+                results = self.model.predict(**arguments)
+                detections = (
+                    self._boxes_from_result(results[0]) if results else []
+                )
         except Exception as error:  # inference backend errors vary by export
             self._set_status(f'INFERENCE_ERROR:{type(error).__name__}')
             self.get_logger().error(str(error))

@@ -1,8 +1,13 @@
 import json
 
+import numpy as np
+
 from inno_camera_tools.person_detector import (
     DetectionBox,
+    LetterboxGeometry,
+    decode_yolov8_output,
     encode_detection_message,
+    prepare_yolo_input,
 )
 
 
@@ -28,3 +33,34 @@ def test_detection_payload_drops_non_finite_box():
     )
 
     assert json.loads(payload)['detections'] == []
+
+
+def test_letterbox_geometry_for_wide_camera_frame():
+    frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+    blob, geometry = prepare_yolo_input(frame, 640)
+
+    assert blob.shape == (1, 3, 640, 640)
+    assert geometry == LetterboxGeometry(1280, 720, 0.5, 0, 140)
+
+
+def test_decode_single_class_yolov8_person_output():
+    # Two overlapping person boxes: NMS must keep only the stronger one.
+    output = np.asarray(
+        [
+            [320.0, 322.0],
+            [320.0, 322.0],
+            [100.0, 100.0],
+            [200.0, 200.0],
+            [0.90, 0.70],
+        ],
+        dtype=np.float32,
+    )[None]
+    geometry = LetterboxGeometry(640, 640, 1.0, 0, 0)
+
+    detections = decode_yolov8_output(output, geometry, 0.5, {0})
+
+    assert len(detections) == 1
+    assert detections[0].class_id == 0
+    assert detections[0].confidence > 0.89
+    assert detections[0].x_min == 270.0

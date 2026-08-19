@@ -119,11 +119,12 @@ C4001의 stationary-person micro-motion presence를 사용하는 기능이며 �
 
 ## 5. 모드 4: Camera Module 3 + LiDAR 요구조자 판별
 
-학습을 마친 weight를 `~/fire_robot_rpi/models/mode4_person.pt`에 복사한다. ROS를
-실행하는 Python 환경에서 다음 import가 성공해야 한다.
+현재 임시 시험용 사람 모델은 `~/fire_robot_rpi/models/yolov8n_best.onnx`에 들어
+있다. 메타데이터상 class 0 하나가 `person`이다. ROS를 실행하는 Python 환경에서
+다음 ONNX Runtime import가 성공해야 한다.
 
 ```bash
-python3 -c "from ultralytics import YOLO; print('Ultralytics OK')"
+python3 -c "import onnxruntime; print('YOLO ONNX runtime OK')"
 ```
 
 통합 launch에 카메라와 모델을 활성화한다.
@@ -132,7 +133,7 @@ python3 -c "from ultralytics import YOLO; print('Ultralytics OK')"
 ros2 launch inno_robot_bringup field_waypoint_test.launch.py \
   esp32_port:=/dev/ttyUSB0 lidar_port:=/dev/ttyUSB1 \
   use_camera_mode4:=true \
-  yolo_model_path:="$FIRE_ROBOT_RPI_ROOT/models/mode4_person.pt" \
+  yolo_model_path:="$FIRE_ROBOT_RPI_ROOT/models/yolov8n_best.onnx" \
   map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml" \
   planning_map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_nav.yaml" \
   waypoint_file:="$FIRE_ROBOT_RPI_ROOT/maps/waypoint_queue_latest.yaml" \

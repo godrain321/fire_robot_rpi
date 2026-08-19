@@ -179,16 +179,21 @@ ros2 topic echo /mmwave/filtered_presence
 
 ### 모드 4: Camera Module 3 YOLO + LiDAR 요구조자 판별
 
-학습한 Ultralytics YOLO 사람 검출 weight를 기본 경로에 둔다.
+저장소에는 임시 사람 검출 시험용 ONNX 모델이 다음 기본 경로에 포함되어 있다.
 
 ```text
-~/fire_robot_rpi/models/mode4_person.pt
+~/fire_robot_rpi/models/yolov8n_best.onnx
 ```
 
-ROS 노드를 실행하는 Python 환경에서 다음 import가 성공해야 한다.
+모델 메타데이터상 YOLOv8n detect, 입력 640×640, class `{0: person}` 구성이다. 이
+프로젝트에서 직접 학습한 모델은 아니므로 실제 배포 전 출처·재배포 권한과 현장
+정확도를 다시 확인하고 자체 데이터 모델로 교체한다.
+
+ONNX 모델은 Ultralytics 없이 ONNX Runtime CPU backend로 실행한다. ROS 노드를
+실행하는 Python 환경에서 다음 import가 성공해야 한다.
 
 ```bash
-python3 -c "from ultralytics import YOLO; print('Ultralytics OK')"
+python3 -c "import onnxruntime; print('YOLO ONNX runtime OK')"
 ```
 
 통합 launch에 카메라와 모델을 활성화한다. 나머지 포트·지도 인자는 앞의 통합 실행
@@ -197,7 +202,7 @@ python3 -c "from ultralytics import YOLO; print('Ultralytics OK')"
 ```bash
 ros2 launch inno_robot_bringup field_waypoint_test.launch.py \
   use_camera_mode4:=true \
-  yolo_model_path:="$HOME/fire_robot_rpi/models/mode4_person.pt" \
+  yolo_model_path:="$HOME/fire_robot_rpi/models/yolov8n_best.onnx" \
   start_thermal_viewer:=false
 ```
 

@@ -47,7 +47,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_camera_mode4', default_value='false'),
         DeclareLaunchArgument(
             'yolo_model_path',
-            default_value=project_path('models', 'mode4_person.pt'),
+            default_value=project_path('models', 'yolov8n_best.onnx'),
         ),
         DeclareLaunchArgument('yolo_confidence', default_value='0.50'),
         DeclareLaunchArgument('start_thermal_viewer', default_value='true'),
