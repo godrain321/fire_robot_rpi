@@ -208,13 +208,13 @@ class Mode3Inspector(Node):
         )
         self.create_subscription(
             Float32,
-            '/mmwave/filtered_distance_m',
+            '/mmwave/calibrated_distance_m',
             self._distance_callback,
             latched_qos,
         )
         self.create_subscription(
             Bool,
-            '/mmwave/filtered_presence',
+            '/mmwave/human_presence',
             self._presence_callback,
             latched_qos,
         )

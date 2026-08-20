@@ -7,7 +7,11 @@ from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from std_msgs.msg import Bool, Float32, String
 
-from .mobility_classifier import MobilityClassifier, MobilityConfig
+from .mobility_classifier import (
+    MobilityClassifier,
+    MobilityConfig,
+    human_state_from_mobility,
+)
 
 
 class MobilityNode(Node):
@@ -65,11 +69,14 @@ class MobilityNode(Node):
         self.state_publisher = self.create_publisher(
             String, '/mmwave/mobility_state', 10
         )
+        self.human_state_publisher = self.create_publisher(
+            String, '/mmwave/human_state', 10
+        )
         self.still_publisher = self.create_publisher(
             Float32, '/mmwave/still_duration_sec', 10
         )
         self.create_subscription(
-            Bool, '/mmwave/filtered_presence', self._presence_callback, 10
+            Bool, '/mmwave/human_presence', self._presence_callback, 10
         )
         self.create_subscription(
             Float32, '/mmwave/filtered_speed_mps', self._speed_callback, 10
@@ -108,6 +115,9 @@ class MobilityNode(Node):
             self.classifier.update_sensor_state('OFFLINE')
         state = self.classifier.state(now)
         self.state_publisher.publish(String(data=state))
+        self.human_state_publisher.publish(
+            String(data=human_state_from_mobility(state))
+        )
         self.still_publisher.publish(
             Float32(data=float(self.classifier.still_duration(now)))
         )

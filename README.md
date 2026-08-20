@@ -210,13 +210,15 @@ LiDAR가 새 물체를 큰 빨간 점으로 표시하면 `3`을 누른 뒤 Space
 
 1. 현재 로봇과 가장 가까운 미분류 빨간 점을 선택한다.
 2. A*로 대상의 1.5m 앞까지 이동하고 대상을 정면으로 바라본다.
-3. 2초 정지 후 5초 동안 C4001의 새로운 presence·거리 샘플을 확인한다.
+3. 2초 정지 후 5초 동안 C4001의 튜닝된 presence·보정거리 샘플을 확인한다.
 4. presence가 충분하면 `사람 감지!`를 출력하고 해당 점만 파란색으로 바꾼다.
 5. 센서가 ONLINE이지만 presence가 없으면 `동적장애물!`을 출력하고 빨간색을
    유지한다.
 
 센서가 OFFLINE이거나 샘플이 부족하면 사람 아님으로 오판하지 않고 판정을 보류한다.
-C4001 결과는 미세 움직임 기반 presence이며 의료용 생체신호 측정이 아니다.
+C4001 사람 후보는 보정거리 0.6~6.0m, energy 3000 이상을 3프레임 연속 확인하고
+6프레임 연속 미충족 시 해제하는 실험용 heuristic이다. 원본 거리는 보존하며 보정
+거리는 `raw × 1.0 - 0.1m`이다. 이는 의료용 생체신호 측정이나 AI 사람 분류가 아니다.
 한 검사가 끝난 뒤 Space를 다시 누르면 그 시점에서 가장 가까운 미분류 빨간 점을
 다시 선택한다.
 
@@ -224,8 +226,16 @@ C4001 결과는 미세 움직임 기반 presence이며 의료용 생체신호 �
 ros2 topic echo /mode3_status
 ros2 topic echo /mode3_classification
 ros2 topic echo /mmwave/sensor_state
-ros2 topic echo /mmwave/filtered_presence
+ros2 topic echo /mmwave/human_presence
+ros2 topic echo /mmwave/human_state
+ros2 topic echo /mmwave/calibrated_distance_m
+ros2 topic echo /mmwave/raw/distance_m
+ros2 topic echo /mmwave/raw/energy_raw
 ```
+
+`/mmwave/human_state`는 정상 관측 중 `MOVING`, `STILL`, `NO_HUMAN`을 발행한다.
+로봇 자체가 움직이는 동안에는 `ROBOT_MOVING`, 센서가 끊기면 `SENSOR_OFFLINE`을
+발행해 사람 상태로 오판하지 않는다.
 
 ### 모드 4: Camera Module 3 YOLO + LiDAR 요구조자 판별
 

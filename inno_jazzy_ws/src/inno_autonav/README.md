@@ -266,10 +266,14 @@ ros2 service call /clear_dynamic_obstacles std_srvs/srv/Trigger "{}"
 `persistent_obstacles: false`로 바꾸면 `obstacle_timeout_sec` 이후 제거된다.
 
 모드 3을 선택하고 Space를 누르면 `/dynamic_obstacle_candidates` 중 가장 가까운 물체의 1.5m 검사
-지점으로 이동한다. 정지·정면 정렬 후 C4001 presence가 확인되면 `사람 감지!`를
+지점으로 이동한다. 정지·정면 정렬 후 C4001의 `/mmwave/human_presence`가 확인되면 `사람 감지!`를
 출력하고 해당 `/dynamic_obstacle_markers` 점을 파란색으로 바꾼다. ONLINE 상태에서
 presence가 없으면 `동적장애물!`을 출력하고 빨간색을 유지한다. 센서 OFFLINE은
 장애물 판정으로 사용하지 않는다.
+
+Mode 3은 `/mmwave/calibrated_distance_m`을 거리 증거로 사용한다. 기본 사람 후보
+조건은 보정거리 0.6~6.0m, energy 3000 이상, confirm 3프레임, clear 6프레임이며
+세부값은 `inno_mmwave/config/c4001.yaml`에서 관리한다.
 
 모드 4도 `4`, Space 순서로 시작한다. 정지 후 Camera Module 3의 YOLO 사람
 바운딩박스 중심을 카메라 광학 중심 기준 방위각으로 바꾸고, 검사 대상 주변 LiDAR

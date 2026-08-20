@@ -17,8 +17,8 @@ from inno_mmwave.status_console import (  # noqa: E402
 
 
 def test_console_uses_filtered_target_topics() -> None:
-    assert FILTERED_PRESENCE_TOPIC == '/mmwave/filtered_presence'
-    assert FILTERED_DISTANCE_TOPIC == '/mmwave/filtered_distance_m'
+    assert FILTERED_PRESENCE_TOPIC == '/mmwave/human_presence'
+    assert FILTERED_DISTANCE_TOPIC == '/mmwave/calibrated_distance_m'
     assert MODE_TITLES[3] == 'MMWAVE OBSTACLE INSPECTION'
     assert MODE_TITLES[4] == 'CAMERA + LIDAR SURVIVOR INSPECTION'
 

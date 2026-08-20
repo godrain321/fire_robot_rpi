@@ -16,8 +16,8 @@ MODE_TITLES = {
     3: 'MMWAVE OBSTACLE INSPECTION',
     4: 'CAMERA + LIDAR SURVIVOR INSPECTION',
 }
-FILTERED_PRESENCE_TOPIC = '/mmwave/filtered_presence'
-FILTERED_DISTANCE_TOPIC = '/mmwave/filtered_distance_m'
+FILTERED_PRESENCE_TOPIC = '/mmwave/human_presence'
+FILTERED_DISTANCE_TOPIC = '/mmwave/calibrated_distance_m'
 DYNAMIC_OBSTACLE_TOPIC = '/dynamic_obstacle_detected'
 
 
