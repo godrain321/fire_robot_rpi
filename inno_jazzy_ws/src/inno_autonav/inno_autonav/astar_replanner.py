@@ -11,14 +11,13 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
 
 from .grid_utils import (
     MapGrid,
     grid_to_world,
     inflate_occupied_cells,
     is_inside_grid,
-    normalize_angle,
     path_cells_collision,
     quaternion_from_yaw,
     world_to_grid,
@@ -216,6 +215,9 @@ class AstarReplanner(Node):
             String, self.thermal_status_topic, self._thermal_status_callback, qos
         )
         self.create_subscription(PoseStamped, '/goal_pose', self._goal_callback, 10)
+        self.create_subscription(
+            Empty, '/autonomy_cancel', self._cancel_callback, 10
+        )
         self.grid_publisher = self.create_publisher(
             OccupancyGrid, '/planning_grid', qos
         )
@@ -387,6 +389,13 @@ class AstarReplanner(Node):
         self.goal = message
         self._dirty = True
         self._plan('NEW_GOAL')
+
+    def _cancel_callback(self, _message: Empty) -> None:
+        self.goal = None
+        self.current_path_cells = []
+        self._dirty = False
+        self._publish_empty_path()
+        self._state('CANCELLED')
 
     def _timer_callback(self) -> None:
         if self.goal is None:

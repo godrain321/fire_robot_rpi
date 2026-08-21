@@ -34,7 +34,7 @@ cd "$FIRE_ROBOT_RPI_ROOT/inno_jazzy_ws"
 source /opt/ros/jazzy/setup.bash
 sudo apt-get install ros-jazzy-nav2-amcl
 colcon build --symlink-install --packages-select \
-  inno_drive_bridge inno_robot_bringup inno_autonav
+  inno_camera_tools inno_drive_bridge inno_robot_bringup inno_autonav
 source install/setup.bash
 ```
 
@@ -48,8 +48,7 @@ ros2 launch inno_robot_bringup field_waypoint_test.launch.py \
   map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml" \
   planning_map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_nav.yaml" \
   waypoint_file:="$FIRE_ROBOT_RPI_ROOT/maps/waypoint_queue_latest.yaml" \
-  manual_linear_speed:=0.08 manual_angular_speed:=0.35 \
-  auto_linear_speed:=0.06 auto_angular_speed:=0.45
+  drive_speed:=0.06 turn_speed:=0.35
 ```
 
 RViz에서 Fixed Frame=`map`, Path topic=`/lidar_path`, planned Path=`/planned_path`를
@@ -69,23 +68,102 @@ launch를 실행한 터미널에서 `1`, 그 다음 `w/a/s/d/x`를 사용한다.
 급회전이 거칠면 먼저 `drive_params.yaml`의 `angular_speed`를 낮춘다. 펌웨어의
 `MAX_STEP_ACCEL`을 낮추면 시작/반전 ramp가 더 부드러워진다.
 
-## 3. 모드 2: path 위에 여러 waypoint를 찍고 순차 주행
+## 3. 모드 2: 저장된 waypoint 이름을 골라 한 점씩 주행
 
-키보드 터미널에서 `s`로 정지한 뒤 `2`를 누른다. 초록색 `/lidar_path`는 지도 위에
-그대로 남는다. RViz **2D Goal Pose**로 그 path 위의 waypoint를 원하는 순서대로 여러
-개 찍는다. 클릭한 waypoint들은 노란색 `/waypoint_queue` 선으로 누적 표시되며 아직
-로봇은 출발하지 않는다. 각 클릭은 즉시 `maps/waypoint_queue_latest.yaml`에 원자적으로
-저장되며 launch를 다시 실행해도 자동 복원된다. 잘못 찍었으면 `c`로 전체 queue를
-지우고 다시 찍는다. `c`는 화면뿐 아니라 저장 파일의 queue도 비운다.
+`maps/waypoint_queue_latest.yaml`에 `w1`, `w2`처럼 이름이 지정된 waypoint가 있어야
+한다. 키보드 터미널에서 `2`를 누른 뒤, 프롬프트에 목적지를 두 개 이상 입력하고
+Enter를 누른다.
 
-모든 waypoint를 찍은 다음 키보드 터미널에서 `g`를 누르면 첫 waypoint부터 차례대로
-`/goal_pose` → A* `/planned_path` → LiDAR TF feedback follower → `/cmd_vel_auto`로
-주행한다. 각 waypoint가 `GOAL_REACHED`가 되어야 다음 waypoint가 전달된다. follower는
-10Hz로 명령을 계속 보내므로 0.5초 watchdog에 걸리지 않는다.
+```text
+MODE 2 waypoints (example w1,w5,w6) > w1,w5,w6
+```
 
-속도는 펌웨어를 다시 굽지 않고 launch 명령의 `manual_linear_speed`,
-`manual_angular_speed`, `auto_linear_speed`, `auto_angular_speed`로 조절한다. 먼저 바퀴를
-띄운 상태에서 낮은 값으로 확인한 다음 현장 바닥에 맞춰 조금씩 올린다.
+Enter 즉시 현재 로봇 위치에서 `w1`로 출발한다. `w1`에 도착하여 다음 상태가
+표시된 뒤에만 Space를 누른다.
+
+```text
+[MODE 2] MODE2_REACHED:w1:SPACE_FOR:w5
+```
+
+그러면 `w5`로 출발하고, `w5` 도착 후 Space를 다시 누르면 `w6`로 출발한다.
+즉 입력 순서를 그대로 따르므로 `w1,w5`를 입력한 경우 Space 다음 목적지는 `w5`다.
+주행 중 Space는 `MODE2_BUSY`로 거절되어 목적지가 건너뛰어지지 않는다. 존재하지
+않는 이름이나 waypoint 한 개뿐인 입력도 출발 전에 거절된다.
+
+모드 2는 A* 및 LiDAR 동적 장애물 회피 경로를 사용한다. 각 점에 도착하면 기존
+경로를 취소하고 정지한 상태로 Space를 기다린다. `c`, `s`, `1`을 누르면 진행 중인
+자율주행 경로를 취소한다. `s`와 `1`은 모드 1로 전환한다.
+
+## 4. 모드 3: LiDAR 장애물에 접근해 mmWave 사람 판별
+
+LiDAR가 새 물체를 큰 빨간 점으로 표시한 상태에서 `3`을 누른 뒤 Space를 누른다.
+숫자 입력만으로는 출발하지 않는다. 로봇은 가장 가까운
+동적장애물을 선택해 대상과 1.5m 떨어진 지점까지 A*로 이동하고 대상을 정면으로
+바라본다. 도착 후 2초간 정지하고 5초 동안 C4001 micro-motion presence를 확인한다.
+
+- presence 확인: 통합 로그 `사람 감지!`, 해당 점이 빨간색에서 파란색으로 변경
+- ONLINE 상태에서 presence 없음: 통합 로그 `동적장애물!`, 빨간색 유지
+- 센서 OFFLINE 또는 샘플 부족: `MODE3_SENSOR_UNAVAILABLE`, 빨간색 유지
+- `s`, `c`, `1`: 검사 취소 및 모드 1 전환
+
+```bash
+ros2 topic echo /mode3_status
+ros2 topic echo /mode3_classification
+ros2 topic echo /dynamic_obstacle_candidates
+ros2 topic echo /mmwave/sensor_state
+```
+
+C4001의 stationary-person micro-motion presence를 사용하는 기능이며 의료용 생체신호
+판독은 아니다. 첫 현장 시험은 사람 대신 안전한 반사체와 보조 인원을 두고 바퀴를
+띄운 상태부터 확인한다.
+
+## 5. 모드 4: Camera Module 3 + LiDAR 요구조자 판별
+
+현재 임시 시험용 사람 모델은 `~/fire_robot_rpi/models/yolov8n_best.onnx`에 들어
+있다. 메타데이터상 class 0 하나가 `person`이다. ROS를 실행하는 Python 환경에서
+다음 ONNX Runtime import가 성공해야 한다.
+
+```bash
+python3 -c "import onnxruntime; print('YOLO ONNX runtime OK')"
+```
+
+통합 launch에 카메라와 모델을 활성화한다.
+
+```bash
+ros2 launch inno_robot_bringup field_waypoint_test.launch.py \
+  esp32_port:=/dev/ttyUSB0 lidar_port:=/dev/ttyUSB1 \
+  use_camera_mode4:=true \
+  yolo_model_path:="$FIRE_ROBOT_RPI_ROOT/models/yolov8n_best.onnx" \
+  map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_raw.yaml" \
+  planning_map_yaml:="$FIRE_ROBOT_RPI_ROOT/maps/inno_map_nav.yaml" \
+  waypoint_file:="$FIRE_ROBOT_RPI_ROOT/maps/waypoint_queue_latest.yaml" \
+  drive_speed:=0.06 turn_speed:=0.35
+```
+
+RViz에 빨간 점이 생기면 통합 터미널에서 `4`, Space를 차례로 누른다. 로봇은 가장
+가까운 빨간 점 1.5m 앞에서 정면 정렬하고 2초 정지한 뒤 5초 동안 YOLO 결과를
+모은다. 카메라 추론은 이 관찰 구간에만 실행된다.
+
+사람과 일반 장애물이 한 화면에 함께 있고 빨간 점 두 개가 인접한 경우에도 YOLO
+바운딩박스 중심의 좌우 방향과 LiDAR 점의 방위각을 대응한다. 한 바운딩박스는 LiDAR
+점 하나에만 연결되므로 실제 사람 방향의 점만 파란색으로 바뀐다. 파란 점은 계속
+유지되고 나머지 점은 빨간색으로 남는다.
+
+```bash
+ros2 topic echo /mode4_status
+ros2 topic echo /mode4_classification
+ros2 topic echo /camera/person_detector_status
+ros2 topic echo /camera/person_detections
+ros2 topic hz /camera/image_raw
+```
+
+`MODEL_NOT_FOUND`, `ULTRALYTICS_NOT_INSTALLED`, 카메라 프레임 부족 상태에서는 사람
+아님으로 결정하지 않고 빨간 점을 유지한다. 화각 측정·내부 보정 뒤
+`autonav_params.yaml`의 `fallback_horizontal_fov_deg`, `camera_yaw_offset_deg`,
+`maximum_bearing_error_deg`를 현장값에 맞춘다.
+
+속도는 펌웨어를 다시 굽지 않고 launch 명령의 `drive_speed`, `turn_speed`로 조절한다.
+먼저 바퀴를 띄운 상태에서 낮은 값으로 확인한 다음 현장 바닥에 맞춰 조금씩 올린다.
 
 실행 중에도 다른 터미널에서 즉시 변경할 수 있다.
 

@@ -13,9 +13,18 @@ c4001_node:
     configure_on_start: true
     send_start_on_connect: true
     micro_motion_enabled: true
-    min_range_m: 1.2
-    max_range_m: 12.0
-    detection_threshold: 10
+    min_range_m: 0.6
+    max_range_m: 6.0
+    detection_threshold: 20
+
+    # Field-tuned human-presence gate. Raw topics remain unmodified.
+    calibration_scale: 1.0
+    calibration_offset_m: -0.1
+    human_range_min_m: 0.6
+    human_range_max_m: 6.0
+    human_energy_threshold: 3000
+    human_confirm_frames: 3
+    human_clear_frames: 6
 
     sensor_warmup_sec: 1.0
     command_interval_sec: 0.15
@@ -31,8 +40,8 @@ c4001_node:
     # Single-target robust filtering. Raw UART values remain available under
     # /mmwave/raw/*; legacy /mmwave/{presence,distance_m,speed_mps} names use
     # these stabilized results.
-    filter_min_distance_m: 1.2
-    filter_max_distance_m: 12.0
+    filter_min_distance_m: 0.6
+    filter_max_distance_m: 6.0
     filter_acquire_radius_m: 0.30
     filter_acquire_min_hits: 5
     filter_acquire_min_support_ratio: 0.55

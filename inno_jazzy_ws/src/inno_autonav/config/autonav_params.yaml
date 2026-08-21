@@ -15,7 +15,44 @@ dynamic_obstacle_layer:
     obstacle_timeout_sec: 2.5
     inflation_radius: 0.30
     wall_exclusion_radius: 0.25
+    cluster_radius_m: 0.50
+    person_match_radius_m: 0.75
+    person_dedup_radius_m: 0.20
+    person_classification_timeout_sec: 0.0
     publish_rate_hz: 5.0
+
+mode3_inspector:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    standoff_distance_m: 1.50
+    robot_settle_sec: 2.0
+    observation_sec: 5.0
+    distance_tolerance_m: 0.60
+    minimum_mmwave_samples: 3
+    person_positive_samples: 3
+    sensor_stale_timeout_sec: 2.0
+    update_rate_hz: 10.0
+
+mode4_inspector:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    camera_info_topic: /camera/camera_info
+    detection_topic: /camera/person_detections
+    standoff_distance_m: 1.50
+    robot_settle_sec: 2.0
+    observation_sec: 5.0
+    minimum_detection_frames: 3
+    survivor_positive_frames: 2
+    detector_stale_timeout_sec: 2.0
+    minimum_confidence: 0.50
+    fallback_horizontal_fov_deg: 76.0
+    camera_yaw_offset_deg: 0.0
+    target_search_radius_m: 1.0
+    maximum_candidate_distance_m: 3.0
+    maximum_bearing_error_deg: 10.0
+    update_rate_hz: 10.0
 
 astar_replanner:
   ros__parameters:

@@ -73,6 +73,15 @@ ESP32가 `/dev/ttyACM0`이라면 launch argument만 바꾼다. 키 입력은 lau
 | `s` | 정지 | 모두 0 |
 | `q` | 정지 발행 후 키보드 노드 종료 | 모두 0 |
 
+통합 waypoint launch에서는 `1`이 수동주행이고 `2`가 이름 기반 단계주행이다. `2`를
+누른 뒤 `w1,w5,w6`처럼 두 개 이상의 waypoint를 입력하고 Enter를 누르면 첫 점으로
+즉시 출발한다. 첫 점 도착 후 Space를 누를 때마다 입력한 목록의 다음 점으로
+이동한다. 모드 2는 `/cmd_vel_auto` 채널을 선택하며 `c`, `s`, `1`로 현재 자율주행
+경로를 취소할 수 있다. `3`은 mmWave, `4`는 Camera Module 3+LiDAR 요구조자 판별
+모드다. 모드 3과 4는 숫자를 누른 뒤 Space를 눌러야 가장 가까운 빨간 장애물의
+1.5m 검사 지점으로 출발한다. 둘 다 `/cmd_vel_auto`를 사용하며 `c`, `s`, `1`로
+검사와 경로를 취소한다.
+
 키보드 노드는 선택한 명령을 10 Hz로 계속 발행한다. serial bridge는 `/cmd_vel`이 기본 0.5초 동안 끊기면 `STOP`을 전송하며, ESP32에도 독립적인 500 ms watchdog이 있어야 한다.
 
 키 입력이 launch 환경에서 TTY를 받지 못하는 경우 세 노드를 분리해 실행할 수 있다. serial bridge와 odometry를 먼저 실행한 다음, 별도 대화형 터미널에서 `ros2 run inno_drive_bridge keyboard_cmdvel_demo --ros-args --params-file .../drive_params.yaml`을 실행한다.
@@ -83,11 +92,17 @@ ESP32가 `/dev/ttyACM0`이라면 launch argument만 바꾼다. 키 입력은 lau
 
 ```bash
 ros2 topic echo /cmd_vel
+ros2 topic echo /motor/left_steps_per_sec
+ros2 topic echo /motor/right_steps_per_sec
 ros2 topic echo /esp32/status
 ros2 topic echo /wheel_ticks
 ros2 topic echo /wheel_odom
 ros2 topic echo /wheel_path
 ```
+
+`/motor/left_steps_per_sec`와 `/motor/right_steps_per_sec`에는 속도 제한과 방향 보정을
+적용한 뒤 ESP32 UART로 실제 전송한 좌·우 목표 STEP/s가 각각 기록됩니다. 정지 또는
+watchdog timeout에서는 둘 다 `0`을 발행합니다.
 
 연결 상태와 주기를 함께 확인하려면 다음 명령도 유용하다.
 

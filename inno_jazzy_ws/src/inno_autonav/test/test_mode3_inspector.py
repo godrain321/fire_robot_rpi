@@ -1,0 +1,88 @@
+import math
+
+from std_msgs.msg import Int32, String
+
+from inno_autonav.mode3_inspector import (
+    Mode3Inspector,
+    PresenceEvidence,
+    compute_inspection_goal,
+    select_nearest_candidate,
+)
+
+
+class _Publisher:
+    def __init__(self):
+        self.messages = []
+
+    def publish(self, message):
+        self.messages.append(message)
+
+
+def test_select_nearest_dynamic_obstacle():
+    assert select_nearest_candidate(0.0, 0.0, [(4.0, 0.0), (2.0, 1.0)]) == (
+        2.0,
+        1.0,
+    )
+
+
+def test_inspection_goal_is_1_5m_from_target_and_faces_it():
+    goal_x, goal_y, goal_yaw = compute_inspection_goal(
+        0.0, 0.0, 0.0, 4.0, 0.0, 1.5
+    )
+    assert math.isclose(goal_x, 2.5)
+    assert math.isclose(goal_y, 0.0)
+    assert math.isclose(math.hypot(4.0 - goal_x, goal_y), 1.5)
+    assert math.isclose(goal_yaw, 0.0)
+
+
+def test_presence_requires_online_samples_at_expected_distance():
+    evidence = PresenceEvidence(1.5, 0.4)
+    evidence.add(False, True, 1.5)
+    evidence.add(True, True, 3.0)
+    evidence.add(True, True, 1.4)
+    evidence.add(True, True, 1.6)
+    assert evidence.total_samples == 3
+    assert evidence.positive_samples == 2
+    assert evidence.classify(True, minimum_samples=3, positive_samples=2) == (
+        'PERSON'
+    )
+
+
+def test_online_samples_without_presence_are_dynamic_obstacle():
+    evidence = PresenceEvidence(1.5, 0.4)
+    for _ in range(3):
+        evidence.add(True, False, 0.0)
+    assert evidence.classify(True, minimum_samples=3, positive_samples=2) == (
+        'DYNAMIC_OBSTACLE'
+    )
+
+
+def test_offline_sensor_never_labels_obstacle():
+    evidence = PresenceEvidence(1.5, 0.4)
+    for _ in range(3):
+        evidence.add(True, False, 0.0)
+    assert evidence.classify(False, minimum_samples=3, positive_samples=2) is None
+
+
+def test_mode3_waits_for_space_before_trying_nearest_obstacle():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.drive_mode = 1
+    inspector.phase = 'IDLE'
+    inspector.target = None
+    inspector.waiting_for_departure = False
+    inspector.cancel_publisher = _Publisher()
+    states = []
+    starts = []
+    inspector._state = states.append
+    inspector._try_start_inspection = lambda: starts.append(True)
+
+    inspector._mode_callback(Int32(data=3))
+
+    assert inspector.phase == 'ARMED'
+    assert starts == []
+    assert states[-1] == 'MODE3_READY:PRESS_SPACE'
+
+    inspector._inspection_command_callback(String(data='MODE3_START'))
+
+    assert inspector.phase == 'WAITING_FOR_OBSTACLE'
+    assert starts == [True]

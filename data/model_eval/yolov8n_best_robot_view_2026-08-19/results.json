@@ -1,0 +1,399 @@
+{
+  "model": "models/yolov8n_best.onnx",
+  "input_size": 640,
+  "person_class_id": 0,
+  "confidence_threshold": 0.5,
+  "note": "Small qualitative web-image sanity check; not an accuracy benchmark.",
+  "images": [
+    {
+      "image": "01_tower_bridge_group.jpg",
+      "width": 1280,
+      "height": 1920,
+      "confidence_threshold": 0.5,
+      "inference_ms_development_pc": 51.0,
+      "detection_count": 11,
+      "detections": [
+        {
+          "id": "P1",
+          "confidence": 0.8754,
+          "bbox_xyxy": [
+            574,
+            895,
+            714,
+            1245
+          ]
+        },
+        {
+          "id": "P2",
+          "confidence": 0.7987,
+          "bbox_xyxy": [
+            910,
+            903,
+            1037,
+            1253
+          ]
+        },
+        {
+          "id": "P3",
+          "confidence": 0.7725,
+          "bbox_xyxy": [
+            514,
+            1114,
+            568,
+            1239
+          ]
+        },
+        {
+          "id": "P4",
+          "confidence": 0.7697,
+          "bbox_xyxy": [
+            473,
+            1119,
+            522,
+            1240
+          ]
+        },
+        {
+          "id": "P5",
+          "confidence": 0.7134,
+          "bbox_xyxy": [
+            6,
+            727,
+            192,
+            1234
+          ]
+        },
+        {
+          "id": "P6",
+          "confidence": 0.7053,
+          "bbox_xyxy": [
+            1054,
+            1078,
+            1135,
+            1244
+          ]
+        },
+        {
+          "id": "P7",
+          "confidence": 0.6554,
+          "bbox_xyxy": [
+            401,
+            1131,
+            444,
+            1237
+          ]
+        },
+        {
+          "id": "P8",
+          "confidence": 0.6332,
+          "bbox_xyxy": [
+            745,
+            889,
+            874,
+            1245
+          ]
+        },
+        {
+          "id": "P9",
+          "confidence": 0.5555,
+          "bbox_xyxy": [
+            832,
+            908,
+            935,
+            1246
+          ]
+        },
+        {
+          "id": "P10",
+          "confidence": 0.532,
+          "bbox_xyxy": [
+            674,
+            1064,
+            732,
+            1237
+          ]
+        },
+        {
+          "id": "P11",
+          "confidence": 0.527,
+          "bbox_xyxy": [
+            586,
+            1139,
+            623,
+            1239
+          ]
+        }
+      ]
+    },
+    {
+      "image": "02_riga_bw_street.jpg",
+      "width": 1280,
+      "height": 853,
+      "confidence_threshold": 0.5,
+      "inference_ms_development_pc": 48.8,
+      "detection_count": 6,
+      "detections": [
+        {
+          "id": "P1",
+          "confidence": 0.7924,
+          "bbox_xyxy": [
+            749,
+            414,
+            792,
+            518
+          ]
+        },
+        {
+          "id": "P2",
+          "confidence": 0.653,
+          "bbox_xyxy": [
+            239,
+            430,
+            270,
+            504
+          ]
+        },
+        {
+          "id": "P3",
+          "confidence": 0.6433,
+          "bbox_xyxy": [
+            594,
+            447,
+            620,
+            515
+          ]
+        },
+        {
+          "id": "P4",
+          "confidence": 0.636,
+          "bbox_xyxy": [
+            195,
+            417,
+            223,
+            503
+          ]
+        },
+        {
+          "id": "P5",
+          "confidence": 0.6129,
+          "bbox_xyxy": [
+            177,
+            421,
+            206,
+            505
+          ]
+        },
+        {
+          "id": "P6",
+          "confidence": 0.5355,
+          "bbox_xyxy": [
+            732,
+            444,
+            758,
+            518
+          ]
+        }
+      ]
+    },
+    {
+      "image": "03_occluded_legs.jpg",
+      "width": 1280,
+      "height": 853,
+      "confidence_threshold": 0.5,
+      "inference_ms_development_pc": 46.0,
+      "detection_count": 1,
+      "detections": [
+        {
+          "id": "P1",
+          "confidence": 0.5803,
+          "bbox_xyxy": [
+            523,
+            0,
+            1177,
+            647
+          ]
+        }
+      ]
+    },
+    {
+      "image": "04_merida_single.jpg",
+      "width": 1280,
+      "height": 2092,
+      "confidence_threshold": 0.5,
+      "inference_ms_development_pc": 44.2,
+      "detection_count": 1,
+      "detections": [
+        {
+          "id": "P1",
+          "confidence": 0.8642,
+          "bbox_xyxy": [
+            438,
+            1737,
+            617,
+            2026
+          ]
+        }
+      ]
+    },
+    {
+      "image": "05_regent_street_group.jpg",
+      "width": 1280,
+      "height": 853,
+      "confidence_threshold": 0.5,
+      "inference_ms_development_pc": 44.4,
+      "detection_count": 8,
+      "detections": [
+        {
+          "id": "P1",
+          "confidence": 0.8228,
+          "bbox_xyxy": [
+            416,
+            634,
+            458,
+            756
+          ]
+        },
+        {
+          "id": "P2",
+          "confidence": 0.8121,
+          "bbox_xyxy": [
+            640,
+            640,
+            685,
+            744
+          ]
+        },
+        {
+          "id": "P3",
+          "confidence": 0.8016,
+          "bbox_xyxy": [
+            544,
+            632,
+            587,
+            752
+          ]
+        },
+        {
+          "id": "P4",
+          "confidence": 0.635,
+          "bbox_xyxy": [
+            1251,
+            619,
+            1279,
+            716
+          ]
+        },
+        {
+          "id": "P5",
+          "confidence": 0.5876,
+          "bbox_xyxy": [
+            266,
+            624,
+            309,
+            752
+          ]
+        },
+        {
+          "id": "P6",
+          "confidence": 0.5765,
+          "bbox_xyxy": [
+            516,
+            643,
+            537,
+            713
+          ]
+        },
+        {
+          "id": "P7",
+          "confidence": 0.5637,
+          "bbox_xyxy": [
+            1204,
+            615,
+            1244,
+            696
+          ]
+        },
+        {
+          "id": "P8",
+          "confidence": 0.5379,
+          "bbox_xyxy": [
+            85,
+            644,
+            129,
+            748
+          ]
+        }
+      ]
+    },
+    {
+      "image": "06_moscow_twilight.jpg",
+      "width": 1280,
+      "height": 1707,
+      "confidence_threshold": 0.5,
+      "inference_ms_development_pc": 45.0,
+      "detection_count": 6,
+      "detections": [
+        {
+          "id": "P1",
+          "confidence": 0.899,
+          "bbox_xyxy": [
+            518,
+            1343,
+            787,
+            1707
+          ]
+        },
+        {
+          "id": "P2",
+          "confidence": 0.8185,
+          "bbox_xyxy": [
+            143,
+            1371,
+            277,
+            1705
+          ]
+        },
+        {
+          "id": "P3",
+          "confidence": 0.7999,
+          "bbox_xyxy": [
+            347,
+            1345,
+            515,
+            1707
+          ]
+        },
+        {
+          "id": "P4",
+          "confidence": 0.7753,
+          "bbox_xyxy": [
+            216,
+            1403,
+            365,
+            1707
+          ]
+        },
+        {
+          "id": "P5",
+          "confidence": 0.7311,
+          "bbox_xyxy": [
+            705,
+            1414,
+            907,
+            1707
+          ]
+        },
+        {
+          "id": "P6",
+          "confidence": 0.5387,
+          "bbox_xyxy": [
+            977,
+            1434,
+            1280,
+            1707
+          ]
+        }
+      ]
+    }
+  ]
+}

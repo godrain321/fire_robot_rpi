@@ -15,6 +15,12 @@ inno_map_nav.yaml ─▶ /planning_grid_static ─┐
                                              ├─▶ /planning_grid ─▶ A* ─▶ /planned_path
 /scan + map TF ─▶ /dynamic_obstacle_grid ───┤                         │
 /thermal_cost_grid + /thermal_cost_status ──┘                         │
+           └─────▶ /dynamic_obstacle_candidates ─┬▶ MODE 3 inspector
+                                                  │     ▲               │
+                                                  │ mmWave presence     │
+                                                  └▶ MODE 4 inspector
+                                                        ▲
+                                              YOLO person boxes
                                                                         ▼
 /mission_text ─▶ semantic goal ─▶ /goal_pose                  skid_path_follower
                                                                         │
@@ -41,6 +47,8 @@ map ─▶ odom ─▶ base_link ─▶ laser
 - `planning_grid_publisher`: `inno_map_nav.yaml`을 `/planning_grid_static`으로 발행
 - `dynamic_obstacle_layer`: static-free 공간의 새 scan endpoint를 확인·팽창하여 persistent obstacle로 저장
 - `astar_replanner`: static/dynamic/thermal grid를 합치고 현재 TF pose에서 weighted A* 수행
+- `mode3_inspector`: Space 입력 후 가장 가까운 동적장애물의 1.5m 앞까지 이동하고 mmWave presence로 사람 여부 판정
+- `mode4_inspector`: Space 입력 후 같은 검사 위치로 이동하고 YOLO 바운딩박스 방향과 LiDAR 후보를 결합해 요구조자 위치 판정
 - `skid_path_follower`: 큰 heading error에서는 제자리 회전, 작으면 저속 전진 보정
 - `mission_commander`: 문자열 mission을 semantic `/goal_pose`로 변환
 - `go_to`: `/mission_text` CLI publisher
@@ -331,7 +339,7 @@ ros2 launch inno_autonav autonav_demo.launch.py use_serial:=true serial_port:=/d
 2. 로봇이 기존 `/planned_path`로 이동한다.
 3. 원래 free 공간의 경로 중간에 박스나 설비 모형을 놓는다.
 4. LiDAR endpoint가 static-free cell에서 3회 확인된다.
-5. `/dynamic_obstacle_grid`와 `/dynamic_obstacle_markers`에 표시된다.
+5. `/dynamic_obstacle_grid`와 `/dynamic_obstacle_markers`에 빨간 점으로 표시된다.
 6. `/planning_grid`가 갱신되고 A*가 재계획한다.
 7. follower가 새 경로를 따라 `/cmd_vel`을 변경한다.
 8. serial 사용 시 ESP32가 좌우 모터를 구동한다.
@@ -344,6 +352,24 @@ ros2 service call /clear_dynamic_obstacles std_srvs/srv/Trigger "{}"
 ```
 
 `persistent_obstacles: false`로 바꾸면 `obstacle_timeout_sec` 이후 제거된다.
+
+모드 3을 선택하고 Space를 누르면 `/dynamic_obstacle_candidates` 중 가장 가까운 물체의 1.5m 검사
+지점으로 이동한다. 정지·정면 정렬 후 C4001의 `/mmwave/human_presence`가 확인되면 `사람 감지!`를
+출력하고 해당 `/dynamic_obstacle_markers` 점을 파란색으로 바꾼다. ONLINE 상태에서
+presence가 없으면 `동적장애물!`을 출력하고 빨간색을 유지한다. 센서 OFFLINE은
+장애물 판정으로 사용하지 않는다.
+
+Mode 3은 `/mmwave/calibrated_distance_m`을 거리 증거로 사용한다. 기본 사람 후보
+조건은 보정거리 0.6~6.0m, energy 3000 이상, confirm 3프레임, clear 6프레임이며
+세부값은 `inno_mmwave/config/c4001.yaml`에서 관리한다.
+
+모드 4도 `4`, Space 순서로 시작한다. 정지 후 Camera Module 3의 YOLO 사람
+바운딩박스 중심을 카메라 광학 중심 기준 방위각으로 바꾸고, 검사 대상 주변 LiDAR
+후보들의 `map → base_link` 방위각과 비교한다. 한 바운딩박스와 한 LiDAR 후보를
+일대일로만 연결하므로 가까운 빨간 점 두 개 중 화면의 사람 방향에 해당하는 점만
+파란색으로 바뀐다. 확정 좌표는 timeout 없이 보존하고 현재 LiDAR cluster가
+사라져도 파란 marker를 계속 발행한다. 카메라·YOLO 상태가 정상이 아니면 판정을
+보류한다.
 
 ## 성공 기준
 
@@ -382,6 +408,8 @@ source install/setup.bash
 ros2 run inno_autonav go_to --help
 ros2 run inno_autonav planning_grid_publisher --ros-args --params-file src/inno_autonav/config/autonav_params.yaml
 ros2 run inno_autonav dynamic_obstacle_layer --ros-args --params-file src/inno_autonav/config/autonav_params.yaml
+ros2 run inno_autonav mode3_inspector --ros-args --params-file src/inno_autonav/config/autonav_params.yaml
+ros2 run inno_autonav mode4_inspector --ros-args --params-file src/inno_autonav/config/autonav_params.yaml
 ros2 run inno_autonav astar_replanner --ros-args --params-file src/inno_autonav/config/autonav_params.yaml
 ros2 run inno_autonav skid_path_follower --ros-args --params-file src/inno_autonav/config/autonav_params.yaml
 ros2 launch inno_autonav autonav_demo.launch.py use_serial:=false

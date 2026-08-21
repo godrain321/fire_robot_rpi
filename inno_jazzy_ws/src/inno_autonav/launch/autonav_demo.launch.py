@@ -84,6 +84,24 @@ def generate_launch_description() -> LaunchDescription:
             ),
             Node(
                 package='inno_autonav',
+                executable='mode3_inspector',
+                name='mode3_inspector',
+                parameters=[config_file],
+                output='screen',
+                emulate_tty=True,
+                condition=IfCondition(use_dynamic_obstacles),
+            ),
+            Node(
+                package='inno_autonav',
+                executable='mode4_inspector',
+                name='mode4_inspector',
+                parameters=[config_file],
+                output='screen',
+                emulate_tty=True,
+                condition=IfCondition(use_dynamic_obstacles),
+            ),
+            Node(
+                package='inno_autonav',
                 executable='skid_path_follower',
                 name='skid_path_follower',
                 parameters=[
