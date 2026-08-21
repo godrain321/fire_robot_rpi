@@ -12,6 +12,25 @@ from inno_mmwave.mmwave_processing import (
 from inno_mmwave.mmwave_tuning_gui import SensorSettings
 
 
+def test_tuning_defaults_match_field_settings():
+    sensor = SensorSettings()
+    software = ProcessingSettings()
+    human = HumanTuningSettings()
+
+    assert (sensor.min_range_cm, sensor.max_range_cm) == (60, 600)
+    assert sensor.threshold == 20
+    assert sensor.fretting_enabled
+    assert software.scale == pytest.approx(1.0)
+    assert software.offset_m == pytest.approx(-0.1)
+    assert software.filter_type is FilterType.NONE
+    assert software.filter_size == 5
+    assert software.ema_alpha == pytest.approx(0.3)
+    assert software.outlier_threshold_m == pytest.approx(0.0)
+    assert (human.range_min_m, human.range_max_m) == pytest.approx((0.6, 6.0))
+    assert human.energy_threshold == 3000
+    assert (human.confirm_frames, human.clear_frames) == (3, 6)
+
+
 def test_raw_calibrated_and_filtered_values_remain_separate():
     processor = DistanceProcessor(
         ProcessingSettings(
@@ -28,7 +47,11 @@ def test_raw_calibrated_and_filtered_values_remain_separate():
 
 def test_no_target_and_invalid_range_never_enter_filter():
     processor = DistanceProcessor(
-        ProcessingSettings(filter_type=FilterType.MOVING_AVERAGE, filter_size=3)
+        ProcessingSettings(
+            offset_m=0.0,
+            filter_type=FilterType.MOVING_AVERAGE,
+            filter_size=3,
+        )
     )
     assert not processor.process(0.0, target_valid=False).accepted
     assert not processor.process(0.0, target_valid=True).accepted
@@ -55,7 +78,9 @@ def test_outlier_is_excluded_and_zero_disables_rejection():
 )
 def test_window_filters(filter_type, expected):
     processor = DistanceProcessor(
-        ProcessingSettings(filter_type=filter_type, filter_size=3)
+        ProcessingSettings(
+            offset_m=0.0, filter_type=filter_type, filter_size=3
+        )
     )
     for value in (1.0, 2.0):
         processor.process(value, target_valid=True)
@@ -65,12 +90,16 @@ def test_window_filters(filter_type, expected):
 
 def test_ema_and_filter_change_reset_state():
     processor = DistanceProcessor(
-        ProcessingSettings(filter_type=FilterType.EMA, ema_alpha=0.5)
+        ProcessingSettings(
+            offset_m=0.0, filter_type=FilterType.EMA, ema_alpha=0.5
+        )
     )
     processor.process(1.0, target_valid=True)
     assert processor.process(3.0, target_valid=True).filtered_range_m == pytest.approx(2.0)
     processor.apply_settings(
-        ProcessingSettings(filter_type=FilterType.EMA, ema_alpha=0.25)
+        ProcessingSettings(
+            offset_m=0.0, filter_type=FilterType.EMA, ema_alpha=0.25
+        )
     )
     assert processor.process(4.0, target_valid=True).filtered_range_m == pytest.approx(4.0)
 

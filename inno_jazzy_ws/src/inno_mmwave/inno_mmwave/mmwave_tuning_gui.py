@@ -71,9 +71,9 @@ CSV_FIELDS = (
 
 @dataclass(frozen=True)
 class SensorSettings:
-    min_range_cm: int = 120
-    max_range_cm: int = 1200
-    threshold: int = 10
+    min_range_cm: int = 60
+    max_range_cm: int = 600
+    threshold: int = 20
     fretting_enabled: bool = True
 
     def __post_init__(self) -> None:
@@ -576,9 +576,9 @@ class TuningGui:
 
         sensor_frame = ttk.LabelFrame(upper, text="Sensor Settings (volatile)", padding=8)
         sensor_frame.grid(row=0, column=0, sticky="nsew", padx=3)
-        self._entry(sensor_frame, "Min Range [cm]", "min_range", "120", self.apply_sensor)
-        self._entry(sensor_frame, "Max Range [cm]", "max_range", "1200", self.apply_sensor)
-        self._entry(sensor_frame, "Detection Threshold", "threshold", "10", self.apply_sensor)
+        self._entry(sensor_frame, "Min Range [cm]", "min_range", "60", self.apply_sensor)
+        self._entry(sensor_frame, "Max Range [cm]", "max_range", "600", self.apply_sensor)
+        self._entry(sensor_frame, "Detection Threshold", "threshold", "20", self.apply_sensor)
         self.entries["fretting"] = tk.StringVar(value="ON")
         ttk.Label(sensor_frame, text="Fretting Detection").grid(row=3, column=0, sticky="w", pady=2)
         fretting = ttk.Combobox(sensor_frame, textvariable=self.entries["fretting"], values=("ON", "OFF"), state="readonly", width=13)
@@ -599,7 +599,7 @@ class TuningGui:
         software_frame = ttk.LabelFrame(upper, text="Distance Calibration / Filter", padding=8)
         software_frame.grid(row=0, column=2, sticky="nsew", padx=3)
         self._entry(software_frame, "Scale", "scale", "1.0000", self.apply_software, row=0)
-        self._entry(software_frame, "Offset [m]", "offset", "0.0000", self.apply_software, row=1)
+        self._entry(software_frame, "Offset [m]", "offset", "-0.1000", self.apply_software, row=1)
         self.entries["filter_type"] = tk.StringVar(value=FilterType.NONE.value)
         ttk.Label(software_frame, text="Filter Type").grid(row=2, column=0, sticky="w", pady=2)
         filter_box = ttk.Combobox(software_frame, textvariable=self.entries["filter_type"], values=tuple(item.value for item in FilterType), state="readonly", width=14)
@@ -615,11 +615,11 @@ class TuningGui:
 
         human_frame = ttk.LabelFrame(upper, text="Human Detection Tuning", padding=8)
         human_frame.grid(row=0, column=3, sticky="nsew", padx=3)
-        self._entry(human_frame, "Human Range Min [m]", "human_min", "1.2", self.apply_human, row=0)
-        self._entry(human_frame, "Human Range Max [m]", "human_max", "1.8", self.apply_human, row=1)
-        self._entry(human_frame, "Energy Threshold", "energy_threshold", "0", self.apply_human, row=2)
+        self._entry(human_frame, "Human Range Min [m]", "human_min", "0.6", self.apply_human, row=0)
+        self._entry(human_frame, "Human Range Max [m]", "human_max", "6.0", self.apply_human, row=1)
+        self._entry(human_frame, "Energy Threshold", "energy_threshold", "3000", self.apply_human, row=2)
         self._entry(human_frame, "Confirm Frames", "confirm_frames", "3", self.apply_human, row=3)
-        self._entry(human_frame, "Clear Frames", "clear_frames", "3", self.apply_human, row=4)
+        self._entry(human_frame, "Clear Frames", "clear_frames", "6", self.apply_human, row=4)
         self.human_label = tk.Label(human_frame, textvariable=self.human_var, font=("TkDefaultFont", 15, "bold"), fg="white", bg="#6b7280", pady=12)
         self.human_label.grid(row=5, column=0, columnspan=2, sticky="ew", pady=8)
 

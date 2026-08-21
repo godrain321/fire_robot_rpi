@@ -26,7 +26,7 @@ class FilterType(str, Enum):
 @dataclass(frozen=True)
 class ProcessingSettings:
     scale: float = 1.0
-    offset_m: float = 0.0
+    offset_m: float = -0.1
     filter_type: FilterType = FilterType.NONE
     filter_size: int = 5
     ema_alpha: float = 0.30
@@ -146,11 +146,11 @@ class DistanceProcessor:
 
 @dataclass(frozen=True)
 class HumanTuningSettings:
-    range_min_m: float = 1.2
-    range_max_m: float = 1.8
-    energy_threshold: int = 0
+    range_min_m: float = 0.6
+    range_max_m: float = 6.0
+    energy_threshold: int = 3000
     confirm_frames: int = 3
-    clear_frames: int = 3
+    clear_frames: int = 6
 
     def __post_init__(self) -> None:
         if (
