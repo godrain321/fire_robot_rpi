@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+workspace="${INNO_WS:-$(cd -- "$script_dir/.." && pwd)}"
 set +u
 # shellcheck source=/dev/null
 source /opt/ros/jazzy/setup.bash
 # shellcheck source=/dev/null
-source "${INNO_WS:-$HOME/inno_jazzy_ws}/install/setup.bash"
+source "$workspace/install/setup.bash"
 set -u
 start=auto; port=/dev/ttyUSB0; rviz=true; extra=()
 while (($#)); do case "$1" in

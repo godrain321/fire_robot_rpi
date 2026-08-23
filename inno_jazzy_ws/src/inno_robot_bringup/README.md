@@ -1,11 +1,13 @@
 # 빠른 시작
 
 ```bash
-cd ~/inno_jazzy_ws
+cd /path/to/fire_robot_rpi/inno_jazzy_ws
 ./scripts/run_slam_keyboard.sh
 ```
 
-주행하면서 지도 생성 후 `s`, 종료는 `q`를 누릅니다. 지도는 `~/inno_jazzy_ws/maps/`에 저장됩니다.
+주행하면서 지도 생성 후 `s`, 종료는 `q`를 누릅니다. 지도는 checkout 위치를 자동
+감지하여 `fire_robot_rpi/maps/`에 저장됩니다. 다른 위치를 강제로 사용해야 하면
+`FIRE_ROBOT_RPI_ROOT` 또는 `INNO_WS`를 지정할 수 있습니다.
 
 # inno_robot_bringup
 

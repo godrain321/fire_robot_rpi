@@ -17,6 +17,20 @@ STILL_MONITOR = 'STILL_MONITOR'
 ASSIST_CHECK = 'ASSIST_CHECK'
 
 
+def human_state_from_mobility(state: str) -> str:
+    """Map detailed mobility output to the public human-state contract."""
+
+    if state == MOVING:
+        return 'MOVING'
+    if state in (STILL_MONITOR, ASSIST_CHECK):
+        return 'STILL'
+    if state == NO_TARGET:
+        return 'NO_HUMAN'
+    if state == ROBOT_MOVING:
+        return 'ROBOT_MOVING'
+    return 'SENSOR_OFFLINE'
+
+
 @dataclass(frozen=True)
 class MobilityConfig:
     # A motion decision needs both a meaningful filtered radial speed and

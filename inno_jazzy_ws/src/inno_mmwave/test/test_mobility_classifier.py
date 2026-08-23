@@ -9,6 +9,7 @@ from inno_mmwave.mobility_classifier import (
     STILL_MONITOR,
     MobilityClassifier,
     MobilityConfig,
+    human_state_from_mobility,
 )
 
 
@@ -23,6 +24,15 @@ def classifier():
         robot_angular_threshold_rps=0.03,
         robot_settle_sec=2.0,
     ))
+
+
+def test_public_human_state_contract():
+    assert human_state_from_mobility(MOVING) == 'MOVING'
+    assert human_state_from_mobility(STILL_MONITOR) == 'STILL'
+    assert human_state_from_mobility(ASSIST_CHECK) == 'STILL'
+    assert human_state_from_mobility(NO_TARGET) == 'NO_HUMAN'
+    assert human_state_from_mobility(ROBOT_MOVING) == 'ROBOT_MOVING'
+    assert human_state_from_mobility(SENSOR_OFFLINE) == 'SENSOR_OFFLINE'
 
 
 def test_state_progresses_without_claiming_medical_condition():

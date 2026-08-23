@@ -1,0 +1,4 @@
+path,per_view_rms,robust_threshold,iteration,coverage_impact,reason
+data/intrinsic/calib_008.png,1.770812906014633,0.38062146910627814,1,"{""corner_regions_lost"": 0, ""lost_cell_fraction"": 0.0, ""lost_cells"": 0, ""occupied_cells_after"": 48, ""occupied_cells_before"": 48, ""serious_loss"": false}",per_view_rms_above_mad_threshold
+data/intrinsic/calib_040.png,1.5288501890984225,0.377808628919778,2,"{""corner_regions_lost"": 0, ""lost_cell_fraction"": 0.0, ""lost_cells"": 0, ""occupied_cells_after"": 48, ""occupied_cells_before"": 48, ""serious_loss"": false}",per_view_rms_above_mad_threshold
+data/intrinsic/calib_017.png,0.5747487267228332,0.36147393527680627,3,"{""corner_regions_lost"": 0, ""lost_cell_fraction"": 0.0, ""lost_cells"": 0, ""occupied_cells_after"": 48, ""occupied_cells_before"": 48, ""serious_loss"": false}",per_view_rms_above_mad_threshold

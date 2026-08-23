@@ -1,0 +1,23 @@
+board:
+  # OpenCV pattern_size 순서는 (columns, rows)이며 사각형 수가 아닌 내부 코너 수다.
+  inner_corners_cols: 8
+  inner_corners_rows: 9
+  # 체커보드 한 칸의 실제 변 길이. 단위는 반드시 metre다.
+  square_size_m: 0.070
+
+calibration:
+  # 이 파일은 CALIB_USE_INTRINSIC_GUESS | CALIB_RATIONAL_MODEL만 사용하는
+  # 고정 Rational Polynomial 8계수 파이프라인의 기본 설정이다.
+  validation_ratio: 0.20
+  max_iterations: 200
+  epsilon: 1.0e-12
+  mad_multiplier: 3.0
+  max_rejection_ratio: 0.15
+  minimum_training_views: 20
+  cv_folds: 5
+  strict_resolution: false
+  remove_duplicates: false
+  duplicate_distance_threshold: 0.06
+  coverage_grid_cols: 8
+  coverage_grid_rows: 6
+  sample_undistort_count: 5

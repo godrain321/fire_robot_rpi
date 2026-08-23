@@ -1,6 +1,5 @@
 planning_grid_publisher:
   ros__parameters:
-    map_yaml: /home/gosunwoo/fire_robot_rpi/maps/inno_map_nav.yaml
     map_frame: map
     publish_rate_hz: 1.0
 
@@ -12,10 +11,48 @@ dynamic_obstacle_layer:
     min_range: 0.15
     max_range: 4.0
     obstacle_confirm_count: 3
-    persistent_obstacles: true
-    obstacle_timeout_sec: 10.0
+    persistent_obstacles: false
+    obstacle_timeout_sec: 2.5
     inflation_radius: 0.30
+    wall_exclusion_radius: 0.25
+    cluster_radius_m: 0.50
+    person_match_radius_m: 0.75
+    person_dedup_radius_m: 0.20
+    person_classification_timeout_sec: 0.0
     publish_rate_hz: 5.0
+
+mode3_inspector:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    standoff_distance_m: 1.50
+    robot_settle_sec: 2.0
+    observation_sec: 5.0
+    distance_tolerance_m: 0.60
+    minimum_mmwave_samples: 3
+    person_positive_samples: 3
+    sensor_stale_timeout_sec: 2.0
+    update_rate_hz: 10.0
+
+mode4_inspector:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    camera_info_topic: /camera/camera_info
+    detection_topic: /camera/person_detections
+    standoff_distance_m: 1.50
+    robot_settle_sec: 2.0
+    observation_sec: 5.0
+    minimum_detection_frames: 3
+    survivor_positive_frames: 2
+    detector_stale_timeout_sec: 2.0
+    minimum_confidence: 0.50
+    fallback_horizontal_fov_deg: 76.0
+    camera_yaw_offset_deg: 0.0
+    target_search_radius_m: 1.0
+    maximum_candidate_distance_m: 3.0
+    maximum_bearing_error_deg: 10.0
+    update_rate_hz: 10.0
 
 astar_replanner:
   ros__parameters:
@@ -23,11 +60,148 @@ astar_replanner:
     base_frame: base_link
     unknown_is_occupied: true
     replan_rate_hz: 1.0
-    # Inflate the ROS planning grid by the physical wall-clearance requirement;
-    # this makes A* turn around wall corners instead of clipping their edge.
-    path_block_check_radius: 0.40
+    # false hands "when to replan" entirely to replan_supervisor_node (Stage 6):
+    # neither a plain timer tick nor a dirty/changed grid triggers A* on its
+    # own -- only /goal_pose (new goal, or the same goal republished by the
+    # supervisor) does. Stays true so Stage 1-5 behavior is unchanged unless
+    # something (normally the launch file, when event_replanning_enabled) sets
+    # it false.
+    periodic_replanning_enabled: true
+    # Stage 8-8: stays /planned_path so Stage 1-7 launches are byte-identical
+    # when the waypoint planning pipeline is disabled. The launch file
+    # overrides this to /astar_path only when waypoint_planning_enabled is
+    # true, at which point PathSelector (not astar_replanner) owns
+    # /planned_path.
+    path_output_topic: /planned_path
+    accept_goal_pose: true
+    replan_request_topic: /replanning/astar_request
+    replan_result_topic: /replanning/astar_result
+    path_block_check_radius: 0.20
     start_clearance_radius: 0.18
     allow_diagonal: true
+    thermal_grid_topic: /thermal_cost_grid
+    thermal_status_topic: /thermal_cost_status
+    require_thermal_grid: true
+    require_thermal_active: true
+    thermal_grid_timeout_sec: 1.0
+    # Match factory_v5/config/evacuation.yaml sensor_costmap.
+    thermal_cost_weight: 24.0
+    thermal_cost_power: 1.5
+    fixed_co_ppm: 0.0
+    co_safe_ppm: 0.0
+    co_blocked_ppm: 1600.0
+    co_cost_weight: 8.0
+    co_cost_power: 2.0
+    simplification_maximum_risk_ratio: 1.0
+    simplification_risk_absolute_tolerance: 0.0
+    # factory_v5 ReferenceWaypointGraph defaults. Distances remain metres and
+    # are converted using each received OccupancyGrid's resolution.
+    reference_waypoint_graph_enabled: true
+    reference_waypoint_file: ''  # Supplied by the launch waypoint_file argument.
+    reference_neighbor_radius_m: 1.5
+    reference_connector_search_radius_m: 3.0
+    reference_connector_candidate_count: 8
+    reference_fallback_to_cell_astar: true
+    reference_waypoint_cost_radius_m: 0.10
+    reference_waypoint_risk_weight: 1.0
+    # False preserves the complete Stage 1/2 static+dynamic+thermal pipeline.
+    # True consumes exact final traversal costs from inno_hazard exactly once.
+    hazard_belief_enabled: false
+    hazard_final_cost_topic: /hazard/final_cost
+    hazard_status_topic: /hazard/status
+
+exit_evaluator_node:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    exit_registry_file: ''  # Supplied from the existing semantic_yaml argument.
+    reference_waypoint_file: ''  # Supplied from the existing waypoint_file argument.
+    hazard_snapshot_topic: /hazard/snapshot
+    static_grid_topic: /planning_grid_static
+    result_topic: /exit_evaluations
+    status_topic: /exit_evaluator/status
+    service_name: /evaluate_exits
+    exit_neighborhood_radius_m: 1.0
+    approach_search_radius_m: 1.0
+    reject_blocked_exit: true
+    reject_dangerous_exit: true
+    reject_path_over_threshold: true
+    reject_invalid_cost: true
+    usable_confirmation_distance_m: 3.0
+    # Negative values encode Simulation's null soft-risk thresholds in ROS params.
+    dangerous_accumulated_risk_cost: -1.0
+    dangerous_average_risk_cost: -1.0
+    dangerous_max_cell_risk_cost: -1.0
+    reference_waypoint_graph_enabled: true
+    reference_neighbor_radius_m: 1.5
+    reference_connector_search_radius_m: 3.0
+    reference_connector_candidate_count: 8
+    reference_fallback_to_cell_astar: true
+    reference_waypoint_cost_radius_m: 0.10
+    reference_waypoint_risk_weight: 1.0
+
+evacuation_manager_node:
+  ros__parameters:
+    enabled: false
+    activate_selected_route: false
+    risk_first: false
+    map_frame: map
+    exit_evaluation_service: /evaluate_exits
+    plan_service: /plan_evacuation
+    planner_goal_topic: /goal_pose
+    hazard_revision_topic: /hazard/revision
+    plan_topic: /evacuation/plan
+    selected_exit_topic: /evacuation/selected_exit
+    status_topic: /evacuation/status
+    evaluation_service_timeout_s: 30.0
+    prefer_confirmed_usable_exit: true
+    fallback_to_shortest_reachable_exit: true
+    primary_key: path_length_m
+    secondary_key: accumulated_risk_cost
+    final_tie_breaker: exit_id
+    float_tolerance: 1.0e-6
+    # Stage 7: ExitSwitchingNode requests a replacement exit on this topic; the
+    # manager runs the exact same Stage 4 evaluate -> Stage 5 select pipeline as
+    # /plan_evacuation (shared helper, see _select_and_activate) and acks here.
+    switch_request_topic: /evacuation/switch_request
+    switch_result_topic: /evacuation/switch_result
+
+exit_switching_node:
+  ros__parameters:
+    enabled: false
+    map_frame: map
+    base_frame: base_link
+    exit_registry_file: ''  # Supplied from the existing semantic_yaml argument.
+    supervisor_status_topic: /replanning/status
+    evacuation_plan_topic: /evacuation/plan
+    switch_request_topic: /evacuation/switch_request
+    switch_result_topic: /evacuation/switch_result
+    hazard_snapshot_topic: /hazard/snapshot
+    planned_path_topic: /planned_path
+    status_topic: /exit_switching/status
+    exit_evaluation_service: /evaluate_exits
+    evaluation_service_timeout_s: 10.0
+    status_rate_hz: 2.0
+    # Matches factory_v5/config/evacuation.yaml's actually-deployed
+    # exit_switching values. minimum_consecutive_increases/
+    # minimum_increase_ratio/minimum_absolute_increase are deliberately NOT
+    # exposed here: RouteTemperatureTrendMonitor (the monitor actually wired
+    # into the simulation's main loop) never reads them -- only
+    # evaluation_window and danger_expected_min_temperature_c matter.
+    evaluation_window: 6
+    danger_expected_min_temperature_c: 40.0
+    minimum_direction_difference_deg: 90.0
+    switch_cooldown_sec: 10.0
+    additional_travel_before_switch_m: 1.0
+    # Peek-ranking selection rule -- matches evacuation_manager_node's own
+    # defaults so a soft-switch "is the replacement really better" comparison
+    # ranks candidates the same way the real activation will.
+    prefer_confirmed_usable_exit: true
+    fallback_to_shortest_reachable_exit: true
+    primary_key: path_length_m
+    secondary_key: accumulated_risk_cost
+    final_tie_breaker: exit_id
+    float_tolerance: 1.0e-6
 
 skid_path_follower:
   ros__parameters:
@@ -38,7 +212,9 @@ skid_path_follower:
     lookahead_distance: 0.35
     goal_tolerance: 0.12
     yaw_tolerance: 0.25
+    align_goal_yaw: false
     rotate_in_place_threshold: 0.45
+    rotate_exit_threshold: 0.20
     max_linear_speed: 0.06
     max_angular_speed: 0.45
     k_linear: 0.5
@@ -46,10 +222,93 @@ skid_path_follower:
     emergency_stop_distance: 0.28
     emergency_front_angle_deg: 35.0
     control_rate_hz: 10.0
+    # Stage 6: replan_supervisor_node stops the robot through this topic while it
+    # invalidates/re-requests/revalidates the active path. Unused (stays false)
+    # when replan_supervisor_node is disabled or not launched.
+    replan_hold_topic: /replanning/hold
+
+replan_supervisor_node:
+  ros__parameters:
+    enabled: false
+    map_frame: map
+    base_frame: base_link
+    hazard_snapshot_topic: /hazard/snapshot
+    planned_path_topic: /planned_path
+    waypoint_path_topic: /waypoint_path
+    astar_path_topic: /astar_path
+    planner_state_topic: /planner_state
+    evacuation_plan_topic: /evacuation/plan
+    goal_topic: /goal_pose
+    hold_topic: /replanning/hold
+    status_topic: /replanning/status
+    status_rate_hz: 2.0
+    # temperature_block_c/co_block_ppm are intentionally NOT configured here: they
+    # are read from the live /hazard/snapshot metadata every cycle so the 60 C /
+    # 1600 ppm hard-block thresholds stay single-sourced from
+    # inno_hazard/config/hazard_params.yaml. Only the Stage 6-only hysteresis
+    # release thresholds (which do not exist anywhere in Stage 3) are set here,
+    # matching factory_v5/config/evacuation.yaml's replanning.hysteresis block.
+    periodic_enabled: true
+    periodic_interval_s: 5.0
+    periodic_travel_distance_m: 2.0
+    temperature_release_c: 55.0
+    co_release_ppm: 1400.0
+    release_confirmation_observations: 3
+    minimum_replan_interval_s: 0.2
+    ignore_same_reason_same_revision: true
+    max_replan_attempts: 5
+    cooldown_seconds: 0.5
+    replan_timeout_s: 3.0
+    waypoint_planning_enabled: false
+    waypoint_request_topic: /replanning/waypoint_request
+    waypoint_result_topic: /replanning/waypoint_result
+    astar_request_topic: /replanning/astar_request
+    astar_result_topic: /replanning/astar_result
+    selector_mode_topic: /path_selector/mode
 
 mission_commander:
   ros__parameters:
-    semantic_yaml: /home/gosunwoo/fire_robot_rpi/inno_jazzy_ws/src/inno_autonav/config/semantic_points.yaml
     map_frame: map
     base_frame: base_link
     use_source_if_no_tf: false
+
+waypoint_planner_node:
+  ros__parameters:
+    enabled: false
+    map_frame: map
+    base_frame: base_link
+    waypoint_file: ''  # Supplied by the launch waypoint_file argument.
+    planning_grid_topic: /planning_grid
+    evacuation_plan_topic: /evacuation/plan
+    direct_goal_topic: /goal_pose
+    accept_direct_goal: false
+    waypoint_path_topic: /waypoint_path
+    replan_request_topic: /replanning/waypoint_request
+    replan_result_topic: /replanning/waypoint_result
+    # Same proven neighbor radius as ReferenceWaypointGraphConfig for these
+    # same 1 m-spaced waypoints (Stage 8-5 report).
+    neighbor_radius_m: 1.5
+    waypoint_cost_radius_m: 0.8
+    unknown_is_occupied: true
+    # Same simplification convention as astar_replanner (Stage 8-6): no risk
+    # increase at all is tolerated when shortcutting.
+    thermal_cost_weight: 24.0
+    thermal_cost_power: 1.5
+    fixed_co_ppm: 0.0
+    co_safe_ppm: 0.0
+    co_blocked_ppm: 1600.0
+    co_cost_weight: 8.0
+    co_cost_power: 2.0
+    simplification_maximum_risk_ratio: 1.0
+    simplification_risk_absolute_tolerance: 0.0
+
+path_selector_node:
+  ros__parameters:
+    # Stage 8-9/10: reset to WAYPOINT for each canonical exit; switch to A_STAR
+    # only after an identity-matched fallback path succeeds.
+    mode: WAYPOINT
+    waypoint_path_topic: /waypoint_path
+    astar_path_topic: /astar_path
+    planned_path_topic: /planned_path
+    mode_topic: /path_selector/mode
+    evacuation_plan_topic: /evacuation/plan

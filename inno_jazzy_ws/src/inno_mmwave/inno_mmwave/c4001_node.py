@@ -21,6 +21,11 @@ from .c4001_protocol import (
     C4001StreamParser,
     encode_command,
 )
+from .human_detection import (
+    HumanDetection,
+    HumanDetectionConfig,
+    HumanPresenceDetector,
+)
 from .signal_filter import (
     NO_TARGET,
     FilteredTarget,
@@ -165,9 +170,16 @@ class C4001Node(Node):
             'configure_on_start': True,
             'send_start_on_connect': True,
             'micro_motion_enabled': True,
-            'min_range_m': 1.2,
-            'max_range_m': 12.0,
-            'detection_threshold': 10,
+            'min_range_m': 0.6,
+            'max_range_m': 6.0,
+            'detection_threshold': 20,
+            'calibration_scale': 1.0,
+            'calibration_offset_m': -0.1,
+            'human_range_min_m': 0.6,
+            'human_range_max_m': 6.0,
+            'human_energy_threshold': 3000,
+            'human_confirm_frames': 3,
+            'human_clear_frames': 6,
             'sensor_warmup_sec': 1.0,
             'command_interval_sec': 0.15,
             'stop_settle_sec': 1.0,
@@ -208,6 +220,30 @@ class C4001Node(Node):
         self.detection_threshold = int(
             self.get_parameter('detection_threshold').value
         )
+        self.human_detection_config = HumanDetectionConfig(
+            calibration_scale=float(
+                self.get_parameter('calibration_scale').value
+            ),
+            calibration_offset_m=float(
+                self.get_parameter('calibration_offset_m').value
+            ),
+            range_min_m=float(
+                self.get_parameter('human_range_min_m').value
+            ),
+            range_max_m=float(
+                self.get_parameter('human_range_max_m').value
+            ),
+            energy_threshold=int(
+                self.get_parameter('human_energy_threshold').value
+            ),
+            confirm_frames=int(
+                self.get_parameter('human_confirm_frames').value
+            ),
+            clear_frames=int(
+                self.get_parameter('human_clear_frames').value
+            ),
+        )
+        self.human_detection_config.validate()
         self.sensor_warmup_sec = float(
             self.get_parameter('sensor_warmup_sec').value
         )
@@ -288,6 +324,12 @@ class C4001Node(Node):
         self.filtered_speed_publisher = self.create_publisher(
             Float32, '/mmwave/filtered_speed_mps', latched_qos
         )
+        self.calibrated_distance_publisher = self.create_publisher(
+            Float32, '/mmwave/calibrated_distance_m', latched_qos
+        )
+        self.human_presence_publisher = self.create_publisher(
+            Bool, '/mmwave/human_presence', latched_qos
+        )
         self.motion_activity_publisher = self.create_publisher(
             Float32, '/mmwave/motion_activity', latched_qos
         )
@@ -318,6 +360,9 @@ class C4001Node(Node):
         self._pipeline = C4001TelemetryPipeline(
             self.filter_config, initial_now
         )
+        self._human_detector = HumanPresenceDetector(
+            self.human_detection_config
+        )
         self._last_publish_monotonic = 0.0
         self._last_frame_monotonic: Optional[float] = None
         self._data_wait_started: Optional[float] = None
@@ -331,6 +376,7 @@ class C4001Node(Node):
 
         self._publish_sensor_state()
         self._publish_filtered_telemetry(self._pipeline.latest_filtered)
+        self._publish_human_detection(self._human_detector.reset())
         self.create_timer(1.0 / self.poll_rate_hz, self._poll)
 
     def _validate_parameters(self) -> None:
@@ -401,9 +447,22 @@ class C4001Node(Node):
         self.presence_publisher.publish(Bool(data=present))
         self._last_publish_monotonic = time.monotonic()
 
+    def _publish_human_detection(self, result: HumanDetection) -> None:
+        # Distance precedes presence so edge-triggered consumers receive a
+        # matching sample. Zero means no valid current target; consumers must
+        # always gate distance on human_presence.
+        distance_m = result.calibrated_distance_m
+        self.calibrated_distance_publisher.publish(
+            Float32(data=0.0 if distance_m is None else float(distance_m))
+        )
+        self.human_presence_publisher.publish(
+            Bool(data=bool(result.presence))
+        )
+
     def _reset_filter_and_publish(self, now: float, reason: str) -> None:
         publication = self._pipeline.reset(now, reason)
         self._publish_filtered_telemetry(publication.filtered)
+        self._publish_human_detection(self._human_detector.reset())
 
     def _open_serial(self, now: float) -> None:
         self._set_sensor_state('CONNECTING')
@@ -513,9 +572,11 @@ class C4001Node(Node):
         self._last_frame_monotonic = now
         self._set_sensor_state('ONLINE')
         publication = self._pipeline.handle_measurement(measurement, now)
+        human_detection = self._human_detector.update(measurement)
         assert publication.raw is not None
         self._publish_raw_telemetry(publication.raw)
         self._publish_filtered_telemetry(publication.filtered)
+        self._publish_human_detection(human_detection)
 
     def _update_health(self, now: float) -> None:
         if not self._initialization_complete:

@@ -16,11 +16,12 @@ from .map_utils import (
     load_zones,
     map_to_pixel,
 )
+from .project_paths import project_path
 
 
-DEFAULT_MAP = '/home/gosunwoo/fire_robot_rpi/maps/inno_map_raw.yaml'
-DEFAULT_ZONES = '/home/gosunwoo/fire_robot_rpi/maps/no_go_zones.yaml'
-DEFAULT_OUT_DIR = '/home/gosunwoo/fire_robot_rpi/maps'
+DEFAULT_MAP = project_path('maps', 'inno_map_raw.yaml')
+DEFAULT_ZONES = project_path('maps', 'no_go_zones.yaml')
+DEFAULT_OUT_DIR = project_path('maps')
 
 
 def argument_parser() -> argparse.ArgumentParser:

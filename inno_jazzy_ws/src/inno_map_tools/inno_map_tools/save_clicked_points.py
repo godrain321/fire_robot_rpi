@@ -8,9 +8,10 @@ import rclpy
 from rclpy.node import Node
 
 from .map_utils import MapToolsError, atomic_save_yaml, load_yaml
+from .project_paths import project_path
 
 
-DEFAULT_OUTPUT = '/home/gosunwoo/fire_robot_rpi/maps/clicked_points_debug.yaml'
+DEFAULT_OUTPUT = project_path('maps', 'clicked_points_debug.yaml')
 
 
 class ClickedPointRecorder(Node):

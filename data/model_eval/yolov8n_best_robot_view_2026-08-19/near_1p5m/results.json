@@ -1,0 +1,78 @@
+{
+  "model": "models/yolov8n_best.onnx",
+  "selection": "Approximate 1.5 m close-person view by apparent subject size",
+  "warning": "Actual camera-to-person distances are not available in source metadata.",
+  "input_size": 640,
+  "confidence_threshold": 0.5,
+  "images": [
+    {
+      "image": "01_alley_back_view.jpg",
+      "detection_count": 0,
+      "inference_ms_development_pc": 52.3,
+      "detections": []
+    },
+    {
+      "image": "02_low_angle_walking.jpg",
+      "detection_count": 0,
+      "inference_ms_development_pc": 48.8,
+      "detections": []
+    },
+    {
+      "image": "03_crosswalk_walking.jpg",
+      "detection_count": 1,
+      "inference_ms_development_pc": 45.6,
+      "detections": [
+        {
+          "confidence": 0.9017,
+          "bbox_xyxy": [
+            570,
+            423,
+            735,
+            789
+          ],
+          "bbox_height_ratio": 0.3816
+        }
+      ]
+    },
+    {
+      "image": "04_extreme_low_angle.jpg",
+      "detection_count": 0,
+      "inference_ms_development_pc": 47.3,
+      "detections": []
+    },
+    {
+      "image": "05_dark_masked_walking.jpg",
+      "detection_count": 1,
+      "inference_ms_development_pc": 46.5,
+      "detections": [
+        {
+          "confidence": 0.8957,
+          "bbox_xyxy": [
+            401,
+            667,
+            809,
+            1677
+          ],
+          "bbox_height_ratio": 0.526
+        }
+      ]
+    },
+    {
+      "image": "06_side_view_walking.jpg",
+      "detection_count": 1,
+      "inference_ms_development_pc": 47.4,
+      "detections": [
+        {
+          "confidence": 0.8684,
+          "bbox_xyxy": [
+            504,
+            654,
+            762,
+            1183
+          ],
+          "bbox_height_ratio": 0.4079
+        }
+      ]
+    }
+  ]
+}

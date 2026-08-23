@@ -1,4 +1,4 @@
-"""Launch camera_ros and the ROS 2 monocular calibration GUI."""
+"""Launch camera_ros and fixed-model monocular calibration GUI."""
 
 from pathlib import Path
 
@@ -6,7 +6,6 @@ from fire_robot_camera_calibration.launch_helpers import camera_ros_node
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -52,22 +51,27 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'camera_name',
-            default_value='imx708_wide__base_axi_pcie_120000_rp1_i2c_80000_imx708_1a_1280x720',
+            default_value='imx708_wide_1280x720',
         ),
         DeclareLaunchArgument(
-            'use_fisheye_flags',
-            default_value='true',
+            'camera_model',
+            default_value='fisheye',
             description=(
-                'Adds stable fisheye optimizer flags. Select fisheye with '
-                'the GUI camera-type slider.'
+                'Locked calibration model: fisheye for IMX708 Wide, or '
+                'pinhole for a standard field-of-view lens.'
             ),
+        ),
+        DeclareLaunchArgument(
+            'max_chessboard_speed',
+            default_value='2.0',
+            description='Reject checkerboard samples moving faster (px/frame)',
         ),
     ]
 
     calibrator = Node(
-        package='camera_calibration',
-        executable='cameracalibrator',
-        name='cameracalibrator',
+        package='fire_robot_camera_calibration',
+        executable='fixed_model_cameracalibrator',
+        name='fixed_model_cameracalibrator',
         output='screen',
         additional_env={
             'LIBGL_ALWAYS_SOFTWARE': '1',
@@ -78,9 +82,12 @@ def generate_launch_description():
             LaunchConfiguration('board_size'),
             '--square',
             LaunchConfiguration('square_size'),
-            '--camera_name',
+            '--camera-name',
             LaunchConfiguration('camera_name'),
-            '--no-service-check',
+            '--camera-model',
+            LaunchConfiguration('camera_model'),
+            '--max-chessboard-speed',
+            LaunchConfiguration('max_chessboard_speed'),
         ],
         remappings=[
             ('image', LaunchConfiguration('image_topic')),
@@ -89,41 +96,5 @@ def generate_launch_description():
                 LaunchConfiguration('camera_service_namespace'),
             ),
         ],
-        condition=UnlessCondition(
-            LaunchConfiguration('use_fisheye_flags')
-        ),
     )
-    fisheye_hint = Node(
-        package='camera_calibration',
-        executable='cameracalibrator',
-        name='cameracalibrator_fisheye',
-        output='screen',
-        additional_env={
-            'LIBGL_ALWAYS_SOFTWARE': '1',
-            'GALLIUM_DRIVER': 'llvmpipe',
-        },
-        arguments=[
-            '--size',
-            LaunchConfiguration('board_size'),
-            '--square',
-            LaunchConfiguration('square_size'),
-            '--camera_name',
-            LaunchConfiguration('camera_name'),
-            '--no-service-check',
-            '--fisheye-recompute-extrinsicsts',
-            '--fisheye-fix-skew',
-        ],
-        remappings=[
-            ('image', LaunchConfiguration('image_topic')),
-            (
-                'camera',
-                LaunchConfiguration('camera_service_namespace'),
-            ),
-        ],
-        condition=IfCondition(
-            LaunchConfiguration('use_fisheye_flags')
-        ),
-    )
-    return LaunchDescription(
-        arguments + [camera_ros_node(), calibrator, fisheye_hint]
-    )
+    return LaunchDescription(arguments + [camera_ros_node(), calibrator])

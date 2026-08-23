@@ -1,4 +1,4 @@
-"""Guided checkerboard image capture for offline fisheye calibration."""
+"""Guided raw-image capture for offline Rational Polynomial calibration."""
 
 import csv
 import math
@@ -121,29 +121,51 @@ class GuidedCaptureNode(Node):
 
     def _detect_corners(self, gray):
         flags = (
-            cv2.CALIB_CB_ADAPTIVE_THRESH
-            | cv2.CALIB_CB_NORMALIZE_IMAGE
-            | cv2.CALIB_CB_FAST_CHECK
+            cv2.CALIB_CB_NORMALIZE_IMAGE
+            | cv2.CALIB_CB_EXHAUSTIVE
+            | cv2.CALIB_CB_ACCURACY
         )
-        found, corners = cv2.findChessboardCorners(
-            gray,
-            self.pattern_size,
-            flags,
-        )
-        if not found:
+        try:
+            found, corners = cv2.findChessboardCornersSB(
+                gray,
+                self.pattern_size,
+                flags=flags,
+            )
+        except cv2.error as error:
+            self.get_logger().warning(
+                f'Checkerboard SB detection failed: {error}'
+            )
+            return None
+        if not found or corners is None:
             return None
 
-        criteria = (
-            cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
-            30,
-            1e-3,
+        normalized = np.asarray(corners, dtype=np.float32)
+        if normalized.ndim == 2 and normalized.shape[1:] == (2,):
+            normalized = normalized.reshape(-1, 1, 2)
+        if normalized.ndim != 3 or normalized.shape[1:] != (1, 2):
+            return None
+
+        expected_count = self.board_cols * self.board_rows
+        if normalized.shape[0] != expected_count:
+            return None
+
+        points = normalized.reshape(-1, 2)
+        if not bool(np.all(np.isfinite(points))):
+            return None
+
+        height, width = gray.shape[:2]
+        inside = (
+            (points[:, 0] >= 0.0)
+            & (points[:, 0] < float(width))
+            & (points[:, 1] >= 0.0)
+            & (points[:, 1] < float(height))
         )
-        return cv2.cornerSubPix(
-            gray,
-            corners,
-            winSize=(11, 11),
-            zeroZone=(-1, -1),
-            criteria=criteria,
+        if not bool(np.all(inside)):
+            return None
+
+        return np.ascontiguousarray(
+            normalized,
+            dtype=np.float32,
         )
 
     def _statistics(self, gray, corners):

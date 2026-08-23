@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -o pipefail
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+workspace="${INNO_WS:-$(cd -- "$script_dir/.." && pwd)}"
+project_root="${FIRE_ROBOT_RPI_ROOT:-$(cd -- "$workspace/.." && pwd)}"
 # shellcheck source=/dev/null
 source /opt/ros/jazzy/setup.bash
 # shellcheck source=/dev/null
-source "${INNO_WS:-$HOME/inno_jazzy_ws}/install/setup.bash"
+source "$workspace/install/setup.bash"
 set -u
 echo '=== Topics ==='
 for t in /scan /map /odom_rf2o /rf2o_path; do
@@ -16,4 +19,4 @@ echo '=== Map ==='
 timeout 5 ros2 topic echo /map --once --field info 2>/dev/null || true
 echo '=== TF broadcasters (inspect duplicates) ==='
 ros2 topic info /tf -v 2>/dev/null || true; ros2 topic info /tf_static -v 2>/dev/null || true
-echo "Maps: ${INNO_WS:-$HOME/inno_jazzy_ws}/maps"; ls -l "${INNO_WS:-$HOME/inno_jazzy_ws}/maps" 2>/dev/null || true
+echo "Maps: $project_root/maps"; ls -l "$project_root/maps" 2>/dev/null || true

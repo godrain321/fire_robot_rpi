@@ -6,13 +6,14 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 from .grid_utils import GridError, load_pgm_as_occupancy, quaternion_from_yaw
+from .project_paths import project_path
 
 
 class PlanningGridPublisher(Node):
     def __init__(self) -> None:
         super().__init__('planning_grid_publisher')
         self.declare_parameter(
-            'map_yaml', '/home/gosunwoo/fire_robot_rpi/maps/inno_map_nav.yaml'
+            'map_yaml', project_path('maps', 'inno_map_nav.yaml')
         )
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('publish_rate_hz', 1.0)

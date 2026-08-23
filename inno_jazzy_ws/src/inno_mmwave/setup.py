@@ -31,6 +31,7 @@ setup(
             'c4001_node = inno_mmwave.c4001_node:main',
             'mmwave_mobility = inno_mmwave.mobility_node:main',
             'mmwave_gui = inno_mmwave.mmwave_gui:main',
+            'mmwave_tuning_gui = inno_mmwave.mmwave_tuning_gui:main',
             'mmwave_status_console = inno_mmwave.status_console:main',
         ],
     },

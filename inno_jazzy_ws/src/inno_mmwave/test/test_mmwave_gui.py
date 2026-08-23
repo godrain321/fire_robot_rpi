@@ -168,8 +168,8 @@ def test_display_helpers() -> None:
 
 
 def test_gui_uses_filtered_target_topics_and_motion_activity_topic() -> None:
-    assert FILTERED_PRESENCE_TOPIC == "/mmwave/filtered_presence"
-    assert FILTERED_DISTANCE_TOPIC == "/mmwave/filtered_distance_m"
+    assert FILTERED_PRESENCE_TOPIC == "/mmwave/human_presence"
+    assert FILTERED_DISTANCE_TOPIC == "/mmwave/calibrated_distance_m"
     assert FILTERED_SPEED_TOPIC == "/mmwave/filtered_speed_mps"
     assert RAW_ENERGY_TOPIC == "/mmwave/raw/energy_raw"
     assert MOTION_ACTIVITY_TOPIC == "/mmwave/motion_activity"

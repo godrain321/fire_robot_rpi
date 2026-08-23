@@ -1,9 +1,10 @@
 # Fire Robot Camera Calibration
 
 Ubuntu 24.04 + ROS 2 Jazzy에서 Raspberry Pi 카메라의 내부 파라미터와
-2D LiDAR↔카메라 외부 변환을 구하기 위한 패키지다. 국민대 차량에서 사용한
-어안 보정 및 LaserScan 오버레이 흐름을 `camera_ros`와 표준 ROS 토픽에 맞게
-이식했다.
+2D LiDAR↔카메라 외부 변환을 구하기 위한 패키지다. 현재 Raspberry Pi Camera
+Module 3 Wide 내부 캘리브레이션의 배포 기준은 저장소 루트의 캡처 스크립트와
+오프라인 OpenCV Rational Polynomial 8계수 캘리브레이터다. 국민대 차량에서
+사용한 어안 보정 및 LaserScan 오버레이 흐름도 레거시 호환용으로 남아 있다.
 
 ## 좌표계와 토픽 기본값
 
@@ -34,14 +35,58 @@ sudo apt install ros-jazzy-camera-ros ros-jazzy-camera-calibration \
   ros-jazzy-cv-bridge python3-opencv python3-numpy python3-yaml
 ```
 
-새 Raspberry Pi 카메라 모듈이 Ubuntu 기본 `libcamera`에서 보이지 않으면
-`camera_ros` 공식 안내에 따라 Raspberry Pi fork의 `libcamera`를 소스 빌드해야
-한다. 먼저 `ros2 run camera_ros camera_node`에서 카메라가 잡히는지 확인한다.
+Raspberry Pi 5용 호환 libcamera 런타임은 저장소 루트에서
+`./build_rpi_camera_runtime.sh`로 최초 한 번 준비한다. 현재 캡처 명령은 이 저장소
+로컬 런타임을 사용하며, Ubuntu 기본 libcamera만으로 대체하지 않는다. 위의
+`colcon build`로 만드는 ROS 워크스페이스와 카메라 런타임은 서로 별도다.
 
 GUI는 로컬 데스크톱 또는 X11 전달이 필요하다. SSH라면 `ssh -X`로 접속하고
 `echo $DISPLAY`가 비어 있지 않은지 확인한다.
 
-## 1. 내부 캘리브레이션 — ROS GUI 방식
+## 1. 내부 캘리브레이션 — 현재 Rational 8계수 경로
+
+저장소 루트에서 최초 한 번 런타임을 빌드하고, 원본 체커보드 사진을 캡처한 뒤,
+오프라인 캘리브레이터를 실행한다.
+
+```bash
+cd ~/fire_robot_rpi
+./build_rpi_camera_runtime.sh
+./capture_intrinsic_images.sh
+./calibrate_camera.sh
+```
+
+`capture_intrinsic_images.sh`는 IMX708 센서 바인딩과 `rp1-cfe` media 장치를 먼저
+검사하고, `/camera/image_raw`에서 실제 ROS 프레임 한 장이 수신되어야 캡처를
+계속한다. 기본 출력은 저장소의 `data/intrinsic/calib_NNN.png`이며 원본,
+비보정 PNG만 저장한다. 중단 지점부터 연속 번호로 이어가려면 다음을 사용한다.
+
+```bash
+./capture_intrinsic_images.sh --resume
+```
+
+GUI 없는 SSH/헤드리스 환경에서 자동 저장을 유지하려면 다음처럼 실행한다.
+
+```bash
+./capture_intrinsic_images.sh --resume --no-preview
+```
+
+새 촬영이면 `--resume`을 빼고 `--no-preview`만 지정한다. 기본 캡처는 1280×720이며
+다른 해상도는 `--width`, `--height`로 지정할 수 있다. 캡처 해상도와 sensor mode는
+실제 배포 시 카메라 설정과 반드시 같아야 한다.
+
+`calibrate_camera.sh`는 기본 입력 `data/intrinsic/*.png`로 OpenCV
+`CALIB_RATIONAL_MODEL`만 계산한다. 왜곡계수는
+`[k1, k2, p1, p2, k3, k4, k5, k6]` 8개로 고정되며 fisheye 등 다른 모델을
+비교하거나 자동 선택하지 않는다. 상세 촬영·검증 기준은 저장소 루트의
+`docs/checkerboard_rational_calibration.md`를 참고한다.
+
+## 레거시 내부 캘리브레이션 — 요청된 파이프라인 아님
+
+아래 ROS GUI 및 fisheye 도구는 기존 데이터와의 호환·참고용이다. 둘 다 위의
+**Camera Module 3 Wide Rational 8계수 배포 경로가 아니므로 새 내부 캘리브레이션에
+사용하지 않는다.**
+
+### ROS GUI 방식(레거시)
 
 결과 디렉터리를 만든 뒤 실제 체커보드의 **내부 코너 수**와 한 칸 길이(m)를
 지정한다. 아래 기본값은 기존 국민대 보드(8x9, 0.07 m)에 맞춰져 있다.
@@ -74,7 +119,7 @@ ros2 launch fire_robot_camera_calibration intrinsic_calibration.launch.py \
   camera_service_namespace:=/my_camera
 ```
 
-## 1-대안. 기존 국민대식 어안 이미지 수집 + 오프라인 계산
+### 기존 국민대식 어안 이미지 수집 + 오프라인 계산(레거시)
 
 ```bash
 ros2 launch fire_robot_camera_calibration intrinsic_capture.launch.py \

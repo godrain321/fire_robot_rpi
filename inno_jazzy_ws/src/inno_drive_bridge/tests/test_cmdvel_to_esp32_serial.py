@@ -1,5 +1,4 @@
 import sys
-import types
 import unittest
 from pathlib import Path
 
@@ -37,6 +36,16 @@ class CmdVelToEsp32SerialParserTest(unittest.TestCase):
 
         self.assertEqual(node.logger.warnings, [])
         self.assertEqual(node.ticks_publisher.messages, [])
+
+    def test_motor_targets_are_published_separately(self):
+        node = CmdVelToEsp32Serial.__new__(CmdVelToEsp32Serial)
+        node.left_motor_publisher = DummyPublisher()
+        node.right_motor_publisher = DummyPublisher()
+
+        node._publish_motor_targets(-123, 456)
+
+        self.assertEqual(node.left_motor_publisher.messages[-1].data, -123)
+        self.assertEqual(node.right_motor_publisher.messages[-1].data, 456)
 
 
 if __name__ == '__main__':

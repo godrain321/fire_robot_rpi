@@ -6,7 +6,7 @@ import rclpy
 import serial
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from std_msgs.msg import Int64MultiArray, String
+from std_msgs.msg import Int32, Int64MultiArray, String
 
 
 class CmdVelToEsp32Serial(Node):
@@ -24,10 +24,7 @@ class CmdVelToEsp32Serial(Node):
             'left_sign': 1,
             'right_sign': 1,
             'cmd_timeout_sec': 0.5,
-            # ESP32는 시리얼 포트를 열 때 자동 재부팅될 수 있으므로
-            # 부팅이 끝난 뒤 ZERO 명령을 보낸다.
-            'serial_startup_delay_sec': 2.0,
-            'zero_encoders_on_start': True,
+            'repeat_error_interval_sec': 30.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -35,25 +32,34 @@ class CmdVelToEsp32Serial(Node):
         self.serial_port = str(self.get_parameter('serial_port').value)
         self.baudrate = int(self.get_parameter('baudrate').value)
         self.wheel_radius = float(self.get_parameter('wheel_radius').value)
-        self.wheel_separation = float(self.get_parameter('wheel_separation').value)
-        self.full_steps = int(self.get_parameter('motor_full_steps_per_rev').value)
+        self.wheel_separation = float(
+            self.get_parameter('wheel_separation').value
+        )
+        self.full_steps = int(
+            self.get_parameter('motor_full_steps_per_rev').value
+        )
         self.microsteps = int(self.get_parameter('microsteps').value)
         self.gear_ratio = float(self.get_parameter('gear_ratio').value)
         self.max_sps = int(self.get_parameter('max_steps_per_sec').value)
         self.left_sign = int(self.get_parameter('left_sign').value)
         self.right_sign = int(self.get_parameter('right_sign').value)
         self.cmd_timeout = float(self.get_parameter('cmd_timeout_sec').value)
-        self.serial_startup_delay = float(
-            self.get_parameter('serial_startup_delay_sec').value
-        )
-        self.zero_encoders_on_start = bool(
-            self.get_parameter('zero_encoders_on_start').value
+        self.repeat_error_interval = float(
+            self.get_parameter('repeat_error_interval_sec').value
         )
         self._validate_parameters()
 
-        self.status_publisher = self.create_publisher(String, '/esp32/status', 10)
+        self.status_publisher = self.create_publisher(
+            String, '/esp32/status', 10
+        )
         self.ticks_publisher = self.create_publisher(
             Int64MultiArray, '/wheel_ticks', 10
+        )
+        self.left_motor_publisher = self.create_publisher(
+            Int32, '/motor/left_steps_per_sec', 10
+        )
+        self.right_motor_publisher = self.create_publisher(
+            Int32, '/motor/right_steps_per_sec', 10
         )
         self.create_subscription(Twist, '/cmd_vel', self._cmd_vel_callback, 10)
 
@@ -62,6 +68,8 @@ class CmdVelToEsp32Serial(Node):
         self._seq = 0
         self._last_cmd_time = time.monotonic()
         self._timed_out = False
+        self._last_error_line = None
+        self._last_error_time = float("-inf")
 
         try:
             self.serial = serial.Serial(
@@ -73,43 +81,42 @@ class CmdVelToEsp32Serial(Node):
         except (serial.SerialException, OSError) as error:
             raise RuntimeError(
                 f'Cannot open ESP32 serial port {self.serial_port} at '
-                f'{self.baudrate} baud: {error}. Check the device path and dialout permission.'
+                f'{self.baudrate} baud: {error}. Check the device path and '
+                'dialout permission.'
             ) from error
 
-        # 포트를 열면 ESP32가 자동 재부팅될 수 있다.
-        # 부팅 전에 보낸 명령은 사라질 수 있으므로 잠시 기다린다.
-        if self.serial_startup_delay > 0.0:
-            time.sleep(self.serial_startup_delay)
-
-        try:
-            self.serial.reset_input_buffer()
-        except (serial.SerialException, OSError):
-            pass
-
         self._send('STOP')
-        if self.zero_encoders_on_start:
-            self._send('ZERO')
-            self.get_logger().info(
-                'Encoder distance reset at launch start'
-            )
-
+        self._publish_motor_targets(0, 0)
         self.create_timer(0.01, self._poll_serial)
         self.create_timer(0.05, self._watchdog)
         self.get_logger().info(
-            f'ESP32 serial connected: {self.serial_port} @ {self.baudrate} baud'
+            f'ESP32 serial connected: {self.serial_port} @ '
+            f'{self.baudrate} baud'
         )
 
     def _validate_parameters(self):
         if self.baudrate <= 0:
             raise ValueError('baudrate must be greater than zero')
         if self.wheel_radius <= 0.0 or self.wheel_separation <= 0.0:
-            raise ValueError('wheel_radius and wheel_separation must be greater than zero')
-        if self.full_steps <= 0 or self.microsteps <= 0 or self.gear_ratio <= 0.0:
-            raise ValueError('motor step parameters and gear_ratio must be greater than zero')
-        if self.max_sps <= 0 or self.cmd_timeout <= 0.0:
-            raise ValueError('max_steps_per_sec and cmd_timeout_sec must be greater than zero')
-        if self.serial_startup_delay < 0.0:
-            raise ValueError('serial_startup_delay_sec must be zero or greater')
+            raise ValueError(
+                'wheel_radius and wheel_separation must be greater than zero'
+            )
+        if (
+            self.full_steps <= 0 or self.microsteps <= 0
+            or self.gear_ratio <= 0.0
+        ):
+            raise ValueError(
+                'motor step parameters and gear_ratio must be greater '
+                'than zero'
+            )
+        if (
+            self.max_sps <= 0 or self.cmd_timeout <= 0.0
+            or self.repeat_error_interval <= 0.0
+        ):
+            raise ValueError(
+                'max_steps_per_sec, cmd_timeout_sec, and '
+                'repeat_error_interval_sec must be greater than zero'
+            )
         if self.left_sign not in (-1, 1) or self.right_sign not in (-1, 1):
             raise ValueError('left_sign and right_sign must be either -1 or 1')
 
@@ -122,7 +129,10 @@ class CmdVelToEsp32Serial(Node):
         right_mps = linear + angular * self.wheel_separation * 0.5
 
         left_sps = self._meters_per_second_to_steps(left_mps, self.left_sign)
-        right_sps = self._meters_per_second_to_steps(right_mps, self.right_sign)
+        right_sps = self._meters_per_second_to_steps(
+            right_mps, self.right_sign
+        )
+        self._publish_motor_targets(left_sps, right_sps)
         if left_sps == 0 and right_sps == 0:
             self._send('STOP')
         else:
@@ -130,8 +140,16 @@ class CmdVelToEsp32Serial(Node):
 
     def _meters_per_second_to_steps(self, speed, direction_sign):
         steps_per_rev = self.full_steps * self.microsteps * self.gear_ratio
-        steps = round(speed * steps_per_rev / (2.0 * math.pi * self.wheel_radius))
+        steps = round(
+            speed * steps_per_rev / (2.0 * math.pi * self.wheel_radius)
+        )
         return max(-self.max_sps, min(self.max_sps, steps * direction_sign))
+
+    def _publish_motor_targets(self, left_sps, right_sps):
+        """Mirror clamped UART motor targets onto separate ROS topics."""
+
+        self.left_motor_publisher.publish(Int32(data=int(left_sps)))
+        self.right_motor_publisher.publish(Int32(data=int(right_sps)))
 
     def _next_seq(self):
         self._seq = (self._seq + 1) % 2147483647
@@ -141,20 +159,29 @@ class CmdVelToEsp32Serial(Node):
         if not hasattr(self, 'serial') or not self.serial.is_open:
             return
         seq = self._next_seq()
-        line = ','.join([command, str(seq), *(str(field) for field in fields)]) + '\n'
+        line = ','.join(
+            [command, str(seq), *(str(field) for field in fields)]
+        ) + '\n'
         try:
             with self._serial_lock:
                 self.serial.write(line.encode('ascii'))
-        except (serial.SerialException, serial.SerialTimeoutException, OSError) as error:
+        except (
+            serial.SerialException, serial.SerialTimeoutException, OSError
+        ) as error:
             self.get_logger().error(f'Serial write failed: {error}')
             self._publish_status(f'ERR,serial_write,{error}')
 
     def _watchdog(self):
-        if not self._timed_out and time.monotonic() - self._last_cmd_time > self.cmd_timeout:
+        if (
+            not self._timed_out
+            and time.monotonic() - self._last_cmd_time > self.cmd_timeout
+        ):
             self._timed_out = True
             self._send('STOP')
+            self._publish_motor_targets(0, 0)
             self.get_logger().warning(
-                f'/cmd_vel timeout ({self.cmd_timeout:.3f} s): STOP sent to ESP32'
+                f'/cmd_vel timeout ({self.cmd_timeout:.3f} s): '
+                'STOP sent to ESP32'
             )
 
     def _poll_serial(self):
@@ -192,21 +219,35 @@ class CmdVelToEsp32Serial(Node):
             self.ticks_publisher.publish(message)
             return
 
-        if message_type == 'ENC_ABS' and len(fields) >= 5:
-            # Single AS5048A format:
-            # ENC_ABS,<ms>,<angle_deg>,<turns>,<distance_m>
+        if message_type == 'ENC_ABS' and len(fields) >= 8:
+            # Accept the absolute-encoder format without noisy console output.
             self._publish_status(line)
             return
 
-        if message_type in ('ACK', 'STAT', 'ERR'):
+        if message_type == 'ERR':
+            now = time.monotonic()
+            error_key = ','.join(fields[:2]) if len(fields) >= 2 else line
+            if (
+                error_key == self._last_error_line
+                and now - self._last_error_time < self.repeat_error_interval
+            ):
+                return
+            self._last_error_line = error_key
+            self._last_error_time = now
             self._publish_status(line)
-            if message_type == 'ERR':
-                self.get_logger().error(f'ESP32: {line}')
+            self.get_logger().error(f'ESP32: {line}')
             return
 
-        # Some firmware versions emit a fragmented/garbled line when the serial link is busy.
+        if message_type in ('ACK', 'STAT'):
+            self._publish_status(line)
+            return
+
+        # Some firmware versions emit a fragmented line when serial is busy.
         # Ignore those rather than spamming warnings.
-        if line.startswith('ACK,') or line.startswith('STAT,') or line.startswith('ERR,'):
+        if (
+            line.startswith('ACK,') or line.startswith('STAT,')
+            or line.startswith('ERR,')
+        ):
             self._publish_status(line)
             return
 
@@ -218,6 +259,8 @@ class CmdVelToEsp32Serial(Node):
         self.status_publisher.publish(message)
 
     def destroy_node(self):
+        if rclpy.ok():
+            self._publish_motor_targets(0, 0)
         if hasattr(self, 'serial') and self.serial.is_open:
             self._send('STOP')
             try:

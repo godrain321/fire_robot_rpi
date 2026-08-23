@@ -29,13 +29,17 @@ from tf2_ros import Buffer, TransformListener
 from tf2_geometry_msgs import do_transform_pose
 
 from .geometry_utils import yaw_from_quaternion
+from .project_paths import project_path
 from .semantic_store import SemanticStore, SemanticStoreError, default_document
 
 
 class PathWaypointRecorder(Node):
     def __init__(self) -> None:
         super().__init__('path_waypoint_recorder')
-        self.declare_parameter('semantic_file', '/home/gosunwoo/fire_robot_rpi/maps/semantic_points.yaml')
+        self.declare_parameter(
+            'semantic_file',
+            project_path('inno_jazzy_ws', 'maps', 'semantic_points.yaml'),
+        )
         self.declare_parameter('prefix', 'p')
         self.declare_parameter('start_index', 1)
         self.declare_parameter('odom_topic', '/wheel_odom')

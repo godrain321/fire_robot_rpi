@@ -1,0 +1,33 @@
+hazard_belief_node:
+  ros__parameters:
+    static_grid_topic: /planning_grid_static
+    dynamic_grid_topic: /dynamic_obstacle_grid
+    thermal_arc_topic: /thermal/arc_points
+    co_topic: /hazard/co_ppm
+    base_frame: base_link
+    co_enabled: false
+    base_cost: 1.0
+    temperature_safe_c: 40.0
+    temperature_blocked_c: 60.0
+    temperature_weight: 24.0
+    temperature_power: 1.5
+    co_safe_ppm: 100.0
+    co_blocked_ppm: 1600.0
+    co_weight: 8.0
+    co_power: 2.0
+    gas_update_radius_m: 0.0
+    gas_gaussian_sigma_m: 0.5
+    unknown_penalty: 0.0
+    unobserved_temperature_penalty: 0.0
+    unobserved_co_penalty: 0.0
+    stale_enabled: true
+    stale_grace_period_s: 5.0
+    stale_cost_per_second: 0.05
+    stale_maximum_cost: 2.0
+    stale_apply_to_temperature: true
+    stale_apply_to_co: true
+    # MLX90640 arc points do not contain depth/full ray_cells.
+    fire_localization_enabled: false
+    thermal_stream_timeout_s: 1.0
+    tf_timeout_s: 0.2
+    publish_rate_hz: 4.0

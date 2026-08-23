@@ -1,11 +1,17 @@
-"""Launch guided image capture for the offline fisheye workflow."""
+"""Launch guided raw-image capture for the offline Rational workflow."""
 
 from pathlib import Path
 
 from fire_robot_camera_calibration.launch_helpers import camera_ros_node
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import (
+    DeclareLaunchArgument,
+    EmitEvent,
+    RegisterEventHandler,
+)
+from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -99,6 +105,20 @@ def generate_launch_description():
         ],
     )
 
+    shutdown_when_capture_exits = RegisterEventHandler(
+        OnProcessExit(
+            target_action=capture,
+            on_exit=[
+                EmitEvent(
+                    event=Shutdown(
+                        reason='guided intrinsic capture exited',
+                    )
+                )
+            ],
+        )
+    )
+
     return LaunchDescription(
-        arguments + [camera_ros_node(), capture]
+        arguments
+        + [shutdown_when_capture_exits, camera_ros_node(), capture]
     )

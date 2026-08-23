@@ -1,0 +1,21 @@
+2-D LIDAR / CAMERA EXTRINSIC CALIBRATION REPORT
+================================================
+Observations: /home/seeno04/fire_robot_rpi/data/extrinsic/observations.json
+CameraInfo: /home/seeno04/fire_robot_rpi/outputs/pi_camera3_wide_intrinsic/camera_info.yaml
+Convention: p_camera = R_camera_lidar * p_lidar + t_camera_lidar_m
+Frames: laser -> camera_optical_frame
+Views / lidar points: 24 / 1411
+Converged / iterations: True / 5
+Plane residual RMSE: 0.003922392 m
+Allowed plane residual RMSE: 0.020000000 m
+Median absolute residual: 0.002386836 m
+Maximum absolute residual: 0.025537980 m
+Allowed per-pose RMSE: 0.030000000 m
+Normal rank: 3 (required: 3)
+Jacobian rank: 6 (required: 6)
+Jacobian condition number: 47.5352
+Translation camera<-lidar [m]: -0.00759268414527 -0.0859226596788 -0.0445487449401
+Rotation camera<-lidar:
+  0.0839656087278 -0.996336339142 0.0162380988968
+  0.101553810064 -0.0076546871872 -0.994800597821
+  0.991280283377 0.08517807857 0.100539020876

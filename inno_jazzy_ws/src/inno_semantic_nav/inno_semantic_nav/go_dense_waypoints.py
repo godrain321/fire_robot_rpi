@@ -5,7 +5,7 @@ Usage (example):
 ros2 run inno_semantic_nav go_dense_waypoints p1 p3 --spacing 0.5 --serial /dev/ttyUSB0
 
 Behavior:
-- Load semantic file (default ~/fire_robot_rpi/inno_jazzy_ws/maps/semantic_points.yaml)
+- Load semantic file from this repository's inno_jazzy_ws/maps directory
 - Resolve names p1 and p3 to coordinates (x,y,yaw if available)
 - Generate intermediate points along straight line at `spacing` meters
 - For each segment: rotate in place to face next point, then drive straight distance
@@ -25,6 +25,8 @@ import time
 import yaml
 from pathlib import Path
 
+from .project_paths import project_path
+
 # Default hardware params - keep editable
 # User-supplied values:
 # - wheel diameter: 80 mm -> 0.08 m
@@ -32,8 +34,10 @@ from pathlib import Path
 # - track width: approximate wheel-center distance; adjust if measured value differs
 WHEEL_DIAMETER_M = 0.08
 STEPS_PER_REV = 1600.0  # 200 full steps/rev * 8 microsteps
-TRACK_WIDTH_M = 0.18
+TRACK_WIDTH_M = 0.30
 MAX_SPEED_MPS = 0.4
+LEFT_SIGN = -1
+RIGHT_SIGN = 1
 
 BAUDRATE = 115200
 SEQ = 1
@@ -87,7 +91,7 @@ def pose_to_wheel_sps(linear_mps, angular_rps, wheel_diameter=WHEEL_DIAMETER_M, 
     # steps per second
     sps_l = revs_l * steps_per_rev
     sps_r = revs_r * steps_per_rev
-    return sps_l, sps_r
+    return sps_l * LEFT_SIGN, sps_r * RIGHT_SIGN
 
 
 def send_M(ser, left_sps, right_sps):
@@ -104,16 +108,24 @@ def send_stop(ser):
     SEQ += 1
 
 
+def stream_motor_for(ser, left_sps, right_sps, duration_s, period_s=0.1):
+    """Refresh M commands faster than the ESP32's 0.5 s watchdog."""
+    deadline = time.monotonic() + max(0.0, duration_s)
+    while time.monotonic() < deadline:
+        send_M(ser, left_sps, right_sps)
+        remaining = deadline - time.monotonic()
+        time.sleep(min(period_s, max(0.0, remaining)))
+
+
 def rotate_in_place(ser, angle_rad, angular_speed_rad_s=0.5):
     # positive angle -> CCW; for skid-steer, left = -right
     # compute needed angular velocity sign
     sign = 1.0 if angle_rad >= 0 else -1.0
     angular_speed = angular_speed_rad_s * sign
     left_sps, right_sps = pose_to_wheel_sps(0.0, angular_speed)
-    send_M(ser, left_sps, right_sps)
     # estimate duration = |angle| / angular_speed
     dur = abs(angle_rad) / abs(angular_speed) if angular_speed != 0 else 0
-    time.sleep(dur)
+    stream_motor_for(ser, left_sps, right_sps, dur)
     send_stop(ser)
     time.sleep(0.05)
 
@@ -121,9 +133,8 @@ def rotate_in_place(ser, angle_rad, angular_speed_rad_s=0.5):
 def drive_straight(ser, distance_m, speed_mps=0.2):
     # drive forward distance at given speed
     left_sps, right_sps = pose_to_wheel_sps(speed_mps, 0.0)
-    send_M(ser, left_sps, right_sps)
     dur = abs(distance_m) / speed_mps if speed_mps > 0 else 0
-    time.sleep(dur)
+    stream_motor_for(ser, left_sps, right_sps, dur)
     send_stop(ser)
     time.sleep(0.05)
 
@@ -132,7 +143,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('start')
     parser.add_argument('goal')
-    parser.add_argument('--semantic-file', default='~/fire_robot_rpi/inno_jazzy_ws/maps/semantic_points.yaml')
+    parser.add_argument(
+        '--semantic-file',
+        default=project_path('inno_jazzy_ws', 'maps', 'semantic_points.yaml'),
+    )
     parser.add_argument('--spacing', type=float, default=0.5)
     parser.add_argument('--serial', default='/dev/ttyUSB0')
     parser.add_argument('--speed', type=float, default=0.2)
