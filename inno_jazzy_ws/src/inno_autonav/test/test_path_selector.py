@@ -34,6 +34,15 @@ def test_set_mode_switches_which_source_is_relayed():
     assert out.publish is False
 
 
+def test_switch_to_astar_releases_only_the_already_received_astar_path():
+    core = PathSelectorCore("WAYPOINT")
+    assert core.on_astar_path("ASTAR-CANDIDATE").publish is False
+    out = core.set_mode("A_STAR")
+    assert out.publish is True
+    assert out.payload == "ASTAR-CANDIDATE"
+    assert out.source == "astar"
+
+
 def test_status_reports_mode_and_seen_sources():
     core = PathSelectorCore()
     assert core.status()["mode"] == "WAYPOINT"
@@ -67,3 +76,24 @@ def test_path_selector_node_is_the_default_planned_path_owner():
     text = (_SRC / "path_selector_node.py").read_text(encoding="utf-8")
     assert '"planned_path_topic": "/planned_path"' in text
     assert "create_publisher(\n            Path, str(value(\"planned_path_topic\"))" in text
+
+
+def test_stage8_ownership_contract_remains_separated():
+    evacuation = (_SRC / "evacuation_manager_node.py").read_text(encoding="utf-8")
+    waypoint = (_SRC / "waypoint_planner_node.py").read_text(encoding="utf-8")
+    astar = (_SRC / "astar_replanner.py").read_text(encoding="utf-8")
+    supervisor = (_SRC / "replan_supervisor_node.py").read_text(encoding="utf-8")
+    assert '"planner_goal_topic": "/goal_pose"' in evacuation
+    assert "waypoint_path_publisher = self.create_publisher" in waypoint
+    assert "Path, str(self.get_parameter('path_output_topic').value)" in astar
+    assert '"hold_topic": "/replanning/hold"' in supervisor
+    assert "create_publisher(Path" not in supervisor
+    launch = (_SRC.parent / "launch/autonav_demo.launch.py").read_text(encoding="utf-8")
+    assert "condition=UnlessCondition(evacuation_manager_enabled)" in launch
+    assert "if not self.waypoint_planning_enabled:" in supervisor
+
+
+def test_selector_contains_no_planner_or_path_mutation_algorithms():
+    text = (_SRC / "path_selector.py").read_text(encoding="utf-8")
+    for forbidden in ("weighted_astar", "WaypointGraphPlanner", "simplify_path", "path_cost"):
+        assert forbidden not in text

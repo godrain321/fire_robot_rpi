@@ -31,8 +31,11 @@ class PathSelectorCore:
         self.mode = PathSelectorMode(mode)
         self._latest: dict[str, Any] = {"waypoint": None, "astar": None}
 
-    def set_mode(self, mode: PathSelectorMode | str) -> None:
+    def set_mode(self, mode: PathSelectorMode | str) -> PathSelectorOutput:
         self.mode = PathSelectorMode(mode)
+        source = "waypoint" if self.mode is PathSelectorMode.WAYPOINT else "astar"
+        payload = self._latest[source]
+        return PathSelectorOutput(payload is not None, payload, source)
 
     def on_waypoint_path(self, payload: Any) -> PathSelectorOutput:
         self._latest["waypoint"] = payload
@@ -54,3 +57,6 @@ class PathSelectorCore:
             "has_waypoint_path": self._latest["waypoint"] is not None,
             "has_astar_path": self._latest["astar"] is not None,
         }
+
+    def latest(self, source: str) -> Any | None:
+        return self._latest[str(source).lower()]

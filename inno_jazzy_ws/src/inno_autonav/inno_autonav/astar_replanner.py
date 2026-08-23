@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import json
 from typing import List, Optional, Tuple
 
 from geometry_msgs.msg import PoseStamped
@@ -106,6 +107,9 @@ class AstarReplanner(Node):
             # waypoint_planning_enabled is true, at which point PathSelector
             # (not astar_replanner) owns /planned_path.
             'path_output_topic': '/planned_path',
+            'accept_goal_pose': True,
+            'replan_request_topic': '/replanning/astar_request',
+            'replan_result_topic': '/replanning/astar_result',
             'path_block_check_radius': 0.20,
             'start_clearance_radius': 0.18,
             'allow_diagonal': True,
@@ -289,6 +293,8 @@ class AstarReplanner(Node):
         self.current_path_total_cost = math.inf
         self._dirty = False
         self._last_plan = 0.0
+        self._last_published_path_stamp_ns: Optional[int] = None
+        self._last_emitted_path_stamp_ns = -1
         self.create_subscription(
             OccupancyGrid, '/planning_grid_static', self._static_callback, qos
         )
@@ -308,7 +314,12 @@ class AstarReplanner(Node):
         self.create_subscription(
             String, self.hazard_status_topic, self._hazard_status_callback, qos
         )
-        self.create_subscription(PoseStamped, '/goal_pose', self._goal_callback, 10)
+        if bool(self.get_parameter('accept_goal_pose').value):
+            self.create_subscription(PoseStamped, '/goal_pose', self._goal_callback, 10)
+        self.create_subscription(
+            String, str(self.get_parameter('replan_request_topic').value),
+            self._replan_request_callback, 10,
+        )
         self.create_subscription(
             Empty, '/autonomy_cancel', self._cancel_callback, 10
         )
@@ -319,6 +330,9 @@ class AstarReplanner(Node):
             Path, str(self.get_parameter('path_output_topic').value), qos
         )
         self.state_publisher = self.create_publisher(String, '/planner_state', 10)
+        self.replan_result_publisher = self.create_publisher(
+            String, str(self.get_parameter('replan_result_topic').value), 10,
+        )
         self.create_timer(1.0 / self.replan_rate, self._timer_callback)
         if self.periodic_replanning_enabled:
             self.get_logger().info(
@@ -532,6 +546,31 @@ class AstarReplanner(Node):
         self._dirty = True
         self._plan('NEW_GOAL')
 
+    def _replan_request_callback(self, message: String) -> None:
+        try:
+            request = json.loads(message.data)
+            if not isinstance(request, dict):
+                return
+            goal_world = request['goal_world']
+            goal_x, goal_y = float(goal_world[0]), float(goal_world[1])
+        except (TypeError, ValueError, KeyError, IndexError):
+            return
+        goal = PoseStamped()
+        goal.header.frame_id = self.map_frame
+        goal.pose.position.x = goal_x
+        goal.pose.position.y = goal_y
+        goal.pose.orientation.w = 1.0
+        self.goal = goal
+        self._last_published_path_stamp_ns = None
+        success = bool(self._plan('SAME_EXIT_FALLBACK'))
+        result = dict(request)
+        result.update(
+            success=success,
+            status="PATH_FOUND" if success else "NO_PATH",
+            path_stamp_ns=self._last_published_path_stamp_ns,
+        )
+        self.replan_result_publisher.publish(String(data=json.dumps(result, sort_keys=True)))
+
     def _cancel_callback(self, _message: Empty) -> None:
         self.goal = None
         self.current_path_cells = []
@@ -577,14 +616,14 @@ class AstarReplanner(Node):
             timeout_sec=self.thermal_timeout,
         )
 
-    def _plan(self, reason: str) -> None:
+    def _plan(self, reason: str) -> bool:
         planning_grid = (
             self.hazard_grid if self.hazard_belief_enabled
             else self.combined_grid
         )
         if self.goal is None or planning_grid is None:
             self._state('WAITING_FOR_GRID')
-            return
+            return False
         thermal_failure = self._thermal_failure()
         if thermal_failure is not None:
             self.current_path_cells = []
@@ -592,12 +631,12 @@ class AstarReplanner(Node):
             self.current_path_total_cost = math.inf
             self._state(thermal_failure)
             self._publish_empty_path()
-            return
+            return False
         pose = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
         if pose is None:
             self._state('WAITING_FOR_TF')
             self._publish_empty_path()
-            return
+            return False
         start = world_to_grid(pose[0], pose[1], planning_grid)
         goal = world_to_grid(
             self.goal.pose.position.x,
@@ -610,7 +649,7 @@ class AstarReplanner(Node):
             self._state('NO_PATH')
             self.get_logger().error(f'start={start} 또는 goal={goal}이 지도 밖입니다.')
             self._publish_empty_path()
-            return
+            return False
         if reason == 'GRID_UPDATE' and self.current_path_cells:
             if path_cells_collision(
                 self.current_path_cells,
@@ -658,7 +697,7 @@ class AstarReplanner(Node):
             self._state('NO_PATH')
             self._publish_empty_path()
             self.get_logger().error(f'A* 경로 없음: start={start}, goal={goal}')
-            return
+            return False
         # The escape prefix intentionally contains cells blocked by the current
         # risk map, so preserve it exactly and simplify only the finite-cost
         # weighted-A* suffix.
@@ -686,7 +725,7 @@ class AstarReplanner(Node):
             self._state('NO_SAFE_PATH')
             self._publish_empty_path()
             self.get_logger().error('thermal-aware 경로 단순화 안전 검증 실패')
-            return
+            return False
         simplified = escape_prefix + list(simplification.path)
         self.current_path_cells = path
         self.current_simplified_cells = simplified
@@ -702,10 +741,21 @@ class AstarReplanner(Node):
             f'{result.used_reference_graph}, anchors='
             f'{result.reference_waypoint_ids}'
         )
+        return True
 
     def _publish_path(self, cells: List[Cell]) -> None:
         message = Path()
         message.header.stamp = self.get_clock().now().to_msg()
+        clock_stamp_ns = (
+            int(message.header.stamp.sec) * 1_000_000_000
+            + int(message.header.stamp.nanosec)
+        )
+        stamp_ns = max(clock_stamp_ns, getattr(self, '_last_emitted_path_stamp_ns', -1) + 1)
+        message.header.stamp.sec, message.header.stamp.nanosec = divmod(
+            stamp_ns, 1_000_000_000
+        )
+        self._last_emitted_path_stamp_ns = stamp_ns
+        self._last_published_path_stamp_ns = stamp_ns
         message.header.frame_id = self.map_frame
         for index, cell in enumerate(cells):
             x, y = grid_to_world(cell[0], cell[1], self.combined_grid)

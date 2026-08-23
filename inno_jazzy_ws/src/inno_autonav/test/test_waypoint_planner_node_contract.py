@@ -63,6 +63,7 @@ def occupancy_grid_message(size=10, resolution=1.0, origin=(0.0, 0.0), value=0):
 def node(waypoints_world, *, pose=(0.5, 0.5)):
     value = SimpleNamespace(
         enabled=True,
+        accept_direct_goal=True,
         map_frame="map",
         base_frame="base_link",
         waypoints_world=waypoints_world,
@@ -113,6 +114,16 @@ def test_no_replan_without_a_selected_exit():
     value = node(small_waypoints())
     WaypointPlannerNode._on_grid(value, occupancy_grid_message())
     assert not value.waypoint_path_publisher.messages
+
+
+def test_static_profile_direct_goal_produces_waypoint_path_without_evacuation_plan():
+    value = node(small_waypoints())
+    WaypointPlannerNode._on_grid(value, occupancy_grid_message())
+    goal = PoseStamped(); goal.header.frame_id = "map"
+    goal.pose.position.x, goal.pose.position.y = (5.0, 0.5)
+    WaypointPlannerNode._on_direct_goal(value, goal)
+    assert value.active_goal.exit_id == "DIRECT_GOAL"
+    assert value.waypoint_path_publisher.messages[-1].poses
 
 
 def test_current_pose_is_used_as_the_start_waypoint_source():

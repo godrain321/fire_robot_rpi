@@ -5,7 +5,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -42,7 +42,9 @@ def generate_launch_description() -> LaunchDescription:
     )
     exit_switching_enabled = LaunchConfiguration('exit_switching_enabled')
     waypoint_planning_enabled = LaunchConfiguration('waypoint_planning_enabled')
+    waypoint_accept_direct_goal = LaunchConfiguration('waypoint_accept_direct_goal')
     astar_path_output_topic = LaunchConfiguration('astar_path_output_topic')
+    astar_accept_goal_pose = LaunchConfiguration('astar_accept_goal_pose')
     hazard_config = os.path.join(hazard_share, 'config', 'hazard_params.yaml')
 
     return LaunchDescription(
@@ -93,6 +95,9 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 'waypoint_planning_enabled', default_value='false'
             ),
+            DeclareLaunchArgument(
+                'waypoint_accept_direct_goal', default_value='false'
+            ),
             # Auto-connected to waypoint_planning_enabled (Stage 8-8): when the
             # waypoint pipeline is on, astar_replanner's output moves off
             # /planned_path so PathSelector becomes the single owner of it,
@@ -105,6 +110,7 @@ def generate_launch_description() -> LaunchDescription:
                     "' == 'true' else '/planned_path'"
                 ]),
             ),
+            DeclareLaunchArgument('astar_accept_goal_pose', default_value='true'),
             DeclareLaunchArgument(
                 'map_yaml',
                 default_value=project_path('maps', 'inno_map_nav.yaml'),
@@ -160,6 +166,9 @@ def generate_launch_description() -> LaunchDescription:
                             astar_periodic_replanning_enabled, value_type=bool
                         ),
                         'path_output_topic': astar_path_output_topic,
+                        'accept_goal_pose': ParameterValue(
+                            astar_accept_goal_pose, value_type=bool
+                        ),
                     },
                 ],
                 output='screen',
@@ -206,6 +215,9 @@ def generate_launch_description() -> LaunchDescription:
                         'enabled': ParameterValue(
                             event_replanning_enabled, value_type=bool
                         ),
+                        'waypoint_planning_enabled': ParameterValue(
+                            waypoint_planning_enabled, value_type=bool
+                        ),
                     },
                 ],
                 output='screen',
@@ -237,6 +249,9 @@ def generate_launch_description() -> LaunchDescription:
                         'waypoint_file': waypoint_file,
                         'enabled': ParameterValue(
                             waypoint_planning_enabled, value_type=bool
+                        ),
+                        'accept_direct_goal': ParameterValue(
+                            waypoint_accept_direct_goal, value_type=bool
                         ),
                     },
                 ],
@@ -292,6 +307,7 @@ def generate_launch_description() -> LaunchDescription:
                 name='mission_commander',
                 parameters=[config_file, {'semantic_yaml': semantic_yaml}],
                 output='screen',
+                condition=UnlessCondition(evacuation_manager_enabled),
             ),
             Node(
                 package='inno_drive_bridge',

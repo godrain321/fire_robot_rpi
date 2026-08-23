@@ -1,10 +1,9 @@
 """ROS adapter wiring topics to the ROS-independent ReplanSupervisorCore.
 
-Stage 6. Subscribes to the existing Stage 3/5 interfaces only (/hazard/snapshot,
-/planned_path, /planner_state, /evacuation/plan) and reuses the existing /goal_pose
-interface to request a replan -- it never runs A* itself and never publishes
-/planned_path (that stays astar_replanner's job) or /cmd_vel* (that stays
-skid_path_follower's job). See replan_supervisor.py for the actual decision logic.
+Standalone compatibility republishes the same canonical ``/goal_pose`` exactly as
+Stage 6 did.  With waypoint planning enabled, the same core attempt is routed through
+identity-stamped waypoint then A* requests and PathSelector; this node still computes
+no path and publishes neither ``/planned_path`` nor ``/cmd_vel``.
 """
 
 from __future__ import annotations
@@ -24,6 +23,7 @@ from inno_hazard.hazard_snapshot import decode_hazard_snapshot_message
 from .event_replanning import EventReplanningConfig
 from .exit_evaluator import ExitHazardSnapshot
 from .replan_supervisor import ReplanSupervisorCore, RetryConfig, parse_active_goal_payload
+from .same_exit_replanning import SameExitReplanCoordinator
 from .tf_utils import TfHelper
 
 
@@ -36,6 +36,8 @@ class ReplanSupervisorNode(Node):
             "base_frame": "base_link",
             "hazard_snapshot_topic": "/hazard/snapshot",
             "planned_path_topic": "/planned_path",
+            "waypoint_path_topic": "/waypoint_path",
+            "astar_path_topic": "/astar_path",
             "planner_state_topic": "/planner_state",
             "evacuation_plan_topic": "/evacuation/plan",
             "goal_topic": "/goal_pose",
@@ -53,6 +55,12 @@ class ReplanSupervisorNode(Node):
             "max_replan_attempts": 5,
             "cooldown_seconds": 0.5,
             "replan_timeout_s": 3.0,
+            "waypoint_planning_enabled": False,
+            "waypoint_request_topic": "/replanning/waypoint_request",
+            "waypoint_result_topic": "/replanning/waypoint_result",
+            "astar_request_topic": "/replanning/astar_request",
+            "astar_result_topic": "/replanning/astar_result",
+            "selector_mode_topic": "/path_selector/mode",
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -84,6 +92,9 @@ class ReplanSupervisorNode(Node):
         )
         self.core = ReplanSupervisorCore(EventReplanningConfig(**self._config_overrides), retry)
         self.core.set_enabled(bool(value("enabled")))
+        self.waypoint_planning_enabled = bool(value("waypoint_planning_enabled"))
+        self.coordinator = SameExitReplanCoordinator()
+        self._awaiting_replacement_path = False
 
         self.tf = TfHelper(self)
 
@@ -99,19 +110,42 @@ class ReplanSupervisorNode(Node):
             Path, str(value("planned_path_topic")), self._on_path, transient,
         )
         self.create_subscription(
+            Path, str(value("waypoint_path_topic")), self._on_waypoint_candidate, transient,
+        )
+        self.create_subscription(
+            Path, str(value("astar_path_topic")), self._on_astar_candidate, transient,
+        )
+        self.create_subscription(
             String, str(value("planner_state_topic")), self._on_planner_state, 10,
         )
         self.create_subscription(
             String, str(value("evacuation_plan_topic")), self._on_plan, transient,
         )
-        self.goal_publisher = self.create_publisher(
-            PoseStamped, str(value("goal_topic")), 10,
+        self.create_subscription(
+            String, str(value("waypoint_result_topic")), self._on_waypoint_result, 10,
         )
+        self.create_subscription(
+            String, str(value("astar_result_topic")), self._on_astar_result, 10,
+        )
+        self.goal_publisher = None
+        if not self.waypoint_planning_enabled:
+            self.goal_publisher = self.create_publisher(
+                PoseStamped, str(value("goal_topic")), 10,
+            )
         self.hold_publisher = self.create_publisher(
             Bool, str(value("hold_topic")), transient,
         )
         self.status_publisher = self.create_publisher(
             String, str(value("status_topic")), transient,
+        )
+        self.waypoint_request_publisher = self.create_publisher(
+            String, str(value("waypoint_request_topic")), 10,
+        )
+        self.astar_request_publisher = self.create_publisher(
+            String, str(value("astar_request_topic")), 10,
+        )
+        self.selector_mode_publisher = self.create_publisher(
+            String, str(value("selector_mode_topic")), 10,
         )
         self.create_timer(1.0 / status_rate, self._on_timer)
         self._publish(self.core.current_output())
@@ -171,12 +205,75 @@ class ReplanSupervisorNode(Node):
             (pose.pose.position.x, pose.pose.position.y) for pose in message.poses
         )
         self._publish(self.core.on_planned_path(coords))
+        if self._awaiting_replacement_path and coords:
+            self._awaiting_replacement_path = False
+            self._publish(self.core.on_planner_state("PATH_READY"))
 
     def _on_planner_state(self, message: String) -> None:
+        if self.waypoint_planning_enabled:
+            # Global legacy state has no request identity. Stage 8 accepts only the
+            # matching JSON result callbacks below; standalone mode keeps Stage 6.
+            return
         self._publish(self.core.on_planner_state(message.data))
 
+    @staticmethod
+    def _path_stamp_ns(message: Path) -> int:
+        return int(message.header.stamp.sec) * 1_000_000_000 + int(message.header.stamp.nanosec)
+
+    def _on_waypoint_candidate(self, message: Path) -> None:
+        self._on_candidate("WAYPOINT", message)
+
+    def _on_astar_candidate(self, message: Path) -> None:
+        self._on_candidate("A_STAR", message)
+
+    def _on_candidate(self, source: str, message: Path) -> None:
+        if not message.poses:
+            return
+        final = message.poses[-1].pose.position
+        activation = self.coordinator.on_candidate_path(
+            source, stamp_ns=self._path_stamp_ns(message),
+            goal_world=(final.x, final.y), nonempty=True,
+        )
+        self._activate_candidate(activation)
+
+    def _activate_candidate(self, activation) -> None:
+        if not isinstance(activation, dict):
+            return
+        self._awaiting_replacement_path = True
+        self.selector_mode_publisher.publish(String(
+            data=json.dumps(activation, sort_keys=True)
+        ))
+
     def _on_plan(self, message: String) -> None:
-        self._publish(self.core.on_active_goal(parse_active_goal_payload(message.data)))
+        goal = parse_active_goal_payload(message.data)
+        if self.waypoint_planning_enabled and self.coordinator.on_goal(goal):
+            self._awaiting_replacement_path = False
+            self.selector_mode_publisher.publish(String(data="WAYPOINT"))
+        self._publish(self.core.on_active_goal(goal))
+
+    def _decode_result(self, message: String):
+        try:
+            value = json.loads(message.data)
+        except (TypeError, ValueError):
+            return None
+        return value if isinstance(value, dict) else None
+
+    def _on_waypoint_result(self, message: String) -> None:
+        result = self._decode_result(message)
+        event = None if result is None else self.coordinator.on_waypoint_result(result)
+        if isinstance(event, dict):
+            self._activate_candidate(event)
+        elif event is not None:
+            self._publish(self.core.on_replan_progress())
+            self.astar_request_publisher.publish(String(data=json.dumps(event.payload)))
+
+    def _on_astar_result(self, message: String) -> None:
+        result = self._decode_result(message)
+        event = None if result is None else self.coordinator.on_astar_result(result)
+        if isinstance(event, dict):
+            self._activate_candidate(event)
+        elif event == "A_STAR_FAILED":
+            self._publish(self.core.on_planner_state(str(result.get("status", "NO_PATH"))))
 
     def _on_timer(self) -> None:
         pose = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
@@ -187,12 +284,26 @@ class ReplanSupervisorNode(Node):
     def _publish(self, output) -> None:
         self.hold_publisher.publish(Bool(data=bool(output.hold)))
         if output.publish_goal is not None:
+            if getattr(self, "waypoint_planning_enabled", False):
+                command = self.coordinator.start(
+                    output.status.get("hazard_revision"),
+                    int(output.status.get("attempt_count", 0)),
+                )
+                if command is not None:
+                    self.waypoint_request_publisher.publish(String(
+                        data=json.dumps(command.payload, sort_keys=True)
+                    ))
+                self.status_publisher.publish(String(
+                    data=json.dumps(output.status, sort_keys=True, separators=(",", ":"))
+                ))
+                return
             goal = PoseStamped()
             goal.header.stamp = self.get_clock().now().to_msg()
             goal.header.frame_id = self.map_frame
             goal.pose.position.x, goal.pose.position.y = output.publish_goal
             goal.pose.orientation.w = 1.0
-            self.goal_publisher.publish(goal)
+            if self.goal_publisher is not None:
+                self.goal_publisher.publish(goal)
             self.get_logger().info(
                 f"replan requested: reason={output.status.get('last_replan_reason')} "
                 f"attempt={output.status.get('attempt_count')}"

@@ -205,6 +205,13 @@ class ReplanSupervisorCore:
                 self._fail_replan(text)
         return self._advance()
 
+    def on_replan_progress(self) -> SupervisorOutput:
+        """Refresh the per-attempt timeout when waypoint repair advances to A*."""
+        if self.enabled and self.replan_in_flight:
+            self.request_started_at = self.elapsed_time
+            self.state = SupervisorState.WAITING_FOR_NEW_PATH
+        return self._output(None)
+
     def tick(self, robot_pose_world: tuple[float, float] | None, elapsed_time: float) -> SupervisorOutput:
         self.robot_pose_world = robot_pose_world
         self.elapsed_time = float(elapsed_time)

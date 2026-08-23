@@ -181,6 +181,21 @@ def test_h_planner_failure_keeps_hold():
     assert out.publish_goal is None  # still cooling down, no reckless immediate retry
 
 
+def test_waypoint_to_astar_progress_refreshes_timeout_without_spending_retry():
+    core = ReplanSupervisorCore(EventReplanningConfig(), RetryConfig(replan_timeout_s=1.0))
+    bootstrap(core)
+    dynamic = np.zeros((8, 8), dtype=bool)
+    dynamic[0, 2] = True
+    core.on_hazard_snapshot(snapshot(revision=1, dynamic_obstacle_map=dynamic))
+    assert core.attempt_count == 1
+    core.tick((0.5, 0.5), 0.8)
+    out = core.on_replan_progress()
+    assert out.hold is True
+    assert out.status["state"] == "WAITING_FOR_NEW_PATH"
+    assert core.attempt_count == 1
+    assert core.request_started_at == 0.8
+
+
 # -- I: retry cooldown/backoff up to max_replan_attempts, then exhausted -------
 
 def test_i_retry_then_exhausted_never_switches_exit():

@@ -73,6 +73,9 @@ astar_replanner:
     # true, at which point PathSelector (not astar_replanner) owns
     # /planned_path.
     path_output_topic: /planned_path
+    accept_goal_pose: true
+    replan_request_topic: /replanning/astar_request
+    replan_result_topic: /replanning/astar_result
     path_block_check_radius: 0.20
     start_clearance_radius: 0.18
     allow_diagonal: true
@@ -231,6 +234,8 @@ replan_supervisor_node:
     base_frame: base_link
     hazard_snapshot_topic: /hazard/snapshot
     planned_path_topic: /planned_path
+    waypoint_path_topic: /waypoint_path
+    astar_path_topic: /astar_path
     planner_state_topic: /planner_state
     evacuation_plan_topic: /evacuation/plan
     goal_topic: /goal_pose
@@ -254,6 +259,12 @@ replan_supervisor_node:
     max_replan_attempts: 5
     cooldown_seconds: 0.5
     replan_timeout_s: 3.0
+    waypoint_planning_enabled: false
+    waypoint_request_topic: /replanning/waypoint_request
+    waypoint_result_topic: /replanning/waypoint_result
+    astar_request_topic: /replanning/astar_request
+    astar_result_topic: /replanning/astar_result
+    selector_mode_topic: /path_selector/mode
 
 mission_commander:
   ros__parameters:
@@ -269,7 +280,11 @@ waypoint_planner_node:
     waypoint_file: ''  # Supplied by the launch waypoint_file argument.
     planning_grid_topic: /planning_grid
     evacuation_plan_topic: /evacuation/plan
+    direct_goal_topic: /goal_pose
+    accept_direct_goal: false
     waypoint_path_topic: /waypoint_path
+    replan_request_topic: /replanning/waypoint_request
+    replan_result_topic: /replanning/waypoint_result
     # Same proven neighbor radius as ReferenceWaypointGraphConfig for these
     # same 1 m-spaced waypoints (Stage 8-5 report).
     neighbor_radius_m: 1.5
@@ -289,10 +304,11 @@ waypoint_planner_node:
 
 path_selector_node:
   ros__parameters:
-    # Stage 8-8: WAYPOINT is the default navigation mode this stage completes.
-    # A_STAR exists as a selectable mode but nothing switches to it
-    # automatically yet (no Stage 6 fallback wiring in this stage).
+    # Stage 8-9/10: reset to WAYPOINT for each canonical exit; switch to A_STAR
+    # only after an identity-matched fallback path succeeds.
     mode: WAYPOINT
     waypoint_path_topic: /waypoint_path
     astar_path_topic: /astar_path
     planned_path_topic: /planned_path
+    mode_topic: /path_selector/mode
+    evacuation_plan_topic: /evacuation/plan
