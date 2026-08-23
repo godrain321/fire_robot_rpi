@@ -31,6 +31,7 @@ def generate_launch_description() -> LaunchDescription:
     require_thermal_active = LaunchConfiguration('require_thermal_active')
     waypoint_file = LaunchConfiguration('waypoint_file')
     hazard_belief_enabled = LaunchConfiguration('hazard_belief_enabled')
+    exit_evaluator_enabled = LaunchConfiguration('exit_evaluator_enabled')
     hazard_config = os.path.join(hazard_share, 'config', 'hazard_params.yaml')
 
     return LaunchDescription(
@@ -51,6 +52,9 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument(
                 'hazard_belief_enabled', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'exit_evaluator_enabled', default_value='false'
             ),
             DeclareLaunchArgument(
                 'map_yaml',
@@ -106,6 +110,20 @@ def generate_launch_description() -> LaunchDescription:
                     },
                 ],
                 output='screen',
+            ),
+            Node(
+                package='inno_autonav',
+                executable='exit_evaluator_node',
+                name='exit_evaluator_node',
+                parameters=[
+                    config_file,
+                    {
+                        'exit_registry_file': semantic_yaml,
+                        'reference_waypoint_file': waypoint_file,
+                    },
+                ],
+                output='screen',
+                condition=IfCondition(exit_evaluator_enabled),
             ),
             Node(
                 package='inno_autonav',

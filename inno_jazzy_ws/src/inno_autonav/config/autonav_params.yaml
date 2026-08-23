@@ -94,6 +94,36 @@ astar_replanner:
     hazard_final_cost_topic: /hazard/final_cost
     hazard_status_topic: /hazard/status
 
+exit_evaluator_node:
+  ros__parameters:
+    map_frame: map
+    base_frame: base_link
+    exit_registry_file: ''  # Supplied from the existing semantic_yaml argument.
+    reference_waypoint_file: ''  # Supplied from the existing waypoint_file argument.
+    hazard_snapshot_topic: /hazard/snapshot
+    static_grid_topic: /planning_grid_static
+    result_topic: /exit_evaluations
+    status_topic: /exit_evaluator/status
+    service_name: /evaluate_exits
+    exit_neighborhood_radius_m: 1.0
+    approach_search_radius_m: 1.0
+    reject_blocked_exit: true
+    reject_dangerous_exit: true
+    reject_path_over_threshold: true
+    reject_invalid_cost: true
+    usable_confirmation_distance_m: 3.0
+    # Negative values encode Simulation's null soft-risk thresholds in ROS params.
+    dangerous_accumulated_risk_cost: -1.0
+    dangerous_average_risk_cost: -1.0
+    dangerous_max_cell_risk_cost: -1.0
+    reference_waypoint_graph_enabled: true
+    reference_neighbor_radius_m: 1.5
+    reference_connector_search_radius_m: 3.0
+    reference_connector_candidate_count: 8
+    reference_fallback_to_cell_astar: true
+    reference_waypoint_cost_radius_m: 0.10
+    reference_waypoint_risk_weight: 1.0
+
 skid_path_follower:
   ros__parameters:
     map_frame: map

@@ -20,6 +20,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from inno_thermal.thermal_cost_geometry import GridGeometry, quaternion_to_yaw
 
 from .hazard_belief import HazardBelief, HazardBeliefConfig, HazardGridGeometry
+from .hazard_snapshot import hazard_snapshot_message
 from .thermal_adapter import localized_temperature_cells
 
 
@@ -153,6 +154,9 @@ class HazardBeliefNode(Node):
         )
         self.revision_publisher = self.create_publisher(UInt64, "/hazard/revision", qos)
         self.status_publisher = self.create_publisher(String, "/hazard/status", qos)
+        self.snapshot_publisher = self.create_publisher(
+            Float32MultiArray, "/hazard/snapshot", qos
+        )
         self.create_subscription(OccupancyGrid, self.static_topic, self._static, qos)
         self.create_subscription(OccupancyGrid, self.dynamic_topic, self._dynamic, qos)
         self.create_subscription(PointCloud2, self.thermal_topic, self._thermal, 10)
@@ -310,8 +314,10 @@ class HazardBeliefNode(Node):
         self.exact_publisher.publish(float_grid_message(self.belief.final_cost_map))
         self.temperature_publisher.publish(float_grid_message(self.belief.temperature_belief_map))
         self.co_publisher.publish(float_grid_message(self.belief.co_belief_map))
-        self.fire_publisher.publish(float_grid_message(
-            np.zeros(self.belief.shape, dtype=np.float32)
+        fire_probability = np.zeros(self.belief.shape, dtype=np.float32)
+        self.fire_publisher.publish(float_grid_message(fire_probability))
+        self.snapshot_publisher.publish(hazard_snapshot_message(
+            self.belief, fire_probability, status=self.status,
         ))
         self.revision_publisher.publish(UInt64(data=self.belief.revision))
         message = OccupancyGrid()
