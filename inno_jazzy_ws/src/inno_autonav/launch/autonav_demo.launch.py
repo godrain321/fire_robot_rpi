@@ -32,6 +32,10 @@ def generate_launch_description() -> LaunchDescription:
     waypoint_file = LaunchConfiguration('waypoint_file')
     hazard_belief_enabled = LaunchConfiguration('hazard_belief_enabled')
     exit_evaluator_enabled = LaunchConfiguration('exit_evaluator_enabled')
+    evacuation_manager_enabled = LaunchConfiguration('evacuation_manager_enabled')
+    evacuation_activate_route = LaunchConfiguration(
+        'evacuation_activate_selected_route'
+    )
     hazard_config = os.path.join(hazard_share, 'config', 'hazard_params.yaml')
 
     return LaunchDescription(
@@ -55,6 +59,12 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument(
                 'exit_evaluator_enabled', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'evacuation_manager_enabled', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'evacuation_activate_selected_route', default_value='false'
             ),
             DeclareLaunchArgument(
                 'map_yaml',
@@ -124,6 +134,24 @@ def generate_launch_description() -> LaunchDescription:
                 ],
                 output='screen',
                 condition=IfCondition(exit_evaluator_enabled),
+            ),
+            Node(
+                package='inno_autonav',
+                executable='evacuation_manager_node',
+                name='evacuation_manager_node',
+                parameters=[
+                    config_file,
+                    {
+                        'enabled': ParameterValue(
+                            evacuation_manager_enabled, value_type=bool
+                        ),
+                        'activate_selected_route': ParameterValue(
+                            evacuation_activate_route, value_type=bool
+                        ),
+                    },
+                ],
+                output='screen',
+                condition=IfCondition(evacuation_manager_enabled),
             ),
             Node(
                 package='inno_autonav',

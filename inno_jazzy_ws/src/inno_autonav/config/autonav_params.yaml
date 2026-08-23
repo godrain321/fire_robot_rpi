@@ -124,6 +124,27 @@ exit_evaluator_node:
     reference_waypoint_cost_radius_m: 0.10
     reference_waypoint_risk_weight: 1.0
 
+evacuation_manager_node:
+  ros__parameters:
+    enabled: false
+    activate_selected_route: false
+    risk_first: false
+    map_frame: map
+    exit_evaluation_service: /evaluate_exits
+    plan_service: /plan_evacuation
+    planner_goal_topic: /goal_pose
+    hazard_revision_topic: /hazard/revision
+    plan_topic: /evacuation/plan
+    selected_exit_topic: /evacuation/selected_exit
+    status_topic: /evacuation/status
+    evaluation_service_timeout_s: 30.0
+    prefer_confirmed_usable_exit: true
+    fallback_to_shortest_reachable_exit: true
+    primary_key: path_length_m
+    secondary_key: accumulated_risk_cost
+    final_tie_breaker: exit_id
+    float_tolerance: 1.0e-6
+
 skid_path_follower:
   ros__parameters:
     map_frame: map

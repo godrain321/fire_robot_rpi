@@ -46,6 +46,10 @@ def generate_launch_description():
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
         DeclareLaunchArgument('hazard_belief_enabled', default_value='false'),
         DeclareLaunchArgument('exit_evaluator_enabled', default_value='false'),
+        DeclareLaunchArgument('evacuation_manager_enabled', default_value='false'),
+        DeclareLaunchArgument(
+            'evacuation_activate_selected_route', default_value='false'
+        ),
         DeclareLaunchArgument('use_camera_mode4', default_value='false'),
         DeclareLaunchArgument(
             'yolo_model_path',
@@ -109,6 +113,10 @@ def generate_launch_description():
             'waypoint_file': L('waypoint_file'),
             'hazard_belief_enabled': L('hazard_belief_enabled'),
             'exit_evaluator_enabled': L('exit_evaluator_enabled'),
+            'evacuation_manager_enabled': L('evacuation_manager_enabled'),
+            'evacuation_activate_selected_route': L(
+                'evacuation_activate_selected_route'
+            ),
         }.items(),
     )
     keyboard = Node(

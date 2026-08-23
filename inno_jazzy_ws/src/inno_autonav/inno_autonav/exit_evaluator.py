@@ -247,10 +247,83 @@ class ExitEvaluation:
         result["rejection_reasons"] = [item.value for item in self.rejection_reasons]
         return result
 
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]):
+        if not isinstance(value, dict):
+            raise ValueError("exit evaluation must be a mapping")
+        missing = set(cls.__dataclass_fields__) - set(value)
+        if missing:
+            raise ValueError(f"exit evaluation fields missing: {sorted(missing)}")
+
+        def point(name, *, integer=False, optional=False):
+            raw = value[name]
+            if raw is None and optional:
+                return None
+            if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+                raise ValueError(f"{name} must be an (x, y) point")
+            output = tuple((int if integer else float)(item) for item in raw)
+            if not integer and not all(math.isfinite(item) for item in output):
+                raise ValueError(f"{name} must be finite")
+            return output
+
+        def optional_number(name):
+            raw = value[name]
+            if raw is None:
+                return None
+            result = float(raw)
+            if not math.isfinite(result):
+                raise ValueError(f"{name} must be finite or null")
+            return result
+
+        exit_id = str(value["exit_id"]).strip()
+        if not exit_id:
+            raise ValueError("exit_id must not be empty")
+        status = ExitStatus(str(value["exit_status"]))
+        reasons = tuple(ExitRejectionReason(str(item)) for item in value["rejection_reasons"])
+        path_world = tuple(
+            tuple(map(float, item)) for item in value["path_world"]
+        )
+        path_grid = tuple(
+            tuple(map(int, item)) for item in value["path_grid"]
+        )
+        if any(len(item) != 2 or not all(math.isfinite(v) for v in item)
+               for item in path_world) or any(len(item) != 2 for item in path_grid):
+            raise ValueError("evaluation path contains an invalid point")
+        evaluated_at = float(value["evaluated_at"])
+        if not math.isfinite(evaluated_at):
+            raise ValueError("evaluated_at must be finite")
+        if not isinstance(value["reachable"], bool) or not isinstance(
+            value["accepted"], bool
+        ):
+            raise ValueError("reachable and accepted must be bool")
+        result = cls(
+            exit_id, status.value, point("exit_position_world"),
+            point("approach_position_world", optional=True),
+            point("approach_position_grid", integer=True, optional=True),
+            bool(value["reachable"]), bool(value["accepted"]),
+            path_world, path_grid, optional_number("path_length_m"),
+            optional_number("accumulated_risk_cost"),
+            optional_number("max_path_temperature_c"),
+            optional_number("max_path_co_ppm"),
+            optional_number("exit_temperature_c"),
+            optional_number("exit_co_ppm"), optional_number("unknown_ratio"),
+            reasons, evaluated_at,
+            tuple(str(item) for item in value["reference_waypoint_ids"]),
+        )
+        if result.accepted and (
+            not result.reachable
+            or result.approach_position_world is None
+            or result.path_length_m is None
+            or result.accumulated_risk_cost is None
+        ):
+            raise ValueError("accepted evaluation lacks reachable path metrics")
+        return result
+
 
 @dataclass(frozen=True)
 class ExitEvaluationBatch:
     hazard_revision: int
+    frame_id: str
     robot_position_world: WorldPoint
     evaluations: tuple[ExitEvaluation, ...]
     evaluated_at: float
@@ -258,10 +331,38 @@ class ExitEvaluationBatch:
     def to_dict(self) -> dict[str, Any]:
         return {
             "hazard_revision": self.hazard_revision,
+            "frame_id": self.frame_id,
             "robot_position_world": list(self.robot_position_world),
             "evaluated_at": self.evaluated_at,
             "evaluations": [item.to_dict() for item in self.evaluations],
         }
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any], expected_frame="map"):
+        if not isinstance(value, dict):
+            raise ValueError("exit evaluation batch must be a mapping")
+        required = {
+            "hazard_revision", "frame_id", "robot_position_world",
+            "evaluated_at", "evaluations",
+        }
+        if required - set(value):
+            raise ValueError("exit evaluation batch fields are incomplete")
+        revision = int(value["hazard_revision"])
+        if revision < 0:
+            raise ValueError("hazard revision must be non-negative")
+        frame = str(value["frame_id"])
+        if frame.lstrip("/") != str(expected_frame).lstrip("/"):
+            raise ValueError("evaluation batch frame differs from planner frame")
+        robot = tuple(map(float, value["robot_position_world"]))
+        if len(robot) != 2 or not all(math.isfinite(item) for item in robot):
+            raise ValueError("robot_position_world must be finite")
+        created = float(value["evaluated_at"])
+        if not math.isfinite(created):
+            raise ValueError("evaluated_at must be finite")
+        evaluations = tuple(
+            ExitEvaluation.from_dict(item) for item in value["evaluations"]
+        )
+        return cls(revision, frame, robot, evaluations, created)
 
 
 def within_usable_confirmation_distance(robot, approach, config) -> bool:
@@ -313,7 +414,8 @@ class ExitEvaluator:
             for item in exits
         )
         return ExitEvaluationBatch(
-            snapshot.revision, tuple(map(float, start_position_world)),
+            snapshot.revision, snapshot.geometry.frame_id,
+            tuple(map(float, start_position_world)),
             evaluations, float(evaluated_at),
         )
 

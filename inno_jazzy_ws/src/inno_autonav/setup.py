@@ -34,6 +34,7 @@ setup(
             'mode4_inspector = inno_autonav.mode4_inspector:main',
             'astar_replanner = inno_autonav.astar_replanner:main',
             'exit_evaluator_node = inno_autonav.exit_evaluator_node:main',
+            'evacuation_manager_node = inno_autonav.evacuation_manager_node:main',
             'skid_path_follower = inno_autonav.skid_path_follower:main',
             'waypoint_queue = inno_autonav.waypoint_queue:main',
         ],
