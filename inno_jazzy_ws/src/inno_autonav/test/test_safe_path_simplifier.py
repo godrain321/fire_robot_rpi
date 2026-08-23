@@ -2,6 +2,7 @@ import numpy as np
 
 from inno_autonav.safe_path_simplifier import (
     expanded_path,
+    extract_direction_change_points,
     simplify_path_safely,
     supercover_line,
 )
@@ -42,3 +43,25 @@ def test_open_space_simplifies_to_endpoints():
     result = simplify_path_safely(raw, data)
     assert result.safe
     assert result.path == ((0, 2), (7, 2))
+
+
+def test_exact_corner_shortcut_touching_wall_is_rejected():
+    data = np.zeros((4, 4), dtype=np.int8)
+    data[0, 1] = 100
+    raw = ((0, 0), (0, 1), (0, 2), (1, 2), (2, 2))
+    result = simplify_path_safely(raw, data)
+    assert result.safe
+    assert (1, 0) not in expanded_path(result.path)
+    assert result.path != ((0, 0), (2, 2))
+
+
+def test_direction_changes_and_endpoints_are_preserved():
+    raw = ((0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (3, 3))
+    assert extract_direction_change_points(raw) == (
+        (0, 0), (2, 0), (2, 2), (3, 3)
+    )
+    result = simplify_path_safely(raw, np.zeros((4, 4), dtype=np.int8))
+    assert result.safe
+    assert len(result.path) < len(raw)
+    assert result.path[0] == raw[0]
+    assert result.path[-1] == raw[-1]

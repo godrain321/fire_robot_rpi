@@ -12,6 +12,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Empty, String
+from std_msgs.msg import Float32MultiArray
 
 from .grid_utils import (
     MapGrid,
@@ -25,6 +26,16 @@ from .grid_utils import (
 )
 from .tf_utils import TfHelper
 from .safe_path_simplifier import simplify_path_safely
+from .reference_waypoint_graph import (
+    PlanningGridGeometry,
+    ReferenceWaypoint,
+    ReferenceWaypointGraphConfig,
+    ReferenceWaypointGraphPlanner,
+)
+from .waypoint_selection import (
+    load_waypoint_document,
+    named_waypoints_from_document,
+)
 from .weighted_planner import (
     combine_cost_grids,
     thermal_readiness_state,
@@ -105,6 +116,17 @@ class AstarReplanner(Node):
             'co_cost_power': 2.0,
             'simplification_maximum_risk_ratio': 1.0,
             'simplification_risk_absolute_tolerance': 0.0,
+            'reference_waypoint_graph_enabled': True,
+            'reference_waypoint_file': '',
+            'reference_neighbor_radius_m': 1.5,
+            'reference_connector_search_radius_m': 3.0,
+            'reference_connector_candidate_count': 8,
+            'reference_fallback_to_cell_astar': True,
+            'reference_waypoint_cost_radius_m': 0.10,
+            'reference_waypoint_risk_weight': 1.0,
+            'hazard_belief_enabled': False,
+            'hazard_final_cost_topic': '/hazard/final_cost',
+            'hazard_status_topic': '/hazard/status',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -159,6 +181,41 @@ class AstarReplanner(Node):
         self.simplification_risk_absolute_tolerance = float(
             self.get_parameter('simplification_risk_absolute_tolerance').value
         )
+        self.reference_waypoint_file = str(
+            self.get_parameter('reference_waypoint_file').value
+        ).strip()
+        self.hazard_belief_enabled = bool(
+            self.get_parameter('hazard_belief_enabled').value
+        )
+        self.hazard_final_cost_topic = str(
+            self.get_parameter('hazard_final_cost_topic').value
+        )
+        self.hazard_status_topic = str(
+            self.get_parameter('hazard_status_topic').value
+        )
+        reference_config = ReferenceWaypointGraphConfig(
+            enabled=bool(self.get_parameter(
+                'reference_waypoint_graph_enabled'
+            ).value),
+            neighbor_radius_m=float(self.get_parameter(
+                'reference_neighbor_radius_m'
+            ).value),
+            connector_search_radius_m=float(self.get_parameter(
+                'reference_connector_search_radius_m'
+            ).value),
+            connector_candidate_count=int(self.get_parameter(
+                'reference_connector_candidate_count'
+            ).value),
+            fallback_to_cell_astar=bool(self.get_parameter(
+                'reference_fallback_to_cell_astar'
+            ).value),
+            waypoint_cost_radius_m=float(self.get_parameter(
+                'reference_waypoint_cost_radius_m'
+            ).value),
+            waypoint_risk_weight=float(self.get_parameter(
+                'reference_waypoint_risk_weight'
+            ).value),
+        )
         numeric_parameters = (
             self.replan_rate, self.clearance_radius, self.start_clearance_radius,
             self.thermal_timeout, self.thermal_cost_weight,
@@ -185,6 +242,24 @@ class AstarReplanner(Node):
                 'simplification risk ratio는 1 이상이어야 합니다.'
             )
 
+        reference_waypoints = ()
+        if reference_config.enabled:
+            if not self.reference_waypoint_file:
+                raise ValueError(
+                    'reference waypoint graph가 활성화됐지만 '
+                    'reference_waypoint_file이 비어 있습니다.'
+                )
+            document = load_waypoint_document(self.reference_waypoint_file)
+            records = named_waypoints_from_document(document, self.map_frame)
+            reference_waypoints = tuple(
+                ReferenceWaypoint(
+                    item.name, item.x, item.y, item.yaw
+                ) for item in records
+            )
+        self.reference_graph_planner = ReferenceWaypointGraphPlanner(
+            reference_waypoints, reference_config
+        )
+
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
@@ -196,6 +271,8 @@ class AstarReplanner(Node):
         self.thermal_received_ns: Optional[int] = None
         self.thermal_geometry_mismatch = False
         self.combined_grid: Optional[MapGrid] = None
+        self.hazard_grid: Optional[MapGrid] = None
+        self.hazard_status = ''
         self.goal: Optional[PoseStamped] = None
         self.current_path_cells: List[Cell] = []
         self.current_simplified_cells: List[Cell] = []
@@ -213,6 +290,13 @@ class AstarReplanner(Node):
         )
         self.create_subscription(
             String, self.thermal_status_topic, self._thermal_status_callback, qos
+        )
+        self.create_subscription(
+            Float32MultiArray, self.hazard_final_cost_topic,
+            self._hazard_cost_callback, qos,
+        )
+        self.create_subscription(
+            String, self.hazard_status_topic, self._hazard_status_callback, qos
         )
         self.create_subscription(PoseStamped, '/goal_pose', self._goal_callback, 10)
         self.create_subscription(
@@ -250,6 +334,8 @@ class AstarReplanner(Node):
             or not np.array_equal(self.static_grid.data, grid.data)
         )
         self.static_grid = grid
+        if changed:
+            self.hazard_grid = None
         if self.dynamic_grid is not None and not self._same_geometry(
             grid, self.dynamic_grid
         ):
@@ -311,6 +397,8 @@ class AstarReplanner(Node):
             self._combine_and_publish()
 
     def _thermal_status_callback(self, message: String) -> None:
+        if self.hazard_belief_enabled:
+            return
         changed = message.data != self.thermal_status
         self.thermal_status = message.data
         if changed:
@@ -321,6 +409,38 @@ class AstarReplanner(Node):
             else:
                 self._state('WAITING_FOR_THERMAL_ACTIVE')
             self._publish_empty_path()
+
+    def _hazard_status_callback(self, message: String) -> None:
+        if message.data != self.hazard_status:
+            self.hazard_status = message.data
+            self._dirty = True
+
+    def _hazard_cost_callback(self, message: Float32MultiArray) -> None:
+        if self.static_grid is None:
+            self._state('WAITING_FOR_HAZARD_STATIC_GRID')
+            return
+        dimensions = {item.label: int(item.size) for item in message.layout.dim}
+        if dimensions.get('height') != self.static_grid.height or dimensions.get(
+            'width'
+        ) != self.static_grid.width:
+            self._state('HAZARD_GRID_MISMATCH')
+            self.get_logger().error('hazard float grid geometry가 static grid와 다릅니다.')
+            return
+        values = np.asarray(message.data, dtype=float)
+        if values.size != self.static_grid.width * self.static_grid.height:
+            self._state('HAZARD_GRID_MISMATCH')
+            return
+        data = values.reshape(self.static_grid.height, self.static_grid.width)
+        if np.any(np.isnan(data)) or np.any(data[np.isfinite(data)] <= 0.0):
+            self._state('INVALID_HAZARD_GRID')
+            return
+        self.hazard_grid = MapGrid(
+            self.static_grid.width, self.static_grid.height,
+            self.static_grid.resolution, self.static_grid.origin_x,
+            self.static_grid.origin_y, self.static_grid.origin_yaw,
+            self.static_grid.frame_id, data,
+        )
+        self._dirty = True
 
     def _combine_and_publish(self) -> None:
         if self.static_grid is None:
@@ -405,6 +525,12 @@ class AstarReplanner(Node):
         self._plan(reason)
 
     def _thermal_failure(self) -> Optional[str]:
+        if self.hazard_belief_enabled:
+            if self.hazard_grid is None:
+                return 'WAITING_FOR_HAZARD'
+            if self.hazard_status not in ('ACTIVE', 'ACTIVE_THERMAL_ONLY'):
+                return 'HAZARD_NOT_READY:' + (self.hazard_status or 'NO_STATUS')
+            return None
         age_sec = None
         if self.thermal_received_ns is not None:
             age_sec = max(
@@ -423,7 +549,11 @@ class AstarReplanner(Node):
         )
 
     def _plan(self, reason: str) -> None:
-        if self.goal is None or self.combined_grid is None:
+        planning_grid = (
+            self.hazard_grid if self.hazard_belief_enabled
+            else self.combined_grid
+        )
+        if self.goal is None or planning_grid is None:
             self._state('WAITING_FOR_GRID')
             return
         thermal_failure = self._thermal_failure()
@@ -439,14 +569,14 @@ class AstarReplanner(Node):
             self._state('WAITING_FOR_TF')
             self._publish_empty_path()
             return
-        start = world_to_grid(pose[0], pose[1], self.combined_grid)
+        start = world_to_grid(pose[0], pose[1], planning_grid)
         goal = world_to_grid(
             self.goal.pose.position.x,
             self.goal.pose.position.y,
-            self.combined_grid,
+            planning_grid,
         )
-        if not is_inside_grid(*start, self.combined_grid) or not is_inside_grid(
-            *goal, self.combined_grid
+        if not is_inside_grid(*start, planning_grid) or not is_inside_grid(
+            *goal, planning_grid
         ):
             self._state('NO_PATH')
             self.get_logger().error(f'start={start} 또는 goal={goal}이 지도 밖입니다.')
@@ -455,30 +585,31 @@ class AstarReplanner(Node):
         if reason == 'GRID_UPDATE' and self.current_path_cells:
             if path_cells_collision(
                 self.current_path_cells,
-                self.combined_grid.data,
+                planning_grid.data,
                 self.unknown_is_occupied,
             ):
                 self._state('REPLANNING')
         else:
             self._state('PLANNING')
-        # Inflation can mark the cell occupied by the physical robot itself.
-        # Clear only its already-occupied local footprint so A* can safely leave
-        # the start, while all cells beyond this small disk remain protected.
-        planning_data = self.combined_grid.data.copy()
-        start_radius_cells = int(math.ceil(
-            self.start_clearance_radius / self.combined_grid.resolution
-        ))
-        for dy in range(-start_radius_cells, start_radius_cells + 1):
-            for dx in range(-start_radius_cells, start_radius_cells + 1):
-                if math.hypot(dx, dy) > start_radius_cells:
-                    continue
-                sx, sy = start[0] + dx, start[1] + dy
-                if 0 <= sy < planning_data.shape[0] and 0 <= sx < planning_data.shape[1]:
-                    planning_data[sy, sx] = 0
-        result = weighted_astar_search(
+        planning_data = planning_grid.data.copy()
+        # Escape may cross thermal/dynamic/inflation cost around the robot, but
+        # never a physical static-map obstacle. This is factory_v5's rule and
+        # replaces the previous mutation that cleared start-neighbour costs.
+        static_obstacles = self.static_grid.data >= 100
+        geometry = PlanningGridGeometry(
+            resolution=planning_grid.resolution,
+            origin_x=planning_grid.origin_x,
+            origin_y=planning_grid.origin_y,
+            origin_yaw=planning_grid.origin_yaw,
+            frame_id=planning_grid.frame_id,
+        )
+        result = self.reference_graph_planner.plan(
             planning_data,
             start,
             goal,
+            geometry,
+            static_obstacles,
+            waypoint_frame_id=self.map_frame,
             unknown_is_occupied=self.unknown_is_occupied,
             allow_diagonal=self.allow_diagonal,
             thermal_cost_weight=self.thermal_cost_weight,
@@ -488,6 +619,7 @@ class AstarReplanner(Node):
             co_blocked_ppm=self.co_blocked_ppm,
             co_cost_weight=self.co_cost_weight,
             co_cost_power=self.co_cost_power,
+            costs_are_traversal=self.hazard_belief_enabled,
         )
         path = list(result.path)
         if not path:
@@ -498,8 +630,13 @@ class AstarReplanner(Node):
             self._publish_empty_path()
             self.get_logger().error(f'A* 경로 없음: start={start}, goal={goal}')
             return
+        # The escape prefix intentionally contains cells blocked by the current
+        # risk map, so preserve it exactly and simplify only the finite-cost
+        # weighted-A* suffix.
+        escape_prefix = list(result.escape_path[:-1])
+        simplification_source = path[len(escape_prefix):]
         simplification = simplify_path_safely(
-            path,
+            simplification_source,
             planning_data,
             unknown_is_occupied=self.unknown_is_occupied,
             thermal_cost_weight=self.thermal_cost_weight,
@@ -511,6 +648,7 @@ class AstarReplanner(Node):
             co_cost_power=self.co_cost_power,
             maximum_risk_ratio=self.simplification_maximum_risk_ratio,
             risk_absolute_tolerance=self.simplification_risk_absolute_tolerance,
+            costs_are_traversal=self.hazard_belief_enabled,
         )
         if not simplification.safe or not simplification.path:
             self.current_path_cells = []
@@ -520,7 +658,7 @@ class AstarReplanner(Node):
             self._publish_empty_path()
             self.get_logger().error('thermal-aware 경로 단순화 안전 검증 실패')
             return
-        simplified = list(simplification.path)
+        simplified = escape_prefix + list(simplification.path)
         self.current_path_cells = path
         self.current_simplified_cells = simplified
         self.current_path_total_cost = result.total_cost
@@ -529,9 +667,11 @@ class AstarReplanner(Node):
         self._publish_path(simplified)
         self._state('PATH_READY')
         self.get_logger().debug(
-            f'weighted A* {reason}: raw={len(path)}, simplified={len(simplified)}, '
+            f'planner {reason}: raw={len(path)}, simplified={len(simplified)}, '
             f'cost={result.total_cost:.3f}, rejected_shortcuts='
-            f'{simplification.rejected_shortcuts}'
+            f'{simplification.rejected_shortcuts}, reference_graph='
+            f'{result.used_reference_graph}, anchors='
+            f'{result.reference_waypoint_ids}'
         )
 
     def _publish_path(self, cells: List[Cell]) -> None:

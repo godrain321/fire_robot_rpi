@@ -7,6 +7,7 @@ from inno_autonav.weighted_planner import (
     path_cost,
     thermal_readiness_state,
     traversal_multiplier,
+    weighted_a_star_with_escape,
     weighted_astar_search,
 )
 
@@ -103,3 +104,65 @@ def test_thermal_fail_safe_states_and_recovery():
     assert thermal_readiness_state(**base) == "WAITING_FOR_THERMAL_ACTIVE"
     base.update(status="ACTIVE")
     assert thermal_readiness_state(**base) is None
+
+
+def test_empty_space_uses_diagonal_metric_path():
+    result = weighted_astar_search(np.zeros((4, 4)), (0, 0), (3, 3))
+    assert result.path == ((0, 0), (1, 1), (2, 2), (3, 3))
+    assert result.total_cost == pytest.approx(3.0 * math.sqrt(2.0))
+
+
+def test_obstacle_detour_never_enters_blocked_cells():
+    data = np.zeros((4, 4))
+    data[:3, 2] = 100
+    result = weighted_astar_search(data, (0, 0), (3, 3))
+    assert result.path
+    assert all(data[y, x] < 100 for x, y in result.path)
+    assert (2, 3) in result.path
+
+
+def test_escape_differs_from_normal_search_and_preserves_escape_metadata():
+    data = np.zeros((5, 6))
+    data[1:4, 0:2] = 100
+    static = np.zeros_like(data, dtype=bool)
+    start, goal = (0, 2), (5, 2)
+    assert not weighted_astar_search(data, start, goal).path
+    escaped = weighted_a_star_with_escape(data, start, goal, static)
+    assert escaped.path[0] == start
+    assert escaped.path[-1] == goal
+    assert escaped.escape_path[0] == start
+    assert escaped.escape_path[-1] == escaped.replan_start
+    # (0, 0) and (2, 2) are equally near finite cells. The heap's coordinate
+    # tie-break, shared with factory_v5, deterministically selects (0, 0).
+    assert escaped.replan_start == (0, 0)
+    assert escaped.total_cost == pytest.approx(5.0 + 2.0 * math.sqrt(2.0))
+
+
+def test_escape_never_crosses_static_obstacles_or_blocked_goal():
+    data = np.full((3, 3), 100.0)
+    data[1, 2] = 0.0
+    static = np.zeros_like(data, dtype=bool)
+    static[:, 1] = True
+    assert not weighted_a_star_with_escape(
+        data, (0, 1), (2, 1), static
+    ).path
+    data[1, 2] = 100.0
+    assert weighted_a_star_with_escape(
+        data, (0, 1), (2, 1), np.zeros_like(static)
+    ).reason == "goal is blocked"
+
+
+def test_exact_traversal_cost_is_used_once_without_thermal_reinterpretation():
+    costs = np.ones((5, 7), dtype=float)
+    costs[2, 2:5] = 25.0
+    result = weighted_astar_search(
+        costs, (0, 2), (6, 2), costs_are_traversal=True,
+        thermal_cost_weight=999.0, thermal_cost_power=9.0,
+    )
+    assert result.path
+    assert all(not (y == 2 and 2 <= x <= 4) for x, y in result.path)
+    expected = path_cost(
+        result.path, costs, costs_are_traversal=True,
+        thermal_cost_weight=0.0,
+    )
+    assert result.total_cost == pytest.approx(expected)

@@ -44,6 +44,7 @@ def generate_launch_description():
         DeclareLaunchArgument('drive_speed', default_value='0.12'),
         DeclareLaunchArgument('turn_speed', default_value='0.45'),
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
+        DeclareLaunchArgument('hazard_belief_enabled', default_value='false'),
         DeclareLaunchArgument('use_camera_mode4', default_value='false'),
         DeclareLaunchArgument(
             'yolo_model_path',
@@ -104,6 +105,8 @@ def generate_launch_description():
             'max_linear_speed': L('drive_speed'),
             'max_angular_speed': L('turn_speed'),
             'use_dynamic_obstacles': L('use_dynamic_obstacles'),
+            'waypoint_file': L('waypoint_file'),
+            'hazard_belief_enabled': L('hazard_belief_enabled'),
         }.items(),
     )
     keyboard = Node(

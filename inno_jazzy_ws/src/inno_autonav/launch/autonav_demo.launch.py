@@ -15,6 +15,7 @@ from inno_autonav.project_paths import project_path
 
 def generate_launch_description() -> LaunchDescription:
     package_share = get_package_share_directory('inno_autonav')
+    hazard_share = get_package_share_directory('inno_hazard')
     drive_share = get_package_share_directory('inno_drive_bridge')
     config_file = os.path.join(package_share, 'config', 'autonav_params.yaml')
     drive_config = os.path.join(drive_share, 'config', 'drive_params.yaml')
@@ -28,6 +29,9 @@ def generate_launch_description() -> LaunchDescription:
     max_angular_speed = LaunchConfiguration('max_angular_speed')
     require_thermal_grid = LaunchConfiguration('require_thermal_grid')
     require_thermal_active = LaunchConfiguration('require_thermal_active')
+    waypoint_file = LaunchConfiguration('waypoint_file')
+    hazard_belief_enabled = LaunchConfiguration('hazard_belief_enabled')
+    hazard_config = os.path.join(hazard_share, 'config', 'hazard_params.yaml')
 
     return LaunchDescription(
         [
@@ -40,6 +44,15 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('require_thermal_grid', default_value='true'),
             DeclareLaunchArgument('require_thermal_active', default_value='true'),
             DeclareLaunchArgument(
+                'waypoint_file',
+                default_value=project_path(
+                    'maps', 'waypoint_queue_latest.yaml'
+                ),
+            ),
+            DeclareLaunchArgument(
+                'hazard_belief_enabled', default_value='false'
+            ),
+            DeclareLaunchArgument(
                 'map_yaml',
                 default_value=project_path('maps', 'inno_map_nav.yaml'),
             ),
@@ -49,6 +62,14 @@ def generate_launch_description() -> LaunchDescription:
                     'inno_jazzy_ws', 'src', 'inno_autonav', 'config',
                     'semantic_points.yaml',
                 ),
+            ),
+            Node(
+                package='inno_hazard',
+                executable='hazard_belief_node',
+                name='hazard_belief_node',
+                parameters=[hazard_config],
+                output='screen',
+                condition=IfCondition(hazard_belief_enabled),
             ),
             Node(
                 package='inno_autonav',
@@ -77,6 +98,10 @@ def generate_launch_description() -> LaunchDescription:
                         ),
                         'require_thermal_active': ParameterValue(
                             require_thermal_active, value_type=bool
+                        ),
+                        'reference_waypoint_file': waypoint_file,
+                        'hazard_belief_enabled': ParameterValue(
+                            hazard_belief_enabled, value_type=bool
                         ),
                     },
                 ],

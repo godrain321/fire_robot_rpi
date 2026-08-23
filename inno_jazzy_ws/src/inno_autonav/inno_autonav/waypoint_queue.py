@@ -15,6 +15,7 @@ import yaml
 
 from .grid_utils import quaternion_from_yaw
 from .waypoint_selection import (
+    load_waypoint_document,
     resolve_named_waypoints,
     waypoint_names_from_document,
 )
@@ -232,13 +233,9 @@ class WaypointQueue(Node):
                 )
             return
         try:
-            with expanded.open(encoding='utf-8') as stream:
-                # `ros2 topic echo --once` terminates output with `---`, which
-                # makes the saved file a multi-document YAML stream. Use the
-                # first non-empty document so snapshots restore directly.
-                document = next(
-                    (item for item in yaml.safe_load_all(stream) if item), {}
-                )
+            # Shared with ReferenceWaypointGraph so Mode 2 and graph planning
+            # consume the same YAML document semantics.
+            document = load_waypoint_document(expanded)
             loaded_poses = poses_from_document(document, self.map_frame)
             loaded_names = waypoint_names_from_document(document)
             if len(loaded_names) != len(loaded_poses):

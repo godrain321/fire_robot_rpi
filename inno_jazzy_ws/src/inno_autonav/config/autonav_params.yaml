@@ -78,6 +78,21 @@ astar_replanner:
     co_cost_power: 2.0
     simplification_maximum_risk_ratio: 1.0
     simplification_risk_absolute_tolerance: 0.0
+    # factory_v5 ReferenceWaypointGraph defaults. Distances remain metres and
+    # are converted using each received OccupancyGrid's resolution.
+    reference_waypoint_graph_enabled: true
+    reference_waypoint_file: ''  # Supplied by the launch waypoint_file argument.
+    reference_neighbor_radius_m: 1.5
+    reference_connector_search_radius_m: 3.0
+    reference_connector_candidate_count: 8
+    reference_fallback_to_cell_astar: true
+    reference_waypoint_cost_radius_m: 0.10
+    reference_waypoint_risk_weight: 1.0
+    # False preserves the complete Stage 1/2 static+dynamic+thermal pipeline.
+    # True consumes exact final traversal costs from inno_hazard exactly once.
+    hazard_belief_enabled: false
+    hazard_final_cost_topic: /hazard/final_cost
+    hazard_status_topic: /hazard/status
 
 skid_path_follower:
   ros__parameters:
