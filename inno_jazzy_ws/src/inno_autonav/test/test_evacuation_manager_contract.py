@@ -86,6 +86,9 @@ def manager(activate, revision=4, *, evaluation_success=True):
     )
     value._status = lambda status: value.statuses.append(status)
     value._failure = MethodType(EvacuationManagerNode._failure, value)
+    value._select_and_activate = MethodType(
+        EvacuationManagerNode._select_and_activate, value
+    )
     return value
 
 

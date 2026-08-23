@@ -99,6 +99,13 @@ class AstarReplanner(Node):
             'base_frame': 'base_link',
             'unknown_is_occupied': True,
             'replan_rate_hz': 1.0,
+            'periodic_replanning_enabled': True,
+            # Stage 8-8: defaults to the original topic so Stage 1-7 behavior is
+            # byte-identical when the waypoint planning pipeline is disabled.
+            # The launch file overrides this to /astar_path only when
+            # waypoint_planning_enabled is true, at which point PathSelector
+            # (not astar_replanner) owns /planned_path.
+            'path_output_topic': '/planned_path',
             'path_block_check_radius': 0.20,
             'start_clearance_radius': 0.18,
             'allow_diagonal': True,
@@ -136,6 +143,9 @@ class AstarReplanner(Node):
             self.get_parameter('unknown_is_occupied').value
         )
         self.replan_rate = float(self.get_parameter('replan_rate_hz').value)
+        self.periodic_replanning_enabled = bool(
+            self.get_parameter('periodic_replanning_enabled').value
+        )
         self.clearance_radius = float(
             self.get_parameter('path_block_check_radius').value
         )
@@ -305,9 +315,21 @@ class AstarReplanner(Node):
         self.grid_publisher = self.create_publisher(
             OccupancyGrid, '/planning_grid', qos
         )
-        self.path_publisher = self.create_publisher(Path, '/planned_path', qos)
+        self.path_publisher = self.create_publisher(
+            Path, str(self.get_parameter('path_output_topic').value), qos
+        )
         self.state_publisher = self.create_publisher(String, '/planner_state', 10)
         self.create_timer(1.0 / self.replan_rate, self._timer_callback)
+        if self.periodic_replanning_enabled:
+            self.get_logger().info(
+                f'Periodic replanning: ENABLED ({self.replan_rate:.2f} Hz)'
+            )
+        else:
+            self.get_logger().info(
+                'Periodic replanning: DISABLED. External event-driven '
+                'replanning (replan_supervisor_node) owns replan decisions; '
+                '/goal_pose still triggers immediate planning.'
+            )
         self._state('WAITING_FOR_GRID')
 
     @staticmethod
@@ -518,6 +540,13 @@ class AstarReplanner(Node):
         self._state('CANCELLED')
 
     def _timer_callback(self) -> None:
+        if not self.periodic_replanning_enabled:
+            # Stage 6 (replan_supervisor_node) owns replan timing when this is
+            # false: it decides whether the active path is still safe and, if
+            # not, republishes /goal_pose itself -- which _goal_callback below
+            # still answers immediately. Neither a plain tick nor a dirty grid
+            # may trigger A* on their own in that mode.
+            return
         if self.goal is None:
             return
         # Periodic replanning also corrects for robot motion, even without grid changes.

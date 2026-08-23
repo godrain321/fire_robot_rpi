@@ -10,7 +10,7 @@ from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Int32, String
+from std_msgs.msg import Bool, Int32, String
 
 from .grid_utils import normalize_angle, yaw_from_quaternion
 from .tf_utils import TfHelper
@@ -41,6 +41,7 @@ class SkidPathFollower(Node):
             'emergency_stop_distance': 0.28,
             'emergency_front_angle_deg': 35.0,
             'control_rate_hz': 10.0,
+            'replan_hold_topic': '/replanning/hold',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -48,6 +49,7 @@ class SkidPathFollower(Node):
         self.base_frame = str(self.get_parameter('base_frame').value)
         self.scan_topic = str(self.get_parameter('scan_topic').value)
         cmd_vel_topic = str(self.get_parameter('cmd_vel_topic').value)
+        replan_hold_topic = str(self.get_parameter('replan_hold_topic').value)
         self.lookahead = float(self.get_parameter('lookahead_distance').value)
         self.goal_tolerance = float(self.get_parameter('goal_tolerance').value)
         self.yaw_tolerance = float(self.get_parameter('yaw_tolerance').value)
@@ -92,6 +94,11 @@ class SkidPathFollower(Node):
         self.path: Optional[Path] = None
         self.planner_state = 'WAITING_FOR_PATH'
         self.emergency_stop = False
+        # Stage 6 event-replanning hold: set by replan_supervisor_node while it stops
+        # the robot, invalidates the active path, and requests+validates a new one.
+        # Defaults false and stays false forever if nothing publishes this topic, so
+        # Stage 1-5 behavior is unchanged when Stage 6 is absent/disabled.
+        self.hold = False
         self.rotating_in_place = False
         self.rotation_direction = 0.0
         self.publisher = self.create_publisher(Twist, cmd_vel_topic, 10)
@@ -100,6 +107,7 @@ class SkidPathFollower(Node):
         self.create_subscription(String, '/planner_state', self._planner_callback, 10)
         self.create_subscription(LaserScan, self.scan_topic, self._scan_callback, 10)
         self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
+        self.create_subscription(Bool, replan_hold_topic, self._hold_callback, 10)
         self.create_timer(1.0 / control_rate, self._control)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
         self._publish_stop('WAITING_FOR_PATH')
@@ -148,6 +156,9 @@ class SkidPathFollower(Node):
             self.path = None
             self._publish_stop(message.data)
 
+    def _hold_callback(self, message: Bool) -> None:
+        self.hold = bool(message.data)
+
     def _mode_callback(self, message: Int32) -> None:
         # MODE 3/4 must finish facing the inspected obstacle so the forward
         # mmWave sensor or camera observes it at the standoff point.
@@ -178,6 +189,9 @@ class SkidPathFollower(Node):
     def _control(self) -> None:
         if self.emergency_stop:
             self._publish_stop('EMERGENCY_STOP')
+            return
+        if self.hold:
+            self._publish_stop('REPLAN_HOLD')
             return
         if self.planner_state == 'NO_PATH':
             self._publish_stop('NO_PATH')

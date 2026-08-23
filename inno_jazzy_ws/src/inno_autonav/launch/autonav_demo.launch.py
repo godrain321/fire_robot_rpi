@@ -6,7 +6,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -36,6 +36,13 @@ def generate_launch_description() -> LaunchDescription:
     evacuation_activate_route = LaunchConfiguration(
         'evacuation_activate_selected_route'
     )
+    event_replanning_enabled = LaunchConfiguration('event_replanning_enabled')
+    astar_periodic_replanning_enabled = LaunchConfiguration(
+        'astar_periodic_replanning_enabled'
+    )
+    exit_switching_enabled = LaunchConfiguration('exit_switching_enabled')
+    waypoint_planning_enabled = LaunchConfiguration('waypoint_planning_enabled')
+    astar_path_output_topic = LaunchConfiguration('astar_path_output_topic')
     hazard_config = os.path.join(hazard_share, 'config', 'hazard_params.yaml')
 
     return LaunchDescription(
@@ -65,6 +72,38 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument(
                 'evacuation_activate_selected_route', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'event_replanning_enabled', default_value='false'
+            ),
+            # Auto-connected to event_replanning_enabled so the default
+            # configuration can never have both the timer/dirty-grid periodic
+            # A* in astar_replanner and Stage 6 event-driven replanning making
+            # decisions at once. Passing this explicitly still overrides the
+            # derived default if a launch invocation genuinely needs to.
+            DeclareLaunchArgument(
+                'astar_periodic_replanning_enabled',
+                default_value=PythonExpression([
+                    "'false' if '", event_replanning_enabled, "' == 'true' else 'true'"
+                ]),
+            ),
+            DeclareLaunchArgument(
+                'exit_switching_enabled', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'waypoint_planning_enabled', default_value='false'
+            ),
+            # Auto-connected to waypoint_planning_enabled (Stage 8-8): when the
+            # waypoint pipeline is on, astar_replanner's output moves off
+            # /planned_path so PathSelector becomes the single owner of it,
+            # matching the final-ownership diagram. When off, astar_replanner
+            # keeps publishing /planned_path directly -- Stage 1-7 unchanged.
+            DeclareLaunchArgument(
+                'astar_path_output_topic',
+                default_value=PythonExpression([
+                    "'/astar_path' if '", waypoint_planning_enabled,
+                    "' == 'true' else '/planned_path'"
+                ]),
             ),
             DeclareLaunchArgument(
                 'map_yaml',
@@ -117,6 +156,10 @@ def generate_launch_description() -> LaunchDescription:
                         'hazard_belief_enabled': ParameterValue(
                             hazard_belief_enabled, value_type=bool
                         ),
+                        'periodic_replanning_enabled': ParameterValue(
+                            astar_periodic_replanning_enabled, value_type=bool
+                        ),
+                        'path_output_topic': astar_path_output_topic,
                     },
                 ],
                 output='screen',
@@ -152,6 +195,61 @@ def generate_launch_description() -> LaunchDescription:
                 ],
                 output='screen',
                 condition=IfCondition(evacuation_manager_enabled),
+            ),
+            Node(
+                package='inno_autonav',
+                executable='replan_supervisor_node',
+                name='replan_supervisor_node',
+                parameters=[
+                    config_file,
+                    {
+                        'enabled': ParameterValue(
+                            event_replanning_enabled, value_type=bool
+                        ),
+                    },
+                ],
+                output='screen',
+                condition=IfCondition(event_replanning_enabled),
+            ),
+            Node(
+                package='inno_autonav',
+                executable='exit_switching_node',
+                name='exit_switching_node',
+                parameters=[
+                    config_file,
+                    {
+                        'exit_registry_file': semantic_yaml,
+                        'enabled': ParameterValue(
+                            exit_switching_enabled, value_type=bool
+                        ),
+                    },
+                ],
+                output='screen',
+                condition=IfCondition(exit_switching_enabled),
+            ),
+            Node(
+                package='inno_autonav',
+                executable='waypoint_planner_node',
+                name='waypoint_planner_node',
+                parameters=[
+                    config_file,
+                    {
+                        'waypoint_file': waypoint_file,
+                        'enabled': ParameterValue(
+                            waypoint_planning_enabled, value_type=bool
+                        ),
+                    },
+                ],
+                output='screen',
+                condition=IfCondition(waypoint_planning_enabled),
+            ),
+            Node(
+                package='inno_autonav',
+                executable='path_selector_node',
+                name='path_selector_node',
+                parameters=[config_file],
+                output='screen',
+                condition=IfCondition(waypoint_planning_enabled),
             ),
             Node(
                 package='inno_autonav',

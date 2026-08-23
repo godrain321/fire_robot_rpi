@@ -40,6 +40,8 @@ class EvacuationManagerNode(Node):
             "secondary_key": "accumulated_risk_cost",
             "final_tie_breaker": "exit_id",
             "float_tolerance": 1e-6,
+            "switch_request_topic": "/evacuation/switch_request",
+            "switch_result_topic": "/evacuation/switch_result",
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -89,6 +91,12 @@ class EvacuationManagerNode(Node):
             UInt64, str(value("hazard_revision_topic")),
             self._revision, qos,
         )
+        self.switch_result_publisher = self.create_publisher(
+            String, str(value("switch_result_topic")), qos
+        )
+        self.create_subscription(
+            String, str(value("switch_request_topic")), self._on_switch_request, qos,
+        )
         self._status("READY" if self.enabled else "DISABLED")
 
     def _revision(self, message):
@@ -103,35 +111,48 @@ class EvacuationManagerNode(Node):
         response.message = str(status)
         return response
 
-    def _plan(self, request, response):
-        del request
-        if not self.enabled:
-            return self._failure(response, "DISABLED")
+    def _select_and_activate(
+        self, *, excluded_exit_ids=(), candidate_exit_ids=None,
+        risk_first=None, force_activate=False, publish_on_failure=True,
+    ):
+        """Shared Stage 4 evaluate -> Stage 5 select -> canonical-state pipeline.
+
+        Used by both the `/plan_evacuation` Trigger (all-default args, exactly
+        today's behavior) and Stage 7's `/evacuation/switch_request` handler
+        (excluded/candidate ids, forced activation, and -- critically --
+        ``publish_on_failure=False`` so a failed switch never overwrites the
+        still-canonical previous exit/goal). Returns
+        ``(plan_or_None, status, activated, serialized_or_None)``.
+        """
         if not self.evaluation_client.wait_for_service(timeout_sec=0.0):
-            return self._failure(response, "EVALUATION_SERVICE_UNAVAILABLE")
+            return None, "EVALUATION_SERVICE_UNAVAILABLE", False, None
         try:
             evaluation_response = self.evaluation_client.call(
                 Trigger.Request(), timeout_sec=self.timeout
             )
         except Exception as exc:  # rclpy transport/service errors
             self.get_logger().error(f"exit evaluation service failed: {exc}")
-            return self._failure(response, "EVALUATION_SERVICE_FAILED")
+            return None, "EVALUATION_SERVICE_FAILED", False, None
         if evaluation_response is None:
-            return self._failure(response, "EVALUATION_SERVICE_TIMEOUT")
+            return None, "EVALUATION_SERVICE_TIMEOUT", False, None
         if not evaluation_response.success:
-            return self._failure(
-                response, "EXIT_EVALUATOR_NOT_READY:" + evaluation_response.message
+            return (
+                None, "EXIT_EVALUATOR_NOT_READY:" + evaluation_response.message,
+                False, None,
             )
         try:
             plan, status, activated = build_evacuation_decision(
                 evaluation_response.message, self.planner,
-                expected_frame=self.map_frame, risk_first=self.risk_first,
-                activate=self.activate,
+                expected_frame=self.map_frame,
+                risk_first=self.risk_first if risk_first is None else risk_first,
+                activate=self.activate or force_activate,
                 current_revision=self.current_hazard_revision,
+                excluded_exit_ids=excluded_exit_ids,
+                candidate_exit_ids=candidate_exit_ids,
             )
         except (TypeError, ValueError) as exc:
             self.get_logger().error(f"invalid exit evaluation result: {exc}")
-            return self._failure(response, "INVALID_EVALUATION_RESPONSE")
+            return None, "INVALID_EVALUATION_RESPONSE", False, None
 
         payload = plan.to_dict()
         payload["activated"] = activated
@@ -139,24 +160,67 @@ class EvacuationManagerNode(Node):
         serialized = json.dumps(
             payload, sort_keys=True, separators=(",", ":"), allow_nan=False
         )
-        self.plan_publisher.publish(String(data=serialized))
-        if plan.success:
-            self.selected_publisher.publish(String(data=plan.selected_exit_id))
-        if activated:
-            goal = PoseStamped()
-            goal.header.stamp = self.get_clock().now().to_msg()
-            goal.header.frame_id = self.map_frame
-            goal.pose.position.x = plan.selected_approach_position_world[0]
-            goal.pose.position.y = plan.selected_approach_position_world[1]
-            goal.pose.orientation.w = 1.0
-            self.goal_publisher.publish(goal)
+        if plan.success or publish_on_failure:
+            self.plan_publisher.publish(String(data=serialized))
+            if plan.success:
+                self.selected_publisher.publish(String(data=plan.selected_exit_id))
+            if activated:
+                goal = PoseStamped()
+                goal.header.stamp = self.get_clock().now().to_msg()
+                goal.header.frame_id = self.map_frame
+                goal.pose.position.x = plan.selected_approach_position_world[0]
+                goal.pose.position.y = plan.selected_approach_position_world[1]
+                goal.pose.orientation.w = 1.0
+                self.goal_publisher.publish(goal)
         self._status(status)
+        return plan, status, activated, serialized
+
+    def _plan(self, request, response):
+        del request
+        if not self.enabled:
+            return self._failure(response, "DISABLED")
+        plan, status, _activated, serialized = self._select_and_activate()
+        if plan is None:
+            return self._failure(response, status)
         response.success = plan.success and status not in {
             "EVALUATION_STALE", "HAZARD_REVISION_NOT_READY",
             "SELECTED_APPROACH_MISSING",
         }
         response.message = serialized
         return response
+
+    def _on_switch_request(self, message):
+        if not self.enabled:
+            return
+        try:
+            request = json.loads(message.data)
+            if not isinstance(request, dict):
+                raise ValueError("switch request must be a JSON object")
+        except (TypeError, ValueError) as exc:
+            self.get_logger().error(f"invalid switch request payload: {exc}")
+            return
+        current_exit_id = request.get("current_exit_id")
+        excluded = request.get("excluded_exit_ids")
+        excluded = (
+            tuple(str(item) for item in excluded) if excluded
+            else ((str(current_exit_id),) if current_exit_id else ())
+        )
+        candidate = request.get("candidate_exit_ids")
+        candidate = None if candidate is None else tuple(str(item) for item in candidate)
+        plan, status, activated, _serialized = self._select_and_activate(
+            excluded_exit_ids=excluded, candidate_exit_ids=candidate,
+            risk_first=bool(request.get("risk_first", False)),
+            force_activate=True, publish_on_failure=False,
+        )
+        self.switch_result_publisher.publish(String(data=json.dumps({
+            "request_id": request.get("request_id"),
+            "success": bool(plan is not None and plan.success),
+            "activated": bool(activated),
+            "status": status,
+            "selected_exit_id": (
+                None if plan is None or not plan.success else plan.selected_exit_id
+            ),
+        }, sort_keys=True, separators=(",", ":"), allow_nan=False)))
 
 
 def main(args=None):

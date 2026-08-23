@@ -224,10 +224,20 @@ def route_activation_decision(plan, *, activate, current_revision):
 def build_evacuation_decision(
     payload, planner, *, expected_frame="map", risk_first=False,
     activate=False, current_revision=None,
+    excluded_exit_ids=(), candidate_exit_ids=None,
 ):
-    """Pure manager pipeline from a Stage 4 response to activation intent."""
+    """Pure manager pipeline from a Stage 4 response to activation intent.
+
+    ``excluded_exit_ids``/``candidate_exit_ids`` pass straight through to
+    ``EvacuationPlanner.plan()``, which already supports them (Stage 5) -- Stage 7
+    exit-switch requests reuse this same pipeline instead of a second selection
+    algorithm.
+    """
     batch = parse_evaluation_batch_json(payload, expected_frame)
-    plan = planner.plan(batch, risk_first=risk_first)
+    plan = planner.plan(
+        batch, risk_first=risk_first, excluded_exit_ids=excluded_exit_ids,
+        candidate_exit_ids=candidate_exit_ids,
+    )
     status, activated = route_activation_decision(
         plan, activate=activate, current_revision=current_revision,
     )
