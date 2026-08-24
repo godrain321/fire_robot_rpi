@@ -45,6 +45,18 @@ def generate_launch_description() -> LaunchDescription:
     waypoint_accept_direct_goal = LaunchConfiguration('waypoint_accept_direct_goal')
     astar_path_output_topic = LaunchConfiguration('astar_path_output_topic')
     astar_accept_goal_pose = LaunchConfiguration('astar_accept_goal_pose')
+    mode3_standoff_distance = LaunchConfiguration(
+        'mode3_standoff_distance_m'
+    )
+    mode3_publish_canonical_plan = LaunchConfiguration(
+        'mode3_publish_canonical_plan'
+    )
+    mode4_standoff_distance = LaunchConfiguration(
+        'mode4_standoff_distance_m'
+    )
+    mode4_publish_canonical_plan = LaunchConfiguration(
+        'mode4_publish_canonical_plan'
+    )
     hazard_config = os.path.join(hazard_share, 'config', 'hazard_params.yaml')
 
     return LaunchDescription(
@@ -111,6 +123,18 @@ def generate_launch_description() -> LaunchDescription:
                 ]),
             ),
             DeclareLaunchArgument('astar_accept_goal_pose', default_value='true'),
+            DeclareLaunchArgument(
+                'mode3_standoff_distance_m', default_value='2.0'
+            ),
+            DeclareLaunchArgument(
+                'mode3_publish_canonical_plan', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'mode4_standoff_distance_m', default_value='1.5'
+            ),
+            DeclareLaunchArgument(
+                'mode4_publish_canonical_plan', default_value='false'
+            ),
             DeclareLaunchArgument(
                 'map_yaml',
                 default_value=project_path('maps', 'inno_map_nav.yaml'),
@@ -270,7 +294,17 @@ def generate_launch_description() -> LaunchDescription:
                 package='inno_autonav',
                 executable='mode3_inspector',
                 name='mode3_inspector',
-                parameters=[config_file],
+                parameters=[
+                    config_file,
+                    {
+                        'standoff_distance_m': ParameterValue(
+                            mode3_standoff_distance, value_type=float
+                        ),
+                        'publish_canonical_plan': ParameterValue(
+                            mode3_publish_canonical_plan, value_type=bool
+                        ),
+                    },
+                ],
                 output='screen',
                 emulate_tty=True,
                 condition=IfCondition(use_dynamic_obstacles),
@@ -279,7 +313,17 @@ def generate_launch_description() -> LaunchDescription:
                 package='inno_autonav',
                 executable='mode4_inspector',
                 name='mode4_inspector',
-                parameters=[config_file],
+                parameters=[
+                    config_file,
+                    {
+                        'standoff_distance_m': ParameterValue(
+                            mode4_standoff_distance, value_type=float
+                        ),
+                        'publish_canonical_plan': ParameterValue(
+                            mode4_publish_canonical_plan, value_type=bool
+                        ),
+                    },
+                ],
                 output='screen',
                 emulate_tty=True,
                 condition=IfCondition(use_dynamic_obstacles),

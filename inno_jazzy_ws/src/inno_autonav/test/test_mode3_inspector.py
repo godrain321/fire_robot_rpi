@@ -1,11 +1,14 @@
+import json
 import math
 
+from builtin_interfaces.msg import Time
 from std_msgs.msg import Int32, String
 
 from inno_autonav.mode3_inspector import (
     Mode3Inspector,
     PresenceEvidence,
     compute_inspection_goal,
+    parse_inspection_command,
     select_nearest_candidate,
 )
 
@@ -18,6 +21,24 @@ class _Publisher:
         self.messages.append(message)
 
 
+class _Clock:
+    class _Now:
+        nanoseconds = 2_000_000_000
+
+        @staticmethod
+        def to_msg():
+            return Time(sec=2)
+
+    def now(self):
+        return self._Now()
+
+
+class _Tf:
+    @staticmethod
+    def lookup_pose_2d(_map_frame, _base_frame):
+        return 0.0, 0.0, 0.0
+
+
 def test_select_nearest_dynamic_obstacle():
     assert select_nearest_candidate(0.0, 0.0, [(4.0, 0.0), (2.0, 1.0)]) == (
         2.0,
@@ -25,14 +46,24 @@ def test_select_nearest_dynamic_obstacle():
     )
 
 
-def test_inspection_goal_is_1_5m_from_target_and_faces_it():
+def test_inspection_goal_is_2m_from_target_and_faces_it():
     goal_x, goal_y, goal_yaw = compute_inspection_goal(
-        0.0, 0.0, 0.0, 4.0, 0.0, 1.5
+        0.0, 0.0, 0.0, 4.0, 0.0, 2.0
     )
-    assert math.isclose(goal_x, 2.5)
+    assert math.isclose(goal_x, 2.0)
     assert math.isclose(goal_y, 0.0)
-    assert math.isclose(math.hypot(4.0 - goal_x, goal_y), 1.5)
+    assert math.isclose(math.hypot(4.0 - goal_x, goal_y), 2.0)
     assert math.isclose(goal_yaw, 0.0)
+
+
+def test_mode5_can_request_an_explicit_two_metre_inspection_target():
+    accepted, target = parse_inspection_command('MODE3_START_AT:4.0,2.5')
+    assert accepted
+    assert target == (4.0, 2.5)
+    goal_x, goal_y, _ = compute_inspection_goal(
+        0.0, 0.0, 0.0, target[0], target[1], 2.0
+    )
+    assert math.isclose(math.dist((goal_x, goal_y), target), 2.0)
 
 
 def test_presence_requires_online_samples_at_expected_distance():
@@ -86,3 +117,30 @@ def test_mode3_waits_for_space_before_trying_nearest_obstacle():
 
     assert inspector.phase == 'WAITING_FOR_OBSTACLE'
     assert starts == [True]
+
+
+def test_mode5_mode3_publishes_only_canonical_plan_with_inspection_yaw():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.drive_mode = 3
+    inspector.phase = 'WAITING_FOR_OBSTACLE'
+    inspector.map_frame = 'map'
+    inspector.base_frame = 'base_link'
+    inspector.tf = _Tf()
+    inspector.candidates = []
+    inspector.requested_target = (4.0, 0.0)
+    inspector.standoff_distance = 2.0
+    inspector.publish_canonical_plan = True
+    inspector.hazard_revision = 7
+    inspector.goal_publisher = _Publisher()
+    inspector.plan_publisher = _Publisher()
+    inspector.waiting_for_departure = False
+    inspector._state = lambda _state: None
+    inspector.get_clock = lambda: _Clock()
+
+    inspector._try_start_inspection()
+
+    assert inspector.goal_publisher.messages == []
+    payload = json.loads(inspector.plan_publisher.messages[-1].data)
+    assert payload['selected_exit_id'] == 'MODE3_INSPECTION'
+    assert payload['selected_approach_position_world'] == [2.0, 0.0]
+    assert payload['selected_approach_yaw_rad'] == 0.0

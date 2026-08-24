@@ -147,6 +147,15 @@ Visualization Manager:
         Durability Policy: Transient Local
         History Policy: Keep Last
         Depth: 5
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Current Waypoint Route (Cyan)
+      Enabled: true
+      Topic:
+        Value: /waypoint_route_markers
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
   Enabled: true
   Name: root
   Tools:

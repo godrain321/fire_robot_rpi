@@ -1,4 +1,5 @@
 from builtin_interfaces.msg import Time
+from geometry_msgs.msg import PointStamped
 
 from inno_autonav.dynamic_obstacle_layer import (
     DynamicObstacleLayer,
@@ -81,3 +82,21 @@ def test_blue_person_marker_persists_without_current_lidar_cluster():
 
     assert len(published[-1].markers[1].points) == 0
     assert len(published[-1].markers[2].points) == 1
+
+
+def test_survivor_track_update_moves_existing_blue_marker_instead_of_adding_trail():
+    layer = object.__new__(DynamicObstacleLayer)
+    layer.map_frame = 'map'
+    layer.classified_people = [(2.0, 3.0, 0.0)]
+    layer.get_logger = lambda: type(
+        'Logger', (), {'warning': lambda self, message: None}
+    )()
+    point = PointStamped()
+    point.header.frame_id = 'map'
+    point.point.x = 2.8
+    point.point.y = 3.0
+
+    layer._update_person(point, match_radius=2.5)
+
+    assert len(layer.classified_people) == 1
+    assert layer.classified_people[0][:2] == (2.8, 3.0)

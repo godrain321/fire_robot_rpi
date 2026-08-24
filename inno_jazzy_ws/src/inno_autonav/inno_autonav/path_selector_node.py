@@ -11,7 +11,7 @@ from nav_msgs.msg import Path
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
 
 from .path_selector import PathSelectorCore
 from .replan_supervisor import parse_active_goal_payload
@@ -47,6 +47,9 @@ class PathSelectorNode(Node):
         self.create_subscription(String, str(value("mode_topic")), self._on_mode, 10)
         self.create_subscription(
             String, str(value("evacuation_plan_topic")), self._on_new_goal, qos,
+        )
+        self.create_subscription(
+            Empty, "/autonomy_cancel", self._on_cancel, 10,
         )
         self.path_publisher = self.create_publisher(
             Path, str(value("planned_path_topic")), qos,
@@ -123,6 +126,13 @@ class PathSelectorNode(Node):
                 final = output.payload.poses[-1].pose.position
                 if (final.x, final.y) == goal.approach_world:
                     self._apply(output)
+
+    def _on_cancel(self, _message: Empty) -> None:
+        """Clear selected/cached paths and explicitly clear /planned_path."""
+        self._active_goal = None
+        self._pending_activation = None
+        self.core.clear()
+        self.path_publisher.publish(Path())
 
     def _apply(self, output) -> None:
         if output.publish and output.payload is not None:

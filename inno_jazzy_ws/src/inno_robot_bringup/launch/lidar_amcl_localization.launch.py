@@ -6,6 +6,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 from inno_robot_bringup.project_paths import project_path
 
@@ -22,6 +23,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'amcl_params', default_value=share + '/config/amcl_lidar_only.yaml'
         ),
+        DeclareLaunchArgument('set_initial_pose', default_value='false'),
+        DeclareLaunchArgument('initial_pose_x', default_value='0.0'),
+        DeclareLaunchArgument('initial_pose_y', default_value='0.0'),
+        DeclareLaunchArgument('initial_pose_yaw', default_value='0.0'),
     ]
     lidar = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(share + '/launch/lidar_only.launch.py'),
@@ -43,7 +48,23 @@ def generate_launch_description():
     )
     amcl = Node(
         package='nav2_amcl', executable='amcl', name='amcl', output='screen',
-        parameters=[L('amcl_params')],
+        parameters=[
+            L('amcl_params'),
+            {
+                'set_initial_pose': ParameterValue(
+                    L('set_initial_pose'), value_type=bool
+                ),
+                'initial_pose.x': ParameterValue(
+                    L('initial_pose_x'), value_type=float
+                ),
+                'initial_pose.y': ParameterValue(
+                    L('initial_pose_y'), value_type=float
+                ),
+                'initial_pose.yaw': ParameterValue(
+                    L('initial_pose_yaw'), value_type=float
+                ),
+            },
+        ],
     )
     lifecycle = Node(
         package='inno_robot_bringup', executable='lifecycle_autostart',

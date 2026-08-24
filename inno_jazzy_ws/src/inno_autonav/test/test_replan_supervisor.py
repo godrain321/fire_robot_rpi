@@ -285,6 +285,13 @@ def test_parse_active_goal_payload_accepts_activated_plan():
     assert goal == ActiveGoal("EXIT1", (4.5, 0.5), 3)
 
 
+def test_parse_active_goal_payload_preserves_optional_inspection_yaw():
+    goal = parse_active_goal_payload(
+        _plan_payload(selected_approach_yaw_rad=1.25)
+    )
+    assert goal == ActiveGoal("EXIT1", (4.5, 0.5), 3, 1.25)
+
+
 def test_parse_active_goal_payload_rejects_non_activated_plan():
     assert parse_active_goal_payload(_plan_payload(activated=False)) is None
 

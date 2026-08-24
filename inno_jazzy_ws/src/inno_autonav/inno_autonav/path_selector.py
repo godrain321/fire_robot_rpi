@@ -60,3 +60,7 @@ class PathSelectorCore:
 
     def latest(self, source: str) -> Any | None:
         return self._latest[str(source).lower()]
+
+    def clear(self) -> None:
+        """Forget both cached sources without changing the selected source."""
+        self._latest = {"waypoint": None, "astar": None}

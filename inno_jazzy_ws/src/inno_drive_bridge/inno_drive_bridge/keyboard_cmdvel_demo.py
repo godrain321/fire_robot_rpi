@@ -9,7 +9,10 @@ from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from std_msgs.msg import Empty, Int32, String
 
-from .named_waypoint_input import parse_named_waypoints
+from .named_waypoint_input import (
+    command_source_for_drive_mode,
+    parse_named_waypoints,
+)
 
 
 class KeyboardCmdVelDemo(Node):
@@ -58,10 +61,13 @@ class KeyboardCmdVelDemo(Node):
         self.inspection_command_publisher = self.create_publisher(
             String, '/obstacle_inspection_command', 10
         )
+        self.drive_mode = 1
+        self.create_subscription(
+            Int32, '/drive_mode', self._external_drive_mode, 10
+        )
         self.create_subscription(
             String, '/waypoint_queue_status', self._waypoint_status, 10
         )
-        self.drive_mode = 1
         self.command = Twist()
         self._waypoint_collecting = False
         self._waypoint_buffer = ''
@@ -74,6 +80,7 @@ class KeyboardCmdVelDemo(Node):
         self.get_logger().info(
             'Keyboard ready: 1=manual, 2=select named waypoints, '
             '3=mmWave inspection, 4=camera+LiDAR inspection, '
+            '5=automatic evacuation demo (launch controlled), '
             'SPACE=start/next, '
             'c=cancel mission, w/x/a/d/s, q=quit'
         )
@@ -133,6 +140,24 @@ class KeyboardCmdVelDemo(Node):
         self._write_terminal(f'\r\033[2K[MODE 2] {message.data}\n')
         if self._waypoint_collecting:
             self._render_waypoint_prompt()
+
+    def _external_drive_mode(self, message):
+        """Keep emergency keys aware of a launch-selected autonomous mode."""
+        try:
+            command_source_for_drive_mode(message.data)
+        except ValueError:
+            return
+        new_mode = int(message.data)
+        if new_mode == self.drive_mode:
+            return
+        if self._waypoint_collecting and new_mode != 2:
+            self._waypoint_collecting = False
+            self._waypoint_buffer = ''
+            self._write_terminal('\r\033[2KMODE 2 input cancelled\n')
+        self.drive_mode = new_mode
+        self.command = Twist()
+        if new_mode == 5:
+            self.get_logger().info('MODE 5: EVACUATION_DEMO selected externally')
 
     def _set_speed_parameters(self, parameters):
         linear_speed = self.linear_speed
@@ -218,7 +243,7 @@ class KeyboardCmdVelDemo(Node):
                 )
             return
         if key == 'c':
-            if self.drive_mode in (3, 4):
+            if self.drive_mode in (3, 4, 5):
                 cancelled_mode = self.drive_mode
                 self._stop_all_motion()
                 self.get_logger().warning(

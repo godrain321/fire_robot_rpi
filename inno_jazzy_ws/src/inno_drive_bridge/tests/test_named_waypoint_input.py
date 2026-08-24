@@ -25,10 +25,11 @@ def test_reject_invalid_named_waypoints(text):
         parse_named_waypoints(text)
 
 
-def test_modes_one_through_four_are_accepted():
+def test_modes_one_through_five_are_accepted():
     assert command_source_for_drive_mode(1) == 1
     assert command_source_for_drive_mode(2) == 2
     assert command_source_for_drive_mode(3) == 2
     assert command_source_for_drive_mode(4) == 2
+    assert command_source_for_drive_mode(5) == 2
     with pytest.raises(ValueError):
-        command_source_for_drive_mode(5)
+        command_source_for_drive_mode(6)

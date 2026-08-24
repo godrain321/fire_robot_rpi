@@ -7,14 +7,13 @@ from pathlib import Path as FsPath
 from types import MethodType, SimpleNamespace
 
 from builtin_interfaces.msg import Time
-from geometry_msgs.msg import Quaternion
+from geometry_msgs.msg import PoseStamped, Quaternion
 from nav_msgs.msg import OccupancyGrid
-import numpy as np
+import pytest
 from std_msgs.msg import String
 
-from inno_autonav.grid_utils import quaternion_from_yaw
+from inno_autonav.grid_utils import yaw_from_quaternion
 from inno_autonav.project_paths import project_path
-from inno_autonav.replan_supervisor import ActiveGoal
 from inno_autonav.waypoint_cost_projector import WaypointCostProjector, WaypointCostProjectorConfig
 from inno_autonav.waypoint_graph_planner import WaypointGraphPlanner, WaypointGraphPlannerConfig
 from inno_autonav.waypoint_planner_node import WaypointPlannerNode
@@ -76,12 +75,23 @@ def node(waypoints_world, *, pose=(0.5, 0.5)):
         _last_goal=None,
         tf=FakeTf(pose),
         waypoint_path_publisher=Publisher(),
+        route_status_publisher=Publisher(),
+        route_markers_publisher=Publisher(),
         get_clock=lambda: FakeClock(),
-        get_logger=lambda: SimpleNamespace(error=lambda *a, **k: None),
+        get_logger=lambda: SimpleNamespace(
+            error=lambda *a, **k: None,
+            info=lambda *a, **k: None,
+        ),
     )
     value._replan = MethodType(WaypointPlannerNode._replan, value)
     value._publish_path = MethodType(WaypointPlannerNode._publish_path, value)
     value._publish_empty_path = MethodType(WaypointPlannerNode._publish_empty_path, value)
+    value._publish_route_status = MethodType(
+        WaypointPlannerNode._publish_route_status, value
+    )
+    value._publish_route_markers = MethodType(
+        WaypointPlannerNode._publish_route_markers, value
+    )
     return value
 
 
@@ -89,11 +99,14 @@ def small_waypoints():
     return {f"W{i}": (float(i), 0.5) for i in range(6)}  # a straight 6-point line
 
 
-def plan_payload(exit_id, approach, revision=1):
-    return json.dumps({
+def plan_payload(exit_id, approach, revision=1, yaw=None):
+    payload = {
         "success": True, "activated": True, "selected_exit_id": exit_id,
         "selected_approach_position_world": list(approach), "hazard_revision": revision,
-    })
+    }
+    if yaw is not None:
+        payload["selected_approach_yaw_rad"] = yaw
+    return json.dumps(payload)
 
 
 def test_grid_and_plan_input_produce_a_waypoint_path():
@@ -119,7 +132,8 @@ def test_no_replan_without_a_selected_exit():
 def test_static_profile_direct_goal_produces_waypoint_path_without_evacuation_plan():
     value = node(small_waypoints())
     WaypointPlannerNode._on_grid(value, occupancy_grid_message())
-    goal = PoseStamped(); goal.header.frame_id = "map"
+    goal = PoseStamped()
+    goal.header.frame_id = "map"
     goal.pose.position.x, goal.pose.position.y = (5.0, 0.5)
     WaypointPlannerNode._on_direct_goal(value, goal)
     assert value.active_goal.exit_id == "DIRECT_GOAL"
@@ -144,6 +158,34 @@ def test_waypoint_path_poses_follow_the_simplified_route_order():
     message = value.waypoint_path_publisher.messages[-1]
     xs = [pose.pose.position.x for pose in message.poses]
     assert xs == sorted(xs)  # monotonically progresses along the line toward the exit
+
+
+def test_mode3_inspection_yaw_reaches_final_waypoint_pose():
+    value = node(small_waypoints())
+    WaypointPlannerNode._on_plan(value, String(data=plan_payload(
+        "MODE3_INSPECTION", (5.0, 0.5), yaw=1.25,
+    )))
+    WaypointPlannerNode._on_grid(value, occupancy_grid_message(size=10))
+    orientation = value.waypoint_path_publisher.messages[-1].poses[-1].pose.orientation
+    assert yaw_from_quaternion(orientation) == pytest.approx(1.25)
+
+
+def test_route_status_and_rviz_overlay_distinguish_initial_plan_from_replan():
+    value = node(small_waypoints())
+    WaypointPlannerNode._on_plan(value, String(data=plan_payload(
+        "EXIT1", (5.0, 0.5)
+    )))
+    WaypointPlannerNode._on_grid(value, occupancy_grid_message(size=10))
+
+    initial = json.loads(value.route_status_publisher.messages[-1].data)
+    assert initial["event"] == "PATH_CREATED"
+    assert initial["waypoints"]
+    assert value.route_markers_publisher.messages[-1].markers
+
+    value._replan(force=True)
+    replanned = json.loads(value.route_status_publisher.messages[-1].data)
+    assert replanned["event"] == "REPLANNED"
+    assert replanned["waypoints"] == initial["waypoints"]
 
 
 def test_real_159_waypoint_file_drives_a_full_replan():
@@ -176,4 +218,6 @@ def test_module_never_constructs_a_goal_pose_or_planned_path_publisher():
     )
     assert "create_publisher(PoseStamped" not in text
     assert "'/planned_path'" not in text and '"/planned_path"' not in text
-    assert "'/goal_pose'" not in text and '"/goal_pose"' not in text
+    # A static/non-evacuation profile may subscribe to /goal_pose when the
+    # explicit accept_direct_goal gate is enabled.  Ownership prohibits this
+    # node from publishing that topic; the publisher assertion above enforces it.

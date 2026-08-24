@@ -1,4 +1,7 @@
+import json
 import math
+
+from builtin_interfaces.msg import Time
 
 from std_msgs.msg import Int32, String
 
@@ -8,6 +11,7 @@ from inno_autonav.mode4_inspector import (
     Mode4Inspector,
     associate_detections_to_candidates,
     fallback_intrinsics,
+    parse_mode4_inspection_command,
     parse_detection_message,
     project_candidate_u,
     scale_intrinsics,
@@ -20,6 +24,24 @@ class _Publisher:
 
     def publish(self, message):
         self.messages.append(message)
+
+
+class _Clock:
+    class _Now:
+        nanoseconds = 2_000_000_000
+
+        @staticmethod
+        def to_msg():
+            return Time(sec=2)
+
+    def now(self):
+        return self._Now()
+
+
+class _Tf:
+    @staticmethod
+    def lookup_pose_2d(_map_frame, _base_frame):
+        return 0.0, 0.0, 0.0
 
 
 def test_right_side_person_box_matches_only_right_lidar_candidate():
@@ -133,3 +155,48 @@ def test_mode4_waits_for_space_before_trying_nearest_obstacle():
 
     assert inspector.phase == 'WAITING_FOR_OBSTACLE'
     assert starts == [True]
+
+
+def test_mode5_can_pass_an_explicit_coordinate_to_mode4():
+    accepted, target = parse_mode4_inspection_command(
+        'MODE4_START_AT:4.25,-1.50'
+    )
+
+    assert accepted is True
+    assert target == (4.25, -1.50)
+
+
+def test_invalid_mode4_target_command_is_rejected():
+    assert parse_mode4_inspection_command('MODE4_START_AT:not,a-point') == (
+        False, None
+    )
+
+
+def test_explicit_mode4_target_wins_and_publishes_a_canonical_waypoint_plan():
+    inspector = object.__new__(Mode4Inspector)
+    inspector.drive_mode = 4
+    inspector.phase = 'WAITING_FOR_OBSTACLE'
+    inspector.map_frame = 'map'
+    inspector.base_frame = 'base_link'
+    inspector.tf = _Tf()
+    inspector.candidates = [(1.0, 0.0)]
+    inspector.requested_target = (4.0, 2.0)
+    inspector.standoff_distance = 2.0
+    inspector.publish_canonical_plan = True
+    inspector.hazard_revision = 7
+    inspector.goal_publisher = _Publisher()
+    inspector.plan_publisher = _Publisher()
+    inspector.waiting_for_departure = False
+    inspector._state = lambda _state: None
+    inspector.get_clock = lambda: _Clock()
+
+    inspector._try_start_inspection()
+
+    assert inspector.target == (4.0, 2.0)
+    assert inspector.phase == 'NAVIGATING'
+    payload = json.loads(inspector.plan_publisher.messages[-1].data)
+    assert inspector.goal_publisher.messages == []
+    assert payload['selected_exit_id'] == 'MODE4_INSPECTION'
+    assert payload['selected_exit_position_world'] == [4.0, 2.0]
+    assert payload['selected_approach_yaw_rad'] is not None
+    assert payload['hazard_revision'] == 7

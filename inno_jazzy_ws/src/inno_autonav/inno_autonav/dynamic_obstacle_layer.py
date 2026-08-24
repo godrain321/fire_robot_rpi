@@ -148,11 +148,12 @@ class DynamicObstacleLayer(Node):
             'obstacle_confirm_count': 3,
             'persistent_obstacles': True,
             'obstacle_timeout_sec': 10.0,
-            'inflation_radius': 0.30,
+            'inflation_radius': 0.50,
             'wall_exclusion_radius': 0.25,
             'cluster_radius_m': 0.50,
             'person_match_radius_m': 0.75,
             'person_dedup_radius_m': 0.20,
+            'person_track_match_radius_m': 2.50,
             'person_classification_timeout_sec': 0.0,
             'publish_rate_hz': 5.0,
         }
@@ -178,6 +179,9 @@ class DynamicObstacleLayer(Node):
         self.person_dedup_radius = float(
             self.get_parameter('person_dedup_radius_m').value
         )
+        self.person_track_match_radius = float(
+            self.get_parameter('person_track_match_radius_m').value
+        )
         self.person_timeout = float(
             self.get_parameter('person_classification_timeout_sec').value
         )
@@ -192,6 +196,7 @@ class DynamicObstacleLayer(Node):
             or self.cluster_radius < 0.0
             or self.person_match_radius <= 0.0
             or self.person_dedup_radius < 0.0
+            or self.person_track_match_radius <= 0.0
             or self.person_timeout < 0.0
         ):
             raise ValueError('confirm_count/rate는 양수이고 반경은 0 이상이어야 합니다.')
@@ -201,6 +206,7 @@ class DynamicObstacleLayer(Node):
         self.wall_exclusion_mask = None
         self.counts: Dict[int, int] = {}
         self.confirmed: Dict[int, float] = {}
+        self.current_seen: Set[int] = set()
         self.classified_people: List[Tuple[float, float, float]] = []
         grid_qos = QoSProfile(depth=1)
         grid_qos.reliability = ReliabilityPolicy.RELIABLE
@@ -221,10 +227,19 @@ class DynamicObstacleLayer(Node):
         self.candidate_publisher = self.create_publisher(
             PoseArray, '/dynamic_obstacle_candidates', grid_qos
         )
+        self.all_candidate_publisher = self.create_publisher(
+            PoseArray, '/dynamic_obstacle_all_candidates', grid_qos
+        )
         self.create_subscription(
             PointStamped,
             '/dynamic_obstacle_person',
             self._person_callback,
+            10,
+        )
+        self.create_subscription(
+            PointStamped,
+            '/dynamic_obstacle_person_track',
+            self._person_track_callback,
             10,
         )
         self.create_service(
@@ -249,6 +264,7 @@ class DynamicObstacleLayer(Node):
         ):
             self.counts.clear()
             self.confirmed.clear()
+            self.current_seen.clear()
             self.classified_people.clear()
             self.get_logger().warning('static grid geometry 변경: dynamic obstacle 초기화')
         self.static_grid = incoming
@@ -289,6 +305,7 @@ class DynamicObstacleLayer(Node):
             self.counts[index] = self.counts.get(index, 0) + 1
             if self.counts[index] >= self.confirm_count:
                 self.confirmed[index] = now
+        self.current_seen = seen
 
     def _expire(self) -> None:
         now = time.monotonic()
@@ -311,6 +328,15 @@ class DynamicObstacleLayer(Node):
             ]
 
     def _person_callback(self, message: PointStamped) -> None:
+        self._update_person(message, self.person_dedup_radius)
+
+    def _person_track_callback(self, message: PointStamped) -> None:
+        # Unlike a new classification, this is the continuing position of an
+        # already confirmed survivor.  A wider gate moves the existing blue
+        # marker instead of leaving a trail of blue points behind the person.
+        self._update_person(message, self.person_track_match_radius)
+
+    def _update_person(self, message: PointStamped, match_radius: float) -> None:
         if message.header.frame_id and message.header.frame_id != self.map_frame:
             self.get_logger().warning(
                 f'Ignored person classification frame {message.header.frame_id!r}'
@@ -329,14 +355,14 @@ class DynamicObstacleLayer(Node):
                 nearest = index
                 nearest_distance = distance
         item = (x, y, now)
-        if nearest is not None and nearest_distance <= self.person_dedup_radius:
+        if nearest is not None and nearest_distance <= match_radius:
             self.classified_people[nearest] = item
         else:
             self.classified_people.append(item)
 
-    def _obstacle_clusters(self):
+    def _obstacle_clusters(self, indices=None):
         clusters = cluster_obstacle_indices(
-            self.confirmed,
+            self.confirmed if indices is None else indices,
             self.static_grid.width,
             self.static_grid.resolution,
             self.cluster_radius,
@@ -394,11 +420,30 @@ class DynamicObstacleLayer(Node):
         self.grid_publisher.publish(message)
         self.detected_publisher.publish(Bool(data=bool(self.confirmed)))
         clusters = self._obstacle_clusters()
+        # Motion tracking intentionally sees current wall-filtered LiDAR
+        # clusters before per-cell persistence confirmation. A walking person
+        # can leave a grid cell before that same cell reaches confirm_count;
+        # the downstream time-axis tracker supplies the multi-frame evidence.
+        current_clusters = self._obstacle_clusters(self.current_seen)
         matched_people = match_people_to_clusters(
             clusters, self.classified_people, self.person_match_radius
         )
         self._publish_candidates(stamp, clusters, matched_people)
+        self._publish_all_candidates(stamp, current_clusters)
         self._publish_markers(stamp, clusters, matched_people)
+
+    def _publish_all_candidates(self, stamp, clusters) -> None:
+        """Publish current-scan clusters, including already classified people."""
+        message = PoseArray()
+        message.header.frame_id = self.map_frame
+        message.header.stamp = stamp
+        for _, center_x, center_y in clusters:
+            pose = Pose()
+            pose.position.x = center_x
+            pose.position.y = center_y
+            pose.orientation.w = 1.0
+            message.poses.append(pose)
+        self.all_candidate_publisher.publish(message)
 
     def _publish_candidates(self, stamp, clusters, matched_people=None) -> None:
         matched_people = matched_people or set()
@@ -466,6 +511,7 @@ class DynamicObstacleLayer(Node):
         count = len(self.confirmed)
         self.counts.clear()
         self.confirmed.clear()
+        self.current_seen.clear()
         self.classified_people.clear()
         response.success = True
         response.message = f'{count}개 dynamic obstacle을 삭제했습니다.'

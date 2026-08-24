@@ -18,7 +18,7 @@ from rclpy.qos import (
     qos_profile_sensor_data,
 )
 from sensor_msgs.msg import CameraInfo
-from std_msgs.msg import Empty, Int32, String
+from std_msgs.msg import Empty, Int32, String, UInt64
 
 from .grid_utils import normalize_angle, quaternion_from_yaw
 from .mode3_inspector import compute_inspection_goal, select_nearest_candidate
@@ -27,6 +27,25 @@ from .tf_utils import TfHelper
 
 Point2D = Tuple[float, float]
 RobotPose2D = Tuple[float, float, float]
+
+
+def parse_mode4_inspection_command(
+    value: str,
+) -> tuple[bool, Optional[Point2D]]:
+    """Parse the manual command or Mode 5's explicit LiDAR target."""
+    command = str(value).strip()
+    if command.upper() == 'MODE4_START':
+        return True, None
+    prefix = 'MODE4_START_AT:'
+    if not command.upper().startswith(prefix):
+        return False, None
+    try:
+        point = tuple(float(item) for item in command[len(prefix):].split(','))
+    except ValueError:
+        return False, None
+    if len(point) != 2 or not all(math.isfinite(item) for item in point):
+        return False, None
+    return True, (point[0], point[1])
 
 
 @dataclass(frozen=True)
@@ -242,6 +261,7 @@ class Mode4Inspector(Node):
             'maximum_candidate_distance_m': 3.0,
             'maximum_bearing_error_deg': 10.0,
             'update_rate_hz': 10.0,
+            'publish_canonical_plan': False,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -288,6 +308,9 @@ class Mode4Inspector(Node):
             float(self.get_parameter('maximum_bearing_error_deg').value)
         )
         update_rate = float(self.get_parameter('update_rate_hz').value)
+        self.publish_canonical_plan = bool(
+            self.get_parameter('publish_canonical_plan').value
+        )
         if (
             self.standoff_distance <= 0.0
             or self.robot_settle_sec < 0.0
@@ -314,6 +337,8 @@ class Mode4Inspector(Node):
         self.candidates: Sequence[Point2D] = []
         self.observation_candidates: Sequence[Point2D] = []
         self.target: Optional[Point2D] = None
+        self.requested_target: Optional[Point2D] = None
+        self.hazard_revision = 0
         self.waiting_for_departure = False
         self.phase_deadline = 0.0
         self.detector_status = 'UNKNOWN'
@@ -337,6 +362,9 @@ class Mode4Inspector(Node):
         )
         self.classification_publisher = self.create_publisher(
             String, '/mode4_classification', latched_qos
+        )
+        self.plan_publisher = self.create_publisher(
+            String, '/evacuation/plan', latched_qos
         )
         self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
         self.create_subscription(
@@ -372,6 +400,10 @@ class Mode4Inspector(Node):
             self._detector_status_callback,
             latched_qos,
         )
+        self.create_subscription(
+            UInt64, '/hazard/revision', self._hazard_revision_callback,
+            latched_qos,
+        )
         self.create_timer(1.0 / update_rate, self._timer_callback)
         self._state('MODE4_IDLE')
 
@@ -390,17 +422,20 @@ class Mode4Inspector(Node):
         if mode == 4 and previous != 4:
             self.phase = 'ARMED'
             self.target = None
+            self.requested_target = None
             self.waiting_for_departure = False
             self._state('MODE4_READY:PRESS_SPACE')
         elif mode != 4 and previous == 4:
             self.cancel_publisher.publish(Empty())
             self.phase = 'IDLE'
             self.target = None
+            self.requested_target = None
             self.waiting_for_departure = False
             self._state('MODE4_CANCELLED')
 
     def _inspection_command_callback(self, message: String) -> None:
-        if message.data.strip().upper() != 'MODE4_START':
+        accepted, requested_target = parse_mode4_inspection_command(message.data)
+        if not accepted:
             return
         if self.drive_mode != 4:
             return
@@ -410,6 +445,7 @@ class Mode4Inspector(Node):
         self.cancel_publisher.publish(Empty())
         self.phase = 'WAITING_FOR_OBSTACLE'
         self.target = None
+        self.requested_target = requested_target
         self.waiting_for_departure = False
         self._state('MODE4_WAITING_FOR_DYNAMIC_OBSTACLE')
         self._try_start_inspection()
@@ -431,7 +467,9 @@ class Mode4Inspector(Node):
         robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
         if robot is None:
             return
-        target = select_nearest_candidate(robot[0], robot[1], self.candidates)
+        target = self.requested_target or select_nearest_candidate(
+            robot[0], robot[1], self.candidates
+        )
         if target is None:
             return
         goal_x, goal_y, goal_yaw = compute_inspection_goal(
@@ -455,7 +493,34 @@ class Mode4Inspector(Node):
         self.target = target
         self.waiting_for_departure = True
         self.phase = 'NAVIGATING'
-        self.goal_publisher.publish(goal)
+        if self.publish_canonical_plan:
+            now = self.get_clock().now()
+            payload = {
+                'success': True,
+                'start_position_world': [robot[0], robot[1]],
+                'selected_exit_id': 'MODE4_INSPECTION',
+                'selected_exit_position_world': [target[0], target[1]],
+                'selected_approach_position_world': [goal_x, goal_y],
+                'selected_approach_yaw_rad': goal_yaw,
+                'path_world': [],
+                'path_grid': [],
+                'selected_evaluation': None,
+                'all_evaluations': [],
+                'failure_reason': None,
+                'selection_reason': 'mode5 moving LiDAR candidate inspection',
+                'created_at': now.nanoseconds / 1e9,
+                'hazard_revision': self.hazard_revision,
+                'activated': True,
+                'manager_status': 'MODE4_INSPECTION_ACTIVATED',
+            }
+            self.plan_publisher.publish(String(data=json.dumps(
+                payload, sort_keys=True, separators=(',', ':'), allow_nan=False
+            )))
+        # Mode 5 consumes the canonical plan.  Suppressing the duplicate direct
+        # goal preserves the inspection yaw when a shared field-test profile
+        # accepts named Mode 2 goals as well as Mode 3/4 canonical plans.
+        if not self.publish_canonical_plan:
+            self.goal_publisher.publish(goal)
         self._state(
             f'MODE4_APPROACHING:{target[0]:.3f},{target[1]:.3f}:'
             f'STANDOFF:{self.standoff_distance:.2f}M'
@@ -501,6 +566,9 @@ class Mode4Inspector(Node):
 
     def _detector_status_callback(self, message: String) -> None:
         self.detector_status = message.data.strip().upper()
+
+    def _hazard_revision_callback(self, message: UInt64) -> None:
+        self.hazard_revision = int(message.data)
 
     def _intrinsics_for_image(self, image_width: int) -> CameraIntrinsics:
         if self.camera_intrinsics is not None:

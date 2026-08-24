@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import math
 import time
 from typing import Iterable, Optional, Sequence, Tuple
@@ -11,13 +12,30 @@ from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Bool, Empty, Float32, Int32, String
+from std_msgs.msg import Bool, Empty, Float32, Int32, String, UInt64
 
 from .grid_utils import quaternion_from_yaw
 from .tf_utils import TfHelper
 
 
 Point2D = Tuple[float, float]
+
+
+def parse_inspection_command(value: str) -> tuple[bool, Optional[Point2D]]:
+    """Parse manual nearest-target or Mode 5 explicit-target commands."""
+    command = str(value).strip()
+    if command.upper() == 'MODE3_START':
+        return True, None
+    prefix = 'MODE3_START_AT:'
+    if not command.upper().startswith(prefix):
+        return False, None
+    try:
+        point = tuple(float(item) for item in command[len(prefix):].split(','))
+    except ValueError:
+        return False, None
+    if len(point) != 2 or not all(math.isfinite(item) for item in point):
+        return False, None
+    return True, (point[0], point[1])
 
 
 def select_nearest_candidate(
@@ -103,7 +121,7 @@ class Mode3Inspector(Node):
         defaults = {
             'map_frame': 'map',
             'base_frame': 'base_link',
-            'standoff_distance_m': 1.5,
+            'standoff_distance_m': 2.0,
             'robot_settle_sec': 2.0,
             'observation_sec': 5.0,
             'distance_tolerance_m': 0.60,
@@ -111,6 +129,7 @@ class Mode3Inspector(Node):
             'person_positive_samples': 3,
             'sensor_stale_timeout_sec': 2.0,
             'update_rate_hz': 10.0,
+            'publish_canonical_plan': False,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -138,6 +157,9 @@ class Mode3Inspector(Node):
             self.get_parameter('sensor_stale_timeout_sec').value
         )
         update_rate = float(self.get_parameter('update_rate_hz').value)
+        self.publish_canonical_plan = bool(
+            self.get_parameter('publish_canonical_plan').value
+        )
         if (
             self.standoff_distance <= 0.0
             or self.robot_settle_sec < 0.0
@@ -159,6 +181,8 @@ class Mode3Inspector(Node):
         self.phase = 'IDLE'
         self.candidates: Sequence[Point2D] = []
         self.target: Optional[Point2D] = None
+        self.requested_target: Optional[Point2D] = None
+        self.hazard_revision = 0
         self.waiting_for_departure = False
         self.phase_deadline = 0.0
         self.sensor_online = False
@@ -182,6 +206,9 @@ class Mode3Inspector(Node):
         )
         self.classification_publisher = self.create_publisher(
             String, '/mode3_classification', latched_qos
+        )
+        self.plan_publisher = self.create_publisher(
+            String, '/evacuation/plan', latched_qos
         )
         self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
         self.create_subscription(
@@ -218,6 +245,10 @@ class Mode3Inspector(Node):
             self._presence_callback,
             latched_qos,
         )
+        self.create_subscription(
+            UInt64, '/hazard/revision', self._hazard_revision_callback,
+            latched_qos,
+        )
         self.create_timer(1.0 / update_rate, self._timer_callback)
         self._state('MODE3_IDLE')
 
@@ -236,17 +267,20 @@ class Mode3Inspector(Node):
         if mode == 3 and previous != 3:
             self.phase = 'ARMED'
             self.target = None
+            self.requested_target = None
             self.waiting_for_departure = False
             self._state('MODE3_READY:PRESS_SPACE')
         elif mode != 3 and previous == 3:
             self.cancel_publisher.publish(Empty())
             self.phase = 'IDLE'
             self.target = None
+            self.requested_target = None
             self.waiting_for_departure = False
             self._state('MODE3_CANCELLED')
 
     def _inspection_command_callback(self, message: String) -> None:
-        if message.data.strip().upper() != 'MODE3_START':
+        accepted, requested_target = parse_inspection_command(message.data)
+        if not accepted:
             return
         if self.drive_mode != 3:
             return
@@ -256,6 +290,7 @@ class Mode3Inspector(Node):
         self.cancel_publisher.publish(Empty())
         self.phase = 'WAITING_FOR_OBSTACLE'
         self.target = None
+        self.requested_target = requested_target
         self.waiting_for_departure = False
         self._state('MODE3_WAITING_FOR_DYNAMIC_OBSTACLE')
         self._try_start_inspection()
@@ -277,7 +312,9 @@ class Mode3Inspector(Node):
         robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
         if robot is None:
             return
-        target = select_nearest_candidate(robot[0], robot[1], self.candidates)
+        target = self.requested_target or select_nearest_candidate(
+            robot[0], robot[1], self.candidates
+        )
         if target is None:
             return
         goal_x, goal_y, goal_yaw = compute_inspection_goal(
@@ -297,7 +334,35 @@ class Mode3Inspector(Node):
         self.target = target
         self.waiting_for_departure = True
         self.phase = 'NAVIGATING'
-        self.goal_publisher.publish(goal)
+        if self.publish_canonical_plan:
+            now = self.get_clock().now()
+            payload = {
+                'success': True,
+                'start_position_world': [robot[0], robot[1]],
+                'selected_exit_id': 'MODE3_INSPECTION',
+                'selected_exit_position_world': [target[0], target[1]],
+                'selected_approach_position_world': [goal_x, goal_y],
+                'selected_approach_yaw_rad': goal_yaw,
+                'path_world': [],
+                'path_grid': [],
+                'selected_evaluation': None,
+                'all_evaluations': [],
+                'failure_reason': None,
+                'selection_reason': 'mode5 targeted mmWave inspection',
+                'created_at': now.nanoseconds / 1e9,
+                'hazard_revision': self.hazard_revision,
+                'activated': True,
+                'manager_status': 'MODE3_INSPECTION_ACTIVATED',
+            }
+            self.plan_publisher.publish(String(data=json.dumps(
+                payload, sort_keys=True, separators=(',', ':'), allow_nan=False
+            )))
+        # A canonical plan is consumed by the Mode 5 waypoint planner.  Do not
+        # also publish the direct goal in that profile: it could overwrite the
+        # canonical goal (including its final inspection yaw) in a test profile
+        # that deliberately accepts both input forms.
+        if not self.publish_canonical_plan:
+            self.goal_publisher.publish(goal)
         self._state(
             f'MODE3_APPROACHING:{target[0]:.3f},{target[1]:.3f}:'
             f'STANDOFF:{self.standoff_distance:.2f}M'
@@ -332,6 +397,9 @@ class Mode3Inspector(Node):
     def _sensor_state_callback(self, message: String) -> None:
         self.last_sensor_update = self._now()
         self.sensor_online = message.data.strip().upper() == 'ONLINE'
+
+    def _hazard_revision_callback(self, message: UInt64) -> None:
+        self.hazard_revision = int(message.data)
 
     def _distance_callback(self, message: Float32) -> None:
         self.last_sensor_update = self._now()

@@ -13,11 +13,13 @@ dynamic_obstacle_layer:
     obstacle_confirm_count: 3
     persistent_obstacles: false
     obstacle_timeout_sec: 2.5
-    inflation_radius: 0.30
+    # Match final_simulator factory_v5 obstacle/robot clearance.
+    inflation_radius: 0.50
     wall_exclusion_radius: 0.25
     cluster_radius_m: 0.50
     person_match_radius_m: 0.75
     person_dedup_radius_m: 0.20
+    person_track_match_radius_m: 2.50
     person_classification_timeout_sec: 0.0
     publish_rate_hz: 5.0
 
@@ -25,7 +27,8 @@ mode3_inspector:
   ros__parameters:
     map_frame: map
     base_frame: base_link
-    standoff_distance_m: 1.50
+    # Keep standalone Mode 3 and Mode 5 on the same field-test geometry.
+    standoff_distance_m: 2.00
     robot_settle_sec: 2.0
     observation_sec: 5.0
     distance_tolerance_m: 0.60
@@ -53,6 +56,7 @@ mode4_inspector:
     maximum_candidate_distance_m: 3.0
     maximum_bearing_error_deg: 10.0
     update_rate_hz: 10.0
+    publish_canonical_plan: false
 
 astar_replanner:
   ros__parameters:
@@ -165,6 +169,7 @@ evacuation_manager_node:
     # /plan_evacuation (shared helper, see _select_and_activate) and acks here.
     switch_request_topic: /evacuation/switch_request
     switch_result_topic: /evacuation/switch_result
+    blocked_exits_topic: /evacuation/blocked_exits
 
 exit_switching_node:
   ros__parameters:
@@ -182,14 +187,10 @@ exit_switching_node:
     exit_evaluation_service: /evaluate_exits
     evaluation_service_timeout_s: 10.0
     status_rate_hz: 2.0
-    # Matches factory_v5/config/evacuation.yaml's actually-deployed
-    # exit_switching values. minimum_consecutive_increases/
-    # minimum_increase_ratio/minimum_absolute_increase are deliberately NOT
-    # exposed here: RouteTemperatureTrendMonitor (the monitor actually wired
-    # into the simulation's main loop) never reads them -- only
-    # evaluation_window and danger_expected_min_temperature_c matter.
-    evaluation_window: 6
-    danger_expected_min_temperature_c: 40.0
+    # Matches final_simulator factory_v5: after an observed 60 C route cell,
+    # five evaluations must contain four consecutive cost increases.
+    evaluation_window: 5
+    danger_expected_min_temperature_c: 60.0
     minimum_direction_difference_deg: 90.0
     switch_cooldown_sec: 10.0
     additional_travel_before_switch_m: 1.0
@@ -226,6 +227,7 @@ skid_path_follower:
     # invalidates/re-requests/revalidates the active path. Unused (stays false)
     # when replan_supervisor_node is disabled or not launched.
     replan_hold_topic: /replanning/hold
+    survivor_follow_hold_topic: /survivor_follow_hold
 
 replan_supervisor_node:
   ros__parameters:
@@ -283,6 +285,8 @@ waypoint_planner_node:
     direct_goal_topic: /goal_pose
     accept_direct_goal: false
     waypoint_path_topic: /waypoint_path
+    route_status_topic: /waypoint_planner/route_status
+    route_markers_topic: /waypoint_route_markers
     replan_request_topic: /replanning/waypoint_request
     replan_result_topic: /replanning/waypoint_result
     # Same proven neighbor radius as ReferenceWaypointGraphConfig for these

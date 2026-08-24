@@ -79,7 +79,9 @@ def manager(payload):
         switch_result_publisher=Publisher(),
         statuses=[],
         get_clock=lambda: Clock(),
-        get_logger=lambda: SimpleNamespace(error=lambda *a, **k: None),
+        get_logger=lambda: SimpleNamespace(
+            error=lambda *a, **k: None, info=lambda *a, **k: None
+        ),
     )
     value._status = lambda status: value.statuses.append(status)
     value._select_and_activate = MethodType(
@@ -146,3 +148,39 @@ def test_malformed_switch_request_is_ignored_without_raising():
     value = manager(_payload())
     EvacuationManagerNode._on_switch_request(value, SimpleNamespace(data="not json"))
     assert not value.switch_result_publisher.messages
+
+
+def test_mode5_blocked_exit_registry_is_merged_into_switch_exclusions():
+    value = manager(_payload())
+    value.externally_blocked_exit_ids = {"EXIT1"}
+    EvacuationManagerNode._on_switch_request(value, SimpleNamespace(data=json.dumps({
+        "request_id": 10, "current_exit_id": "EXIT2",
+        "excluded_exit_ids": ["EXIT2"],
+    })))
+    assert not value.plan_publisher.messages
+    result = json.loads(value.switch_result_publisher.messages[0].data)
+    assert result["success"] is False
+
+
+def test_final_plan_never_reselects_mode5_blocked_exit():
+    value = manager(_payload())
+    value.externally_blocked_exit_ids = {"EXIT1"}
+    value._plan = MethodType(EvacuationManagerNode._plan, value)
+
+    response = value._plan(Trigger.Request(), Trigger.Response())
+
+    assert response.success
+    assert value.selected_publisher.messages[0].data == "EXIT2"
+    assert json.loads(response.message)["selected_exit_id"] == "EXIT2"
+
+
+def test_blocked_exit_registry_replaces_previous_snapshot_atomically():
+    value = manager(_payload())
+    value.externally_blocked_exit_ids = set()
+    value._on_blocked_exits = MethodType(
+        EvacuationManagerNode._on_blocked_exits, value
+    )
+    value._on_blocked_exits(SimpleNamespace(data='["EXIT1","EXIT2"]'))
+    assert value.externally_blocked_exit_ids == {"EXIT1", "EXIT2"}
+    value._on_blocked_exits(SimpleNamespace(data='[]'))
+    assert value.externally_blocked_exit_ids == set()

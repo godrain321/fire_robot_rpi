@@ -1,6 +1,6 @@
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
-from std_msgs.msg import Int32, String
+from std_msgs.msg import Bool, Int32, String
 
 from inno_autonav.skid_path_follower import SkidPathFollower
 from inno_autonav.waypoint_queue import WaypointQueue
@@ -32,6 +32,17 @@ def test_modes3_and4_enable_final_yaw_alignment_for_forward_sensors():
 
     follower._mode_callback(Int32(data=2))
     assert follower.align_goal_yaw is False
+
+
+def test_mode5_survivor_follow_hold_is_independent_from_replanning_hold():
+    follower = object.__new__(SkidPathFollower)
+    follower.hold = False
+    follower.survivor_follow_hold = False
+
+    follower._survivor_follow_hold_callback(Bool(data=True))
+
+    assert follower.survivor_follow_hold is True
+    assert follower.hold is False
 
 
 def test_immediately_reached_waypoint_advances_after_path_acceptance():

@@ -15,12 +15,13 @@ from __future__ import annotations
 import json
 import math
 
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
 from nav_msgs.msg import OccupancyGrid, Path
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
+from visualization_msgs.msg import Marker, MarkerArray
 
 from .astar_replanner import message_to_grid
 from .grid_utils import quaternion_from_yaw
@@ -53,6 +54,8 @@ class WaypointPlannerNode(Node):
             "direct_goal_topic": "/goal_pose",
             "accept_direct_goal": False,
             "waypoint_path_topic": "/waypoint_path",
+            "route_status_topic": "/waypoint_planner/route_status",
+            "route_markers_topic": "/waypoint_route_markers",
             "replan_request_topic": "/replanning/waypoint_request",
             "replan_result_topic": "/replanning/waypoint_result",
             "neighbor_radius_m": 1.5,
@@ -70,7 +73,9 @@ class WaypointPlannerNode(Node):
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
-        value = lambda name: self.get_parameter(name).value
+
+        def value(name):
+            return self.get_parameter(name).value
         self.enabled = bool(value("enabled"))
         self.accept_direct_goal = bool(value("accept_direct_goal"))
         self.map_frame = str(value("map_frame"))
@@ -132,8 +137,17 @@ class WaypointPlannerNode(Node):
         self.waypoint_path_publisher = self.create_publisher(
             Path, str(value("waypoint_path_topic")), qos,
         )
+        self.route_status_publisher = self.create_publisher(
+            String, str(value("route_status_topic")), qos,
+        )
+        self.route_markers_publisher = self.create_publisher(
+            MarkerArray, str(value("route_markers_topic")), qos,
+        )
         self.create_subscription(
             String, str(value("replan_request_topic")), self._on_replan_request, 10,
+        )
+        self.create_subscription(
+            Empty, "/autonomy_cancel", self._on_cancel, 10,
         )
         self.replan_result_publisher = self.create_publisher(
             String, str(value("replan_result_topic")), 10,
@@ -194,6 +208,15 @@ class WaypointPlannerNode(Node):
         )
         self.replan_result_publisher.publish(String(data=json.dumps(result, sort_keys=True)))
 
+    def _on_cancel(self, _message: Empty) -> None:
+        """Invalidate the waypoint mission so a later grid update cannot revive it."""
+        self.active_goal = None
+        self._last_costs = None
+        self._last_goal = None
+        self._last_published_path_stamp_ns = None
+        self._goal_received_ns = None
+        self._publish_empty_path()
+
     def _replan(self, force: bool = False) -> tuple[bool, str]:
         if not self.enabled or self.grid is None or self.active_goal is None:
             return False, "NOT_READY"
@@ -203,6 +226,7 @@ class WaypointPlannerNode(Node):
         costs = self.projector.project_costs(self.grid)
         if not force and costs == self._last_costs and self.active_goal == self._last_goal:
             return False, "UNCHANGED"
+        is_replan = self._last_costs is not None and self._last_goal == self.active_goal
         self._last_costs = costs
         self._last_goal = self.active_goal
 
@@ -233,10 +257,19 @@ class WaypointPlannerNode(Node):
 
         points = [self.waypoints_world[wid] for wid in simplification.simplified_ids]
         points.append(self.active_goal.approach_world)
-        self._publish_path(points)
+        self._publish_path(
+            points,
+            waypoint_ids=list(simplification.simplified_ids),
+            is_replan=is_replan,
+        )
         return True, "PATH_FOUND"
 
-    def _publish_path(self, points: list[tuple[float, float]]) -> None:
+    def _publish_path(
+        self,
+        points: list[tuple[float, float]],
+        waypoint_ids: list[str] | None = None,
+        is_replan: bool = False,
+    ) -> None:
         message = Path()
         message.header.stamp = self.get_clock().now().to_msg()
         clock_stamp_ns = (
@@ -259,10 +292,14 @@ class WaypointPlannerNode(Node):
                 next_x, next_y = points[index + 1]
                 yaw = math.atan2(next_y - y, next_x - x)
             else:
-                # Matches EvacuationManagerNode's own /goal_pose convention
-                # (orientation.w=1.0); /evacuation/plan carries no orientation
-                # to align to, so nothing is invented here.
-                yaw = 0.0
+                # Normal evacuation plans omit yaw and retain the historical
+                # identity orientation.  Mode 3's targeted inspection plan
+                # supplies an optional yaw so the sensor faces the obstacle.
+                yaw = (
+                    self.active_goal.approach_yaw_rad
+                    if self.active_goal.approach_yaw_rad is not None
+                    else 0.0
+                )
             qx, qy, qz, qw = quaternion_from_yaw(yaw)
             pose.pose.orientation.x = qx
             pose.pose.orientation.y = qy
@@ -270,6 +307,9 @@ class WaypointPlannerNode(Node):
             pose.pose.orientation.w = qw
             message.poses.append(pose)
         self.waypoint_path_publisher.publish(message)
+        if waypoint_ids is not None:
+            self._publish_route_status(waypoint_ids, is_replan)
+            self._publish_route_markers(message.header, waypoint_ids, points)
         goal_received_ns = getattr(self, "_goal_received_ns", None)
         if goal_received_ns is not None:
             elapsed_ms = (
@@ -282,6 +322,77 @@ class WaypointPlannerNode(Node):
                     f"goal_to_path_ms={elapsed_ms:.3f}"
                 )
             self._goal_received_ns = None
+
+    def _publish_route_status(
+        self, waypoint_ids: list[str], is_replan: bool
+    ) -> None:
+        """Publish a machine-readable route and the Korean operator log."""
+        event = "REPLANNED" if is_replan else "PATH_CREATED"
+        payload = {
+            "event": event,
+            "goal_id": self.active_goal.exit_id,
+            "hazard_revision": self.active_goal.hazard_revision,
+            "waypoints": waypoint_ids,
+            "final_goal_world": list(self.active_goal.approach_world),
+        }
+        publisher = getattr(self, "route_status_publisher", None)
+        if publisher is not None:
+            publisher.publish(String(data=json.dumps(
+                payload, ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"), allow_nan=False,
+            )))
+        route = " -> ".join(waypoint_ids) if waypoint_ids else "직접 목표점"
+        prefix = "상황 변화로 경로 재생성" if is_replan else "경로 생성"
+        log_info = getattr(self.get_logger(), "info", None)
+        if log_info is not None:
+            log_info(f"{prefix}: {route} -> {self.active_goal.exit_id}")
+
+    def _publish_route_markers(self, header, waypoint_ids, points) -> None:
+        """Overlay the currently selected waypoint route in RViz."""
+        publisher = getattr(self, "route_markers_publisher", None)
+        if publisher is None:
+            return
+        clear = Marker()
+        clear.header = header
+        clear.action = Marker.DELETEALL
+
+        line = Marker()
+        line.header = header
+        line.ns = "selected_waypoint_route"
+        line.id = 0
+        line.type = Marker.LINE_STRIP
+        line.action = Marker.ADD
+        line.pose.orientation.w = 1.0
+        line.scale.x = 0.13
+        line.color.r = 0.1
+        line.color.g = 0.9
+        line.color.b = 1.0
+        line.color.a = 0.95
+        line.points = [Point(x=float(x), y=float(y), z=0.08) for x, y in points]
+
+        markers = [clear, line]
+        for index, waypoint_id in enumerate(waypoint_ids):
+            if index >= len(points):
+                break
+            x, y = points[index]
+            label = Marker()
+            label.header = header
+            label.ns = "selected_waypoint_route_labels"
+            label.id = index + 1
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position.x = float(x)
+            label.pose.position.y = float(y)
+            label.pose.position.z = 0.42
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.30
+            label.color.r = 0.1
+            label.color.g = 1.0
+            label.color.b = 1.0
+            label.color.a = 1.0
+            label.text = str(waypoint_id)
+            markers.append(label)
+        publisher.publish(MarkerArray(markers=markers))
 
     def _publish_empty_path(self) -> None:
         message = Path()

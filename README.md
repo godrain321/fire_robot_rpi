@@ -11,8 +11,9 @@ C4001 mmWave 사람 판별, Camera Module 3 YOLO 요구조자 판별을 하나�
 |---|---|---|---|
 | 1 | `1` | ESP32와 구동 모터 | `w/x/a/d/s` 키보드 수동주행 |
 | 2 | `2` → waypoint 입력 | 모드 1 장치 + LiDAR, AMCL, 지도 | 지정한 `w1,w5,...`를 입력 순서대로 단계주행 |
-| 3 | `3` → `Space` | 모드 2 장치 + C4001 mmWave | 가장 가까운 동적장애물 1.5m 앞에서 사람 여부 판별 |
+| 3 | `3` → `Space` | 모드 2 장치 + C4001 mmWave | 가장 가까운 동적장애물 2.0m 앞에서 사람 여부 판별 |
 | 4 | `4` → `Space` | 모드 2 장치 + Camera Module 3, YOLO | 카메라 바운딩박스와 LiDAR 점을 결합해 요구조자 판별 |
+| 5 | 전용 launch 실행 즉시 | 모드 2·3 장치 + MLX90640 | 출구를 실제 순차 탐색하고 장애물을 2m에서 mmWave 검사한 뒤 안전 경로로 대피 |
 
 모든 입력은 통합 launch를 실행한 터미널에서 받는다. 모드를 바꾸면 진행 중인
 자율주행을 먼저 취소하고 속도를 0으로 만든다. 자율주행 중에는 다음 공통 키를
@@ -22,7 +23,7 @@ C4001 mmWave 사람 판별, Camera Module 3 YOLO 요구조자 판별을 하나�
 |---|---|
 | `1` | 즉시 자율주행 취소, 정지, 모드 1 복귀 |
 | `s` | 자율주행 취소, 정지, 모드 1 복귀 |
-| `c` | 현재 모드 2·3·4 mission 취소 |
+| `c` | 현재 모드 2·3·4·5 mission 취소 |
 | `Space` | 모드 2의 다음 waypoint 또는 모드 3·4 검사 시작 |
 
 RViz의 **큰 빨간 점**은 아직 분류하지 않은 LiDAR 동적장애물이고, **큰 파란 점**은
@@ -131,6 +132,82 @@ ros2 topic echo /drive_mode_status
 ros2 topic echo /follower_state
 ```
 
+### 모드 5: EVACUATION_DEMO 한 번에 실행
+
+모드 5는 모드 1·2·3·4 launch와 입력 동작을 변경하지 않는 별도 통합 프로필이다.
+아래 명령을 실행하면 `inno_jazzy_ws/src/inno_autonav/config/semantic_points.yaml`의
+`init`을 AMCL 초기 자세로 넣고
+모드 5를 자동 선택한다. 센서, `map → base_link`, 화재 belief와 출구 평가기가 모두
+준비되면 키 입력 없이 `SEARCH_EXITS`에서 아직 확인하지 않은 출구 중 현재
+cost-aware A* 경로가 가장 짧은 출구를 선택해 실제로 이동한다. 출구 도착 후에는
+현재 위치에서 남은 출구를 다시 평가하므로 저장된 탐색 순서를 재생하지 않는다.
+`init`은 위치추정의 초기값일 뿐이다.
+
+처음에는 바퀴를 띄우고 `use_serial:=false`로 확인한다.
+
+```bash
+ros2 launch inno_robot_bringup evacuation_demo.launch.py \
+  esp32_port:=/dev/ttyUSB0 \
+  lidar_port:=/dev/ttyUSB1 \
+  mmwave_port:=/dev/ttyAMA0 \
+  use_serial:=false \
+  event_replanning_enabled:=true \
+  exit_switching_enabled:=true \
+  waypoint_planning_enabled:=true
+```
+
+RViz의 위치와 경로가 맞는 것을 확인한 뒤에만 `use_serial:=true`로 실행한다. 실제
+시작 위치가 바뀌면 `initial_pose_x`, `initial_pose_y`, `initial_pose_yaw`를 함께
+넘긴다. 출구 근처에서 빨간 LiDAR 동적장애물이 발견되면 진행 중인 출구 경로를
+취소하고 모드 3을 자동 호출한다. 단독 모드 3과 모드 5 모두 장애물 2.0m 앞에
+정지하므로 단독 시험의 센서 기하 조건이 통합 주행에도 그대로 적용된다. mmWave를
+검사해 `DYNAMIC_OBSTACLE`이면 해당 출구를 막힘으로 기록하고 다음 미확인 출구를
+재평가한다. `PERSON`이면 RViz 점을 파란색으로 바꾸고 즉시 동행 대피 상태로
+전환한다.
+
+출구로 이동하는 중에는 `/dynamic_obstacle_all_candidates`의 현재 LiDAR cluster를
+시간축으로 연결한다. 기본값은 2초 창 안에서 3회 이상 관측되고 0.20m 이상 이동한
+track만 움직이는 사람 후보로 만든다. 후보가 생기면 현재 경로를 취소하고 해당 좌표를
+`MODE4_START_AT:x,y`로 모드 4에 전달한다. 모드 4는 모드 5에서만 2.0m standoff와
+canonical waypoint plan을 사용하며, 단독 모드 4의 `MODE4_START`와 1.5m 기본값은
+유지된다.
+
+카메라·LiDAR로 요구조자가 확인되면 파란 marker 위치를 LiDAR로 계속 갱신하면서
+안전 출구로 안내한다. 로봇-요구조자 거리가 2.5m보다 커지거나 LiDAR track이 2초
+이상 끊기면 `/survivor_follow_hold`로 모터를 정지하고, 추적이 정상이며 2.0m 안으로
+돌아오면 주행을 재개한다. 로봇과 요구조자가 모두 출구에 도착해야
+`EVACUATION_COMPLETE:SURVIVOR:<exit>`가 된다. 이 기능은 사람의 자율적인 보행을
+제어하는 기능이 아니라, LiDAR로 따라오는지를 확인하며 기다려 주는 선도 주행이다.
+
+동적장애물 inflation은 `final_simulator/factory_v5`와 같은 0.50m다. 실제 로봇의
+외형과 통로 폭이 이 여유거리에 맞는지 저속 시험으로 확인해야 한다.
+
+모드 5 상태와 정지·재시작 인터페이스는 다음과 같다.
+
+```bash
+ros2 topic echo /evacuation_demo/status
+ros2 topic echo /evacuation_demo/log
+ros2 topic echo /waypoint_planner/route_status
+ros2 service call /evacuation_demo/stop std_srvs/srv/Trigger '{}'
+ros2 service call /evacuation_demo/start std_srvs/srv/Trigger '{}'
+```
+
+통합 launch의 화면 로그에는 방문 중인 출구, 장애물 접근, mmWave/카메라 판별,
+출구 막힘, 동행 대피 정지·재개가 한국어로 순서대로 출력된다. waypoint planner는
+최초 경로를 `경로 생성: w1 -> w5 -> ...`, costmap 변화 후 경로를
+`상황 변화로 경로 재생성: ...` 형식으로 출력하고 같은 내용을 JSON topic으로도
+발행한다. RViz에는 저장 SLAM 지도 위에 모든 저장 waypoint 번호, 현재 선택된
+waypoint 경로와 번호(청록색), 동적장애물(빨강), 확인된 요구조자(파랑)가 함께
+표시된다.
+
+통합 터미널에서 `1`, `s`, `c` 중 하나를 눌러도 자율주행을 취소하고 모드 1로
+복귀한다.
+
+권장 현장 개발 순서는 모드 2 waypoint 주행, 모드 3 mmWave 빨강→파랑 분류,
+모드 4 카메라·LiDAR 분류, 마지막으로 모드 5 통합주행 순서다. 각 단계가 실패하면
+다음 단계로 넘어가지 않는다. 모드 5 연결 코드는 미리 들어가 있지만 실제 모터·센서
+환경에서는 이 순서로 각 하위 기능을 통과한 결과를 기준으로 파라미터를 확정해야 한다.
+
 ## 3. 모드별 사용법
 
 ### 모드 1: 키보드 수동주행
@@ -209,7 +286,7 @@ LiDAR가 새 물체를 큰 빨간 점으로 표시하면 `3`을 누른 뒤 Space
 입력하면 `MODE3_READY:PRESS_SPACE` 상태가 될 뿐 출발하지 않는다.
 
 1. 현재 로봇과 가장 가까운 미분류 빨간 점을 선택한다.
-2. A*로 대상의 1.5m 앞까지 이동하고 대상을 정면으로 바라본다.
+2. A*로 대상의 2.0m 앞까지 이동하고 대상을 정면으로 바라본다.
 3. 2초 정지 후 5초 동안 C4001의 튜닝된 presence·보정거리 샘플을 확인한다.
 4. presence가 충분하면 `사람 감지!`를 출력하고 해당 점만 파란색으로 바꾼다.
 5. 센서가 ONLINE이지만 presence가 없으면 `동적장애물!`을 출력하고 빨간색을

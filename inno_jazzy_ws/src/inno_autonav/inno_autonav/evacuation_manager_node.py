@@ -42,6 +42,7 @@ class EvacuationManagerNode(Node):
             "float_tolerance": 1e-6,
             "switch_request_topic": "/evacuation/switch_request",
             "switch_result_topic": "/evacuation/switch_result",
+            "blocked_exits_topic": "/evacuation/blocked_exits",
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -62,6 +63,7 @@ class EvacuationManagerNode(Node):
             float_tolerance=float(value("float_tolerance")),
         ))
         self.current_hazard_revision = None
+        self.externally_blocked_exit_ids = set()
         service_group = MutuallyExclusiveCallbackGroup()
         client_group = MutuallyExclusiveCallbackGroup()
         self.evaluation_client = self.create_client(
@@ -96,6 +98,9 @@ class EvacuationManagerNode(Node):
         )
         self.create_subscription(
             String, str(value("switch_request_topic")), self._on_switch_request, qos,
+        )
+        self.create_subscription(
+            String, str(value("blocked_exits_topic")), self._on_blocked_exits, qos,
         )
         self._status("READY" if self.enabled else "DISABLED")
 
@@ -179,7 +184,11 @@ class EvacuationManagerNode(Node):
         del request
         if not self.enabled:
             return self._failure(response, "DISABLED")
-        plan, status, _activated, serialized = self._select_and_activate()
+        plan, status, _activated, serialized = self._select_and_activate(
+            excluded_exit_ids=tuple(sorted(
+                getattr(self, "externally_blocked_exit_ids", ())
+            ))
+        )
         if plan is None:
             return self._failure(response, status)
         response.success = plan.success and status not in {
@@ -188,6 +197,21 @@ class EvacuationManagerNode(Node):
         }
         response.message = serialized
         return response
+
+    def _on_blocked_exits(self, message):
+        try:
+            values = json.loads(message.data)
+            if not isinstance(values, list):
+                raise ValueError("blocked exits must be a JSON list")
+            blocked = {str(item).strip() for item in values if str(item).strip()}
+        except (TypeError, ValueError) as exc:
+            self.get_logger().error(f"invalid blocked-exit registry: {exc}")
+            return
+        self.externally_blocked_exit_ids = blocked
+        self.get_logger().info(
+            "Externally blocked exits: "
+            + (", ".join(sorted(blocked)) if blocked else "none")
+        )
 
     def _on_switch_request(self, message):
         if not self.enabled:
@@ -205,6 +229,9 @@ class EvacuationManagerNode(Node):
             tuple(str(item) for item in excluded) if excluded
             else ((str(current_exit_id),) if current_exit_id else ())
         )
+        excluded = tuple(sorted(
+            set(excluded) | set(getattr(self, "externally_blocked_exit_ids", ()))
+        ))
         candidate = request.get("candidate_exit_ids")
         candidate = None if candidate is None else tuple(str(item) for item in candidate)
         plan, status, activated, _serialized = self._select_and_activate(

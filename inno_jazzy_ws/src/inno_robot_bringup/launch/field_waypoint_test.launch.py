@@ -29,6 +29,10 @@ def generate_launch_description():
         DeclareLaunchArgument('mmwave_port', default_value='/dev/ttyAMA0'),
         DeclareLaunchArgument('mmwave_configure_sensor', default_value='true'),
         DeclareLaunchArgument('assist_check_sec', default_value='10.0'),
+        DeclareLaunchArgument('set_initial_pose', default_value='false'),
+        DeclareLaunchArgument('initial_pose_x', default_value='0.0'),
+        DeclareLaunchArgument('initial_pose_y', default_value='0.0'),
+        DeclareLaunchArgument('initial_pose_yaw', default_value='0.0'),
         DeclareLaunchArgument(
             'map_yaml',
             default_value=project_path('maps', 'inno_map_raw.yaml'),
@@ -44,12 +48,37 @@ def generate_launch_description():
         DeclareLaunchArgument('drive_speed', default_value='0.12'),
         DeclareLaunchArgument('turn_speed', default_value='0.45'),
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
+        # Modes 1-4 must remain testable before the optional MLX90640 is
+        # installed.  Mode 5 supplies its own live hazard pipeline and does
+        # not use these fallbacks.
+        DeclareLaunchArgument('require_thermal_grid', default_value='false'),
+        DeclareLaunchArgument('require_thermal_active', default_value='false'),
         DeclareLaunchArgument('hazard_belief_enabled', default_value='false'),
         DeclareLaunchArgument('exit_evaluator_enabled', default_value='false'),
         DeclareLaunchArgument('evacuation_manager_enabled', default_value='false'),
         DeclareLaunchArgument(
             'evacuation_activate_selected_route', default_value='false'
         ),
+        DeclareLaunchArgument('event_replanning_enabled', default_value='false'),
+        DeclareLaunchArgument('exit_switching_enabled', default_value='false'),
+        DeclareLaunchArgument('waypoint_planning_enabled', default_value='false'),
+        DeclareLaunchArgument(
+            'waypoint_accept_direct_goal', default_value='false'
+        ),
+        DeclareLaunchArgument('astar_accept_goal_pose', default_value='true'),
+        DeclareLaunchArgument(
+            'mode3_standoff_distance_m', default_value='2.0'
+        ),
+        DeclareLaunchArgument(
+            'mode3_publish_canonical_plan', default_value='false'
+        ),
+        DeclareLaunchArgument(
+            'mode4_standoff_distance_m', default_value='1.5'
+        ),
+        DeclareLaunchArgument(
+            'mode4_publish_canonical_plan', default_value='false'
+        ),
+        DeclareLaunchArgument('use_serial', default_value='true'),
         DeclareLaunchArgument('use_camera_mode4', default_value='false'),
         DeclareLaunchArgument(
             'yolo_model_path',
@@ -62,6 +91,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(bringup + '/launch/lidar_amcl_localization.launch.py'),
         launch_arguments={
             'serial_port': L('lidar_port'), 'map_yaml': L('map_yaml'),
+            'set_initial_pose': L('set_initial_pose'),
+            'initial_pose_x': L('initial_pose_x'),
+            'initial_pose_y': L('initial_pose_y'),
+            'initial_pose_yaw': L('initial_pose_yaw'),
         }.items(),
     )
     mmwave_bringup = IncludeLaunchDescription(
@@ -110,12 +143,27 @@ def generate_launch_description():
             'max_linear_speed': L('drive_speed'),
             'max_angular_speed': L('turn_speed'),
             'use_dynamic_obstacles': L('use_dynamic_obstacles'),
+            'require_thermal_grid': L('require_thermal_grid'),
+            'require_thermal_active': L('require_thermal_active'),
             'waypoint_file': L('waypoint_file'),
             'hazard_belief_enabled': L('hazard_belief_enabled'),
             'exit_evaluator_enabled': L('exit_evaluator_enabled'),
             'evacuation_manager_enabled': L('evacuation_manager_enabled'),
             'evacuation_activate_selected_route': L(
                 'evacuation_activate_selected_route'
+            ),
+            'event_replanning_enabled': L('event_replanning_enabled'),
+            'exit_switching_enabled': L('exit_switching_enabled'),
+            'waypoint_planning_enabled': L('waypoint_planning_enabled'),
+            'waypoint_accept_direct_goal': L('waypoint_accept_direct_goal'),
+            'astar_accept_goal_pose': L('astar_accept_goal_pose'),
+            'mode3_standoff_distance_m': L('mode3_standoff_distance_m'),
+            'mode3_publish_canonical_plan': L(
+                'mode3_publish_canonical_plan'
+            ),
+            'mode4_standoff_distance_m': L('mode4_standoff_distance_m'),
+            'mode4_publish_canonical_plan': L(
+                'mode4_publish_canonical_plan'
             ),
         }.items(),
     )
@@ -140,6 +188,7 @@ def generate_launch_description():
         package='inno_drive_bridge', executable='cmdvel_to_esp32_serial',
         name='cmdvel_to_esp32_serial', output='log',
         parameters=[drive + '/config/drive_params.yaml', {'serial_port': L('esp32_port')}],
+        condition=IfCondition(L('use_serial')),
     )
     waypoint_queue = Node(
         package='inno_autonav', executable='waypoint_queue',

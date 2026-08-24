@@ -90,6 +90,7 @@ class ActiveGoal:
     exit_id: str
     approach_world: tuple[float, float]
     hazard_revision: int
+    approach_yaw_rad: float | None = None
 
 
 def parse_active_goal_payload(payload: str) -> ActiveGoal | None:
@@ -110,11 +111,17 @@ def parse_active_goal_payload(payload: str) -> ActiveGoal | None:
         approach = value["selected_approach_position_world"]
         approach_world = (float(approach[0]), float(approach[1]))
         revision = int(value["hazard_revision"])
+        raw_yaw = value.get("selected_approach_yaw_rad")
+        approach_yaw = None if raw_yaw is None else float(raw_yaw)
     except (KeyError, TypeError, ValueError, IndexError):
         return None
-    if not exit_id or not all(math.isfinite(v) for v in approach_world):
+    if (
+        not exit_id
+        or not all(math.isfinite(v) for v in approach_world)
+        or approach_yaw is not None and not math.isfinite(approach_yaw)
+    ):
         return None
-    return ActiveGoal(exit_id, approach_world, revision)
+    return ActiveGoal(exit_id, approach_world, revision, approach_yaw)
 
 
 @dataclass(frozen=True)

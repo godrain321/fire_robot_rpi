@@ -7,12 +7,12 @@ _WAYPOINT_PATTERN = re.compile(r'w(0*[1-9][0-9]*)', re.IGNORECASE)
 
 
 def command_source_for_drive_mode(mode):
-    """Map mode 1 to keyboard and modes 2/3/4 to autonomous velocity."""
-    sources = {1: 1, 2: 2, 3: 2, 4: 2}
+    """Map mode 1 to keyboard and modes 2/3/4/5 to autonomous velocity."""
+    sources = {1: 1, 2: 2, 3: 2, 4: 2, 5: 2}
     try:
         return sources[int(mode)]
     except (KeyError, TypeError, ValueError) as error:
-        raise ValueError('drive mode must be 1, 2, 3, or 4') from error
+        raise ValueError('drive mode must be 1, 2, 3, 4, or 5') from error
 
 
 def parse_named_waypoints(text, minimum_count=2):

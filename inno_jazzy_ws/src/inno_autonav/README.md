@@ -21,6 +21,7 @@ inno_map_nav.yaml ─▶ /planning_grid_static ─┐
                                                   └▶ MODE 4 inspector
                                                         ▲
                                               YOLO person boxes
+           └─────▶ /dynamic_obstacle_all_candidates ─▶ MODE 5 motion tracker
                                                                         ▼
 /mission_text ─▶ semantic goal ─▶ /goal_pose                  skid_path_follower
                                                                         │
@@ -47,8 +48,10 @@ map ─▶ odom ─▶ base_link ─▶ laser
 - `planning_grid_publisher`: `inno_map_nav.yaml`을 `/planning_grid_static`으로 발행
 - `dynamic_obstacle_layer`: static-free 공간의 새 scan endpoint를 확인·팽창하여 persistent obstacle로 저장
 - `astar_replanner`: static/dynamic/thermal grid를 합치고 현재 TF pose에서 weighted A* 수행
-- `mode3_inspector`: Space 입력 후 가장 가까운 동적장애물의 1.5m 앞까지 이동하고 mmWave presence로 사람 여부 판정
+- `mode3_inspector`: Space 입력 후 가장 가까운 동적장애물의 2.0m 앞까지 이동하고 mmWave presence로 사람 여부 판정
 - `mode4_inspector`: Space 입력 후 같은 검사 위치로 이동하고 YOLO 바운딩박스 방향과 LiDAR 후보를 결합해 요구조자 위치 판정
+- `evacuation_demo_orchestrator`: 모드 5에서 미확인 출구를 실제 탐색하고, 출구 장애물은 2m mmWave 검사, 움직이는 LiDAR track은 좌표 지정 모드 4 검사로 분기한 뒤 요구조자와 안전 출구까지 동행
+- `waypoint_planner_node`: 선택 경로를 `/waypoint_planner/route_status`에 waypoint ID로 기록하고 `/waypoint_route_markers`에 현재 경로 overlay 발행
 - `skid_path_follower`: 큰 heading error에서는 제자리 회전, 작으면 저속 전진 보정
 - `mission_commander`: 문자열 mission을 semantic `/goal_pose`로 변환
 - `go_to`: `/mission_text` CLI publisher
@@ -353,7 +356,7 @@ ros2 service call /clear_dynamic_obstacles std_srvs/srv/Trigger "{}"
 
 `persistent_obstacles: false`로 바꾸면 `obstacle_timeout_sec` 이후 제거된다.
 
-모드 3을 선택하고 Space를 누르면 `/dynamic_obstacle_candidates` 중 가장 가까운 물체의 1.5m 검사
+모드 3을 선택하고 Space를 누르면 `/dynamic_obstacle_candidates` 중 가장 가까운 물체의 2.0m 검사
 지점으로 이동한다. 정지·정면 정렬 후 C4001의 `/mmwave/human_presence`가 확인되면 `사람 감지!`를
 출력하고 해당 `/dynamic_obstacle_markers` 점을 파란색으로 바꾼다. ONLINE 상태에서
 presence가 없으면 `동적장애물!`을 출력하고 빨간색을 유지한다. 센서 OFFLINE은

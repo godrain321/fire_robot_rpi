@@ -35,6 +35,7 @@ setup(
             'astar_replanner = inno_autonav.astar_replanner:main',
             'exit_evaluator_node = inno_autonav.exit_evaluator_node:main',
             'evacuation_manager_node = inno_autonav.evacuation_manager_node:main',
+            'evacuation_demo_orchestrator = inno_autonav.evacuation_demo_orchestrator:main',
             'replan_supervisor_node = inno_autonav.replan_supervisor_node:main',
             'exit_switching_node = inno_autonav.exit_switching_node:main',
             'waypoint_planner_node = inno_autonav.waypoint_planner_node:main',
