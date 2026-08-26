@@ -198,6 +198,32 @@ class OnnxYoloBackend:
         )
 
 
+class OpenCvYoloBackend:
+    """Dependency-free CPU fallback for static-shape YOLOv8 ONNX models."""
+
+    def __init__(self, path: Path, image_size: int) -> None:
+        self.net = cv2.dnn.readNetFromONNX(str(path))
+        self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+        self.image_size = image_size
+
+    def predict(
+        self,
+        frame,
+        confidence_threshold: float,
+        person_class_ids: Set[int],
+    ) -> List[DetectionBox]:
+        blob, geometry = prepare_yolo_input(frame, self.image_size)
+        self.net.setInput(blob)
+        output = self.net.forward()
+        return decode_yolov8_output(
+            output,
+            geometry,
+            confidence_threshold,
+            person_class_ids,
+        )
+
+
 def encode_detection_message(
     image_width: int,
     image_height: int,
@@ -347,13 +373,21 @@ class PersonDetector(Node):
                 self.model = OnnxYoloBackend(
                     self.model_path, self.image_size
                 )
-            except Exception as error:
-                state = str(error)
-                if state != 'ONNXRUNTIME_NOT_INSTALLED':
-                    state = f'MODEL_LOAD_ERROR:{type(error).__name__}'
-                    self.get_logger().error(str(error))
-                self._set_status(state)
-                return
+            except Exception as onnx_error:
+                self.get_logger().warning(
+                    'ONNX Runtime backend unavailable; trying OpenCV CPU: '
+                    f'{onnx_error}'
+                )
+                try:
+                    self.model = OpenCvYoloBackend(
+                        self.model_path, self.image_size
+                    )
+                except Exception as opencv_error:
+                    self._set_status(
+                        f'MODEL_LOAD_ERROR:{type(opencv_error).__name__}'
+                    )
+                    self.get_logger().error(str(opencv_error))
+                    return
             self._model_ready()
             return
         try:
@@ -440,7 +474,9 @@ class PersonDetector(Node):
             self.get_logger().error(str(error))
             return
         try:
-            if isinstance(self.model, OnnxYoloBackend):
+            if isinstance(
+                self.model, (OnnxYoloBackend, OpenCvYoloBackend)
+            ):
                 detections = self.model.predict(
                     frame, self.confidence, self.person_class_ids
                 )

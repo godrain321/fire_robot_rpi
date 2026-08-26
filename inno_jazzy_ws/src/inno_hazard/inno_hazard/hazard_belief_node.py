@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import math
 
 import numpy as np
 from nav_msgs.msg import OccupancyGrid
@@ -206,7 +205,6 @@ class HazardBeliefNode(Node):
         if same_map:
             # The transient-local static publisher may repeat an unchanged map.
             # Preserve accumulated sensor belief in that common case.
-            self._publish()
             return
         belief_geometry = HazardGridGeometry(
             geometry.width, geometry.height, geometry.resolution,
@@ -232,14 +230,15 @@ class HazardBeliefNode(Node):
             data = np.asarray(message.data).reshape(
                 geometry.height, geometry.width
             )
-            self.belief.update_dynamic_obstacles(
+            update = self.belief.update_dynamic_obstacles(
                 data >= 100, already_inflated=True
             )
         except (TypeError, ValueError) as exc:
             self.get_logger().error(f"invalid dynamic grid: {exc}")
             self._set_status("INVALID_DYNAMIC_GRID")
             return
-        self._publish()
+        if update.changed_cells:
+            self._publish()
 
     def _thermal(self, message):
         self.last_thermal_ns = self.get_clock().now().nanoseconds
@@ -301,12 +300,18 @@ class HazardBeliefNode(Node):
         if self.belief is None:
             return
         now_ns = self.get_clock().now().nanoseconds
-        self.belief.advance_time(now_ns / 1e9)
         if self.last_thermal_ns is None:
             self._set_status("WAITING_FOR_THERMAL")
         elif now_ns - self.last_thermal_ns > self.thermal_timeout * 1e9:
             self._set_status("THERMAL_STREAM_STALE")
-        self._publish()
+        if (
+            not self.belief.temperature_observed_mask.any()
+            and not self.belief.co_observed_mask.any()
+        ):
+            return
+        update = self.belief.advance_time(now_ns / 1e9)
+        if update.changed_cells:
+            self._publish()
 
     def _publish(self):
         if self.belief is None:

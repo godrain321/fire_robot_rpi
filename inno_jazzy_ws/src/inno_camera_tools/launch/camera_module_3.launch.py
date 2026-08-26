@@ -6,6 +6,8 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 
+from inno_camera_tools.camera_runtime import camera_runtime_environment
+
 
 def generate_launch_description():
     config = (
@@ -25,7 +27,6 @@ def generate_launch_description():
             package="camera_ros",
             plugin="camera::CameraNode",
             name="camera",
-            namespace="camera",
             parameters=[
                 config,
                 {
@@ -60,6 +61,7 @@ def generate_launch_description():
         executable="component_container",
         composable_node_descriptions=components,
         output="screen",
+        additional_env=camera_runtime_environment(__file__),
     )
 
     return LaunchDescription(

@@ -136,6 +136,29 @@ def match_people_to_clusters(
     return matched_clusters
 
 
+def inflate_sparse_obstacle_indices(
+    indices: Iterable[int], width: int, height: int, radius_cells: int
+) -> np.ndarray:
+    """Inflate sparse occupied cells without shifting a full grid per offset."""
+    if width <= 0 or height <= 0 or radius_cells < 0:
+        raise ValueError('sparse inflation geometry is invalid')
+    data = np.zeros((height, width), dtype=np.int8)
+    radius_squared = radius_cells * radius_cells
+    for index in indices:
+        row, col = divmod(int(index), width)
+        if not (0 <= row < height and 0 <= col < width):
+            continue
+        for dy in range(-radius_cells, radius_cells + 1):
+            target_y = row + dy
+            if not 0 <= target_y < height:
+                continue
+            half_width = int(math.sqrt(radius_squared - dy * dy))
+            x0 = max(0, col - half_width)
+            x1 = min(width, col + half_width + 1)
+            data[target_y, x0:x1] = 100
+    return data
+
+
 class DynamicObstacleLayer(Node):
     def __init__(self) -> None:
         super().__init__('dynamic_obstacle_layer')
@@ -208,6 +231,7 @@ class DynamicObstacleLayer(Node):
         self.confirmed: Dict[int, float] = {}
         self.current_seen: Set[int] = set()
         self.classified_people: List[Tuple[float, float, float]] = []
+        self._last_published_grid = None
         grid_qos = QoSProfile(depth=1)
         grid_qos.reliability = ReliabilityPolicy.RELIABLE
         grid_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
@@ -257,15 +281,24 @@ class DynamicObstacleLayer(Node):
         except (ValueError, TypeError) as exc:
             self.get_logger().error(f'static grid 변환 실패: {exc}')
             return
-        if self.static_grid is not None and (
-            incoming.width != self.static_grid.width
-            or incoming.height != self.static_grid.height
-            or abs(incoming.resolution - self.static_grid.resolution) > 1e-9
-        ):
+        current = self.static_grid
+        same_geometry = current is not None and (
+            incoming.width == current.width
+            and incoming.height == current.height
+            and abs(incoming.resolution - current.resolution) <= 1e-9
+            and abs(incoming.origin_x - current.origin_x) <= 1e-9
+            and abs(incoming.origin_y - current.origin_y) <= 1e-9
+            and abs(incoming.origin_yaw - current.origin_yaw) <= 1e-9
+            and incoming.frame_id == current.frame_id
+        )
+        if same_geometry and np.array_equal(incoming.data, current.data):
+            return
+        if current is not None and not same_geometry:
             self.counts.clear()
             self.confirmed.clear()
             self.current_seen.clear()
             self.classified_people.clear()
+            self._last_published_grid = None
             self.get_logger().warning('static grid geometry 변경: dynamic obstacle 초기화')
         self.static_grid = incoming
         self.wall_exclusion_mask = build_wall_exclusion_mask(
@@ -387,14 +420,13 @@ class DynamicObstacleLayer(Node):
         )
 
     def _dynamic_array(self) -> np.ndarray:
-        data = np.zeros(
-            (self.static_grid.height, self.static_grid.width), dtype=np.int8
-        )
-        for index in self.confirmed:
-            y, x = divmod(index, self.static_grid.width)
-            data[y, x] = 100
         radius_cells = int(math.ceil(self.inflation_radius / self.static_grid.resolution))
-        return inflate_occupied_cells(data, radius_cells)
+        return inflate_sparse_obstacle_indices(
+            self.confirmed,
+            self.static_grid.width,
+            self.static_grid.height,
+            radius_cells,
+        )
 
     def _publish(self) -> None:
         if self.static_grid is None:
@@ -402,22 +434,29 @@ class DynamicObstacleLayer(Node):
         self._expire()
         data = self._dynamic_array()
         stamp = self.get_clock().now().to_msg()
-        message = OccupancyGrid()
-        message.header.stamp = stamp
-        message.header.frame_id = self.static_grid.frame_id
-        message.info.map_load_time = stamp
-        message.info.resolution = self.static_grid.resolution
-        message.info.width = self.static_grid.width
-        message.info.height = self.static_grid.height
-        message.info.origin.position.x = self.static_grid.origin_x
-        message.info.origin.position.y = self.static_grid.origin_y
-        qx, qy, qz, qw = quaternion_from_yaw(self.static_grid.origin_yaw)
-        message.info.origin.orientation.x = qx
-        message.info.origin.orientation.y = qy
-        message.info.origin.orientation.z = qz
-        message.info.origin.orientation.w = qw
-        message.data = data.reshape(-1).astype(int).tolist()
-        self.grid_publisher.publish(message)
+        if (
+            self._last_published_grid is None
+            or not np.array_equal(data, self._last_published_grid)
+        ):
+            message = OccupancyGrid()
+            message.header.stamp = stamp
+            message.header.frame_id = self.static_grid.frame_id
+            message.info.map_load_time = stamp
+            message.info.resolution = self.static_grid.resolution
+            message.info.width = self.static_grid.width
+            message.info.height = self.static_grid.height
+            message.info.origin.position.x = self.static_grid.origin_x
+            message.info.origin.position.y = self.static_grid.origin_y
+            qx, qy, qz, qw = quaternion_from_yaw(
+                self.static_grid.origin_yaw
+            )
+            message.info.origin.orientation.x = qx
+            message.info.origin.orientation.y = qy
+            message.info.origin.orientation.z = qz
+            message.info.origin.orientation.w = qw
+            message.data = data.reshape(-1).astype(int).tolist()
+            self.grid_publisher.publish(message)
+            self._last_published_grid = data.copy()
         self.detected_publisher.publish(Bool(data=bool(self.confirmed)))
         clusters = self._obstacle_clusters()
         # Motion tracking intentionally sees current wall-filtered LiDAR

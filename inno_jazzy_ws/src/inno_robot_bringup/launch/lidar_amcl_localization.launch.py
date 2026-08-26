@@ -3,6 +3,7 @@
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
 from launch_ros.actions import Node
@@ -14,6 +15,7 @@ from inno_robot_bringup.project_paths import project_path
 def generate_launch_description():
     share = get_package_share_directory('inno_robot_bringup')
     args = [
+        DeclareLaunchArgument('start_lidar', default_value='true'),
         DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB1'),
         DeclareLaunchArgument('serial_baudrate', default_value='460800'),
         DeclareLaunchArgument(
@@ -31,8 +33,9 @@ def generate_launch_description():
     lidar = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(share + '/launch/lidar_only.launch.py'),
         launch_arguments={
-            'start_lidar': 'true', 'serial_port': L('serial_port'),
-            'serial_baudrate': L('serial_baudrate'), 'publish_static_tf': 'true',
+            'start_lidar': L('start_lidar'), 'serial_port': L('serial_port'),
+            'serial_baudrate': L('serial_baudrate'),
+            'publish_static_tf': L('start_lidar'),
             'scan_topic': '/scan', 'base_frame': 'base_link', 'laser_frame': 'laser',
         }.items(),
     )
@@ -41,6 +44,7 @@ def generate_launch_description():
         name='rf2o_laser_odometry', output='screen',
         parameters=[share + '/config/rf2o.yaml'],
         arguments=['--ros-args', '--log-level', 'warn'],
+        condition=IfCondition(L('start_lidar')),
     )
     map_server = Node(
         package='nav2_map_server', executable='map_server', name='map_server',

@@ -1,9 +1,11 @@
 from builtin_interfaces.msg import Time
 from geometry_msgs.msg import PointStamped
+import numpy as np
 
 from inno_autonav.dynamic_obstacle_layer import (
     DynamicObstacleLayer,
     cluster_obstacle_indices,
+    inflate_sparse_obstacle_indices,
     match_people_to_clusters,
 )
 
@@ -27,6 +29,23 @@ def test_separated_scan_cells_remain_separate_obstacles():
         radius_m=0.20,
     )
     assert len(clusters) == 2
+
+
+def test_sparse_inflation_matches_integer_disk_geometry():
+    data = inflate_sparse_obstacle_indices(
+        [2 * 7 + 3], width=7, height=5, radius_cells=2
+    )
+
+    expected = {
+        (x, y)
+        for y in range(5)
+        for x in range(7)
+        if (x - 3) ** 2 + (y - 2) ** 2 <= 4
+    }
+    actual = {
+        (int(x), int(y)) for y, x in np.argwhere(data >= 100)
+    }
+    assert actual == expected
 
 
 def test_person_classification_matches_only_nearby_obstacle():

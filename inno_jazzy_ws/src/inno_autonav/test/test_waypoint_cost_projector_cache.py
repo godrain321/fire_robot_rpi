@@ -183,7 +183,7 @@ def test_10_cached_result_matches_direct_calculation():
 # -- Real waypoint file: load 159 points via the existing helpers only -------
 
 def test_real_waypoint_file_loads_159_points_via_existing_helpers():
-    path = project_path("maps", "waypoint_queue_latest.yaml")
+    path = project_path("docs", "full_map_waypoints_1m_numbered.yaml")
     document = load_waypoint_document(path)
     assert document.get("spacing_m") == 1.0
     assert document.get("frame_id") == "map"

@@ -16,12 +16,12 @@ class PlanningGridPublisher(Node):
             'map_yaml', project_path('maps', 'inno_map_nav.yaml')
         )
         self.declare_parameter('map_frame', 'map')
-        self.declare_parameter('publish_rate_hz', 1.0)
+        self.declare_parameter('publish_rate_hz', 0.0)
         map_yaml = str(self.get_parameter('map_yaml').value)
         map_frame = str(self.get_parameter('map_frame').value)
         publish_rate = float(self.get_parameter('publish_rate_hz').value)
-        if publish_rate <= 0.0:
-            raise GridError('publish_rate_hz는 0보다 커야 합니다.')
+        if publish_rate < 0.0:
+            raise GridError('publish_rate_hz는 0 이상이어야 합니다.')
         self.grid = load_pgm_as_occupancy(map_yaml, map_frame)
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE
@@ -29,7 +29,10 @@ class PlanningGridPublisher(Node):
         self.publisher = self.create_publisher(
             OccupancyGrid, '/planning_grid_static', qos
         )
-        self.timer = self.create_timer(1.0 / publish_rate, self.publish_grid)
+        self.timer = (
+            self.create_timer(1.0 / publish_rate, self.publish_grid)
+            if publish_rate > 0.0 else None
+        )
         self.publish_grid()
         self.get_logger().info(
             f'planning grid: {self.grid.width}x{self.grid.height}, '

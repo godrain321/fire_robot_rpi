@@ -1,7 +1,9 @@
 planning_grid_publisher:
   ros__parameters:
     map_frame: map
-    publish_rate_hz: 1.0
+    # Transient-local QoS retains the static grid for late subscribers, so
+    # periodic 543x453 republication only wastes Pi CPU and DDS bandwidth.
+    publish_rate_hz: 0.0
 
 dynamic_obstacle_layer:
   ros__parameters:
@@ -29,6 +31,8 @@ mode3_inspector:
     base_frame: base_link
     # Keep standalone Mode 3 and Mode 5 on the same field-test geometry.
     standoff_distance_m: 2.00
+    # Skip navigation when the robot is already close enough for inspection.
+    standoff_arrival_tolerance_m: 0.60
     robot_settle_sec: 2.0
     observation_sec: 5.0
     distance_tolerance_m: 0.60

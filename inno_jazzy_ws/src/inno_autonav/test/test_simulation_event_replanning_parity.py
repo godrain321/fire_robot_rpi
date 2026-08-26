@@ -20,14 +20,19 @@ from inno_autonav.event_replanning import (
 SIMULATION_ROOT = (
     Path(__file__).resolve().parents[5] / "fire_robot" / "simulator" / "factory_v5"
 )
-if not (SIMULATION_ROOT / "navigation" / "event_replanning.py").is_file():
-    pytest.skip("sibling factory_v5 checkout is unavailable", allow_module_level=True)
-sys.path.insert(0, str(SIMULATION_ROOT))
-
-from navigation.event_replanning import (  # noqa: E402
-    EventReplanningConfig as SimConfig,
-    EventReplanningPolicy as SimPolicy,
+SIMULATION_AVAILABLE = (
+    SIMULATION_ROOT / "navigation" / "event_replanning.py"
+).is_file()
+pytestmark = pytest.mark.skipif(
+    not SIMULATION_AVAILABLE,
+    reason="sibling factory_v5 checkout is unavailable",
 )
+if SIMULATION_AVAILABLE:
+    sys.path.insert(0, str(SIMULATION_ROOT))
+    from navigation.event_replanning import (  # noqa: E402
+        EventReplanningConfig as SimConfig,
+        EventReplanningPolicy as SimPolicy,
+    )
 
 
 PATH = ((1, 1), (2, 1), (3, 1), (4, 1))

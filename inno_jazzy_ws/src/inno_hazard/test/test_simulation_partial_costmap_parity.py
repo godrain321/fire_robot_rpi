@@ -15,11 +15,17 @@ from inno_hazard.hazard_belief import (
 
 
 SIM_ROOT = Path(__file__).resolve().parents[5] / "fire_robot" / "simulator" / "factory_v5"
-if not (SIM_ROOT / "mapping" / "partial_costmap.py").is_file():
-    pytest.skip("sibling factory_v5 checkout unavailable", allow_module_level=True)
-sys.path.insert(0, str(SIM_ROOT))
-
-from mapping.partial_costmap import PartialCostmapConfig, PartialFireCostmap  # noqa: E402
+SIMULATION_AVAILABLE = (SIM_ROOT / "mapping" / "partial_costmap.py").is_file()
+pytestmark = pytest.mark.skipif(
+    not SIMULATION_AVAILABLE,
+    reason="sibling factory_v5 checkout unavailable",
+)
+if SIMULATION_AVAILABLE:
+    sys.path.insert(0, str(SIM_ROOT))
+    from mapping.partial_costmap import (  # noqa: E402
+        PartialCostmapConfig,
+        PartialFireCostmap,
+    )
 
 
 class SimulationGrid:

@@ -58,7 +58,9 @@ def test_synthetic_fire_forces_a_detour_through_the_full_pipeline():
 
 @pytest.mark.parametrize("resolution", [0.2])
 def test_real_159_waypoint_dry_run_reports_pipeline_metrics(resolution):
-    document = load_waypoint_document(project_path("maps", "waypoint_queue_latest.yaml"))
+    document = load_waypoint_document(project_path(
+        "docs", "full_map_waypoints_1m_numbered.yaml"
+    ))
     records = named_waypoints_from_document(document, "map")
     assert document.get("spacing_m") == 1.0
     assert document.get("frame_id") == "map"

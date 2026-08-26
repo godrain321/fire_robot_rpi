@@ -3,8 +3,13 @@
 ## 현재 임시 시험 모델
 
 ```text
-models/yolov8n_best.onnx
+models/yolov8n_best_opencv_640.onnx  # Pi 5 기본값(OpenCV CPU, 고정 640)
+models/yolov8n_best.onnx             # ONNX Runtime용 동적 입력 모델
 ```
+
+라즈베리파이 5 기본 설치에는 `onnxruntime` Python 패키지가 없으므로 통합 launch는
+정적 입력 OpenCV 모델을 사용한다. 검출 노드는 ONNX Runtime을 먼저 시도하고, 사용할
+수 없으면 별도 설치 없이 ROS에 포함된 OpenCV DNN CPU backend로 자동 전환한다.
 
 ONNX 메타데이터와 무결성 확인 결과:
 

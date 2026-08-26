@@ -2,6 +2,8 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
+import pytest
+
 from inno_autonav.evacuation_planner import EvacuationPlanner
 from inno_autonav.exit_evaluator import ExitEvaluation, ExitEvaluationBatch
 
@@ -10,10 +12,21 @@ SIMULATION = (
     Path(__file__).resolve().parents[5]
     / "fire_robot" / "simulator" / "factory_v5"
 )
-sys.path.insert(0, str(SIMULATION))
-
-from planner.evacuation_planner import EvacuationPlanner as SimPlanner  # noqa: E402
-from planner.exit_evaluator import ExitEvaluation as SimEvaluation  # noqa: E402
+SIMULATION_AVAILABLE = (
+    SIMULATION / "planner" / "evacuation_planner.py"
+).is_file()
+pytestmark = pytest.mark.skipif(
+    not SIMULATION_AVAILABLE,
+    reason="sibling factory_v5 checkout is unavailable",
+)
+if SIMULATION_AVAILABLE:
+    sys.path.insert(0, str(SIMULATION))
+    from planner.evacuation_planner import (  # noqa: E402
+        EvacuationPlanner as SimPlanner,
+    )
+    from planner.exit_evaluator import (  # noqa: E402
+        ExitEvaluation as SimEvaluation,
+    )
 
 
 def ros_evaluation(exit_id, status, length, risk, accepted=True):

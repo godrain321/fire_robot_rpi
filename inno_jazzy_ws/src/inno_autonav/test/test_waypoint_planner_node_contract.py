@@ -189,7 +189,9 @@ def test_route_status_and_rviz_overlay_distinguish_initial_plan_from_replan():
 
 
 def test_real_159_waypoint_file_drives_a_full_replan():
-    document = load_waypoint_document(project_path("maps", "waypoint_queue_latest.yaml"))
+    document = load_waypoint_document(project_path(
+        "docs", "full_map_waypoints_1m_numbered.yaml"
+    ))
     records = named_waypoints_from_document(document, "map")
     waypoints_world = {item.name: (item.x, item.y) for item in records}
     names = list(waypoints_world)

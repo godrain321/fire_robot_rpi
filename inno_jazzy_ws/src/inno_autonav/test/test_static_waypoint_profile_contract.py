@@ -43,7 +43,9 @@ def test_static_grid_is_composited_into_planning_grid_without_sensor_layers():
 
 
 def test_profile_uses_real_159_waypoint_document():
-    document = load_waypoint_document(project_path("maps", "waypoint_queue_latest.yaml"))
+    document = load_waypoint_document(project_path(
+        "docs", "full_map_waypoints_1m_numbered.yaml"
+    ))
     assert document["spacing_m"] == 1.0
     assert document["frame_id"] == "map"
     assert len(document["poses"]) == 159

@@ -2,7 +2,11 @@
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L, PythonExpression
@@ -17,9 +21,20 @@ def generate_launch_description():
     thermal = get_package_share_directory("inno_thermal")
     arguments = [
         DeclareLaunchArgument("esp32_port", default_value="/dev/ttyUSB0"),
+        DeclareLaunchArgument(
+            "discovery_range",
+            default_value="LOCALHOST",
+            description=(
+                "ROS discovery scope. LOCALHOST is reliable for the single-Pi "
+                "robot; use SUBNET only when remote ROS hosts are required."
+            ),
+        ),
         DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB1"),
         DeclareLaunchArgument("mmwave_port", default_value="/dev/ttyAMA0"),
         DeclareLaunchArgument("mmwave_configure_sensor", default_value="true"),
+        DeclareLaunchArgument("use_lidar", default_value="true"),
+        DeclareLaunchArgument("use_mmwave", default_value="true"),
+        DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("assist_check_sec", default_value="10.0"),
         # inno_autonav/config/semantic_points.yaml의 init. 실제 시연 시작점이 바뀌면
         # 명령행 인자로 덮어써야 하며 경로 자체는 이 값에 고정되지 않는다.
@@ -60,7 +75,9 @@ def generate_launch_description():
         DeclareLaunchArgument("use_camera_mode4", default_value="true"),
         DeclareLaunchArgument(
             "yolo_model_path",
-            default_value=project_path("models", "yolov8n_best.onnx"),
+            default_value=project_path(
+                "models", "yolov8n_best_opencv_640.onnx"
+            ),
         ),
         DeclareLaunchArgument("yolo_confidence", default_value="0.50"),
     ]
@@ -97,6 +114,9 @@ def generate_launch_description():
             "lidar_port": L("lidar_port"),
             "mmwave_port": L("mmwave_port"),
             "mmwave_configure_sensor": L("mmwave_configure_sensor"),
+            "use_lidar": L("use_lidar"),
+            "use_mmwave": L("use_mmwave"),
+            "use_rviz": L("use_rviz"),
             "assist_check_sec": L("assist_check_sec"),
             "set_initial_pose": "true",
             "initial_pose_x": L("initial_pose_x"),
@@ -108,6 +128,8 @@ def generate_launch_description():
             "drive_speed": L("drive_speed"),
             "turn_speed": L("turn_speed"),
             "use_serial": L("use_serial"),
+            "use_thermal_sensor": L("use_thermal_sensor"),
+            "mode5_enabled": "true",
             "use_dynamic_obstacles": "true",
             "hazard_belief_enabled": "true",
             "exit_evaluator_enabled": "true",
@@ -148,6 +170,9 @@ def generate_launch_description():
     )
     return LaunchDescription(
         arguments + [
+            SetEnvironmentVariable(
+                "ROS_AUTOMATIC_DISCOVERY_RANGE", L("discovery_range")
+            ),
             thermal_transform, thermal_bringup, field_bringup, orchestrator
         ]
     )

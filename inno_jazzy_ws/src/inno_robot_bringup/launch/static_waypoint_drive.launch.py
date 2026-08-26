@@ -27,7 +27,9 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "waypoint_file",
-            default_value=project_path("maps", "waypoint_queue_latest.yaml"),
+            default_value=project_path(
+                "docs", "full_map_waypoints_1m_numbered.yaml"
+            ),
         ),
         DeclareLaunchArgument(
             "semantic_yaml",

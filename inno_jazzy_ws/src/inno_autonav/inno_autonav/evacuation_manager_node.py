@@ -77,6 +77,8 @@ class EvacuationManagerNode(Node):
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        command_qos = QoSProfile(depth=10)
+        command_qos.reliability = ReliabilityPolicy.RELIABLE
         self.plan_publisher = self.create_publisher(
             String, str(value("plan_topic")), qos
         )
@@ -97,7 +99,8 @@ class EvacuationManagerNode(Node):
             String, str(value("switch_result_topic")), qos
         )
         self.create_subscription(
-            String, str(value("switch_request_topic")), self._on_switch_request, qos,
+            String, str(value("switch_request_topic")),
+            self._on_switch_request, command_qos,
         )
         self.create_subscription(
             String, str(value("blocked_exits_topic")), self._on_blocked_exits, qos,

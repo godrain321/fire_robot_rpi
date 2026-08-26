@@ -5,6 +5,7 @@ import numpy as np
 from inno_camera_tools.person_detector import (
     DetectionBox,
     LetterboxGeometry,
+    OpenCvYoloBackend,
     decode_yolov8_output,
     encode_detection_message,
     prepare_yolo_input,
@@ -64,3 +65,34 @@ def test_decode_single_class_yolov8_person_output():
     assert detections[0].class_id == 0
     assert detections[0].confidence > 0.89
     assert detections[0].x_min == 270.0
+
+
+def test_opencv_backend_runs_static_onnx_model(monkeypatch, tmp_path):
+    class FakeNet:
+        def setPreferableBackend(self, _backend):
+            pass
+
+        def setPreferableTarget(self, _target):
+            pass
+
+        def setInput(self, blob):
+            assert blob.shape == (1, 3, 640, 640)
+
+        def forward(self):
+            return np.asarray(
+                [[[320.0], [320.0], [100.0], [200.0], [0.9]]],
+                dtype=np.float32,
+            )
+
+    monkeypatch.setattr(
+        'inno_camera_tools.person_detector.cv2.dnn.readNetFromONNX',
+        lambda _path: FakeNet(),
+    )
+    backend = OpenCvYoloBackend(tmp_path / 'model.onnx', 640)
+
+    detections = backend.predict(
+        np.zeros((640, 640, 3), dtype=np.uint8), 0.5, {0}
+    )
+
+    assert len(detections) == 1
+    assert detections[0].confidence > 0.89

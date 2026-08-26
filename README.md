@@ -146,6 +146,7 @@ cost-aware A* 경로가 가장 짧은 출구를 선택해 실제로 이동한다
 처음에는 바퀴를 띄우고 `use_serial:=false`로 확인한다.
 
 ```bash
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 ros2 launch inno_robot_bringup evacuation_demo.launch.py \
   esp32_port:=/dev/ttyUSB0 \
   lidar_port:=/dev/ttyUSB1 \
@@ -154,6 +155,22 @@ ros2 launch inno_robot_bringup evacuation_demo.launch.py \
   event_replanning_enabled:=true \
   exit_switching_enabled:=true \
   waypoint_planning_enabled:=true
+```
+
+모드 5 launch도 기본적으로 같은 Pi 내부 discovery를 사용한다. 상태 확인용 두 번째
+터미널에도 위 `export`를 적용한다. 다른 PC의 RViz/ROS 노드와 직접 통신해야 할 때만
+launch에 `discovery_range:=SUBNET`을 넘기고 두 PC의 ROS 환경도 SUBNET으로 맞춘다.
+
+센서와 ESP32를 하나도 연결하지 않은 상태의 소프트웨어 안전 기동은 다음과 같다.
+지도와 22개 핵심 노드가 뜨지만 모터·센서 드라이버·RViz는 실행하지 않고, 모드 5는
+화재 센서를 기다리거나 수동 시작 대기 상태에 머문다.
+
+```bash
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+ros2 launch inno_robot_bringup evacuation_demo.launch.py \
+  use_serial:=false use_lidar:=false use_mmwave:=false \
+  use_thermal_sensor:=false use_camera_mode4:=false use_rviz:=false \
+  evacuation_demo_auto_start:=false
 ```
 
 RViz의 위치와 경로가 맞는 것을 확인한 뒤에만 `use_serial:=true`로 실행한다. 실제

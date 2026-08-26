@@ -17,14 +17,19 @@ from inno_autonav.weighted_planner import (
 SIMULATION_ROOT = (
     Path(__file__).resolve().parents[5] / "fire_robot" / "simulator" / "factory_v5"
 )
-if not (SIMULATION_ROOT / "planner" / "a_star.py").is_file():
-    pytest.skip("sibling factory_v5 checkout is unavailable", allow_module_level=True)
-sys.path.insert(0, str(SIMULATION_ROOT))
-
-from planner.a_star import (  # noqa: E402
-    weighted_a_star as simulation_weighted_a_star,
-    weighted_a_star_with_escape as simulation_weighted_a_star_with_escape,
+SIMULATION_AVAILABLE = (
+    SIMULATION_ROOT / "planner" / "a_star.py"
+).is_file()
+pytestmark = pytest.mark.skipif(
+    not SIMULATION_AVAILABLE,
+    reason="sibling factory_v5 checkout is unavailable",
 )
+if SIMULATION_AVAILABLE:
+    sys.path.insert(0, str(SIMULATION_ROOT))
+    from planner.a_star import (  # noqa: E402
+        weighted_a_star as simulation_weighted_a_star,
+        weighted_a_star_with_escape as simulation_weighted_a_star_with_escape,
+    )
 
 
 def _simulation_costmap(encoded: np.ndarray) -> np.ndarray:

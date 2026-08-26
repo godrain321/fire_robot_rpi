@@ -8,6 +8,7 @@ from inno_autonav.mode3_inspector import (
     Mode3Inspector,
     PresenceEvidence,
     compute_inspection_goal,
+    is_at_standoff,
     parse_inspection_command,
     select_nearest_candidate,
 )
@@ -64,6 +65,11 @@ def test_mode5_can_request_an_explicit_two_metre_inspection_target():
         0.0, 0.0, 0.0, target[0], target[1], 2.0
     )
     assert math.isclose(math.dist((goal_x, goal_y), target), 2.0)
+
+
+def test_standoff_tolerance_accepts_stationary_field_check():
+    assert is_at_standoff(0.0, 0.0, 1.5, 0.0, 2.0, 0.6)
+    assert not is_at_standoff(0.0, 0.0, 1.3, 0.0, 2.0, 0.6)
 
 
 def test_presence_requires_online_samples_at_expected_distance():
@@ -129,6 +135,7 @@ def test_mode5_mode3_publishes_only_canonical_plan_with_inspection_yaw():
     inspector.candidates = []
     inspector.requested_target = (4.0, 0.0)
     inspector.standoff_distance = 2.0
+    inspector.standoff_arrival_tolerance = 0.6
     inspector.publish_canonical_plan = True
     inspector.hazard_revision = 7
     inspector.goal_publisher = _Publisher()
@@ -144,3 +151,37 @@ def test_mode5_mode3_publishes_only_canonical_plan_with_inspection_yaw():
     assert payload['selected_exit_id'] == 'MODE3_INSPECTION'
     assert payload['selected_approach_position_world'] == [2.0, 0.0]
     assert payload['selected_approach_yaw_rad'] == 0.0
+
+
+def test_mode3_already_at_standoff_skips_navigation_and_starts_settling():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.drive_mode = 3
+    inspector.phase = 'WAITING_FOR_OBSTACLE'
+    inspector.map_frame = 'map'
+    inspector.base_frame = 'base_link'
+    inspector.tf = _Tf()
+    inspector.candidates = [(1.5, 0.0)]
+    inspector.requested_target = None
+    inspector.standoff_distance = 2.0
+    inspector.standoff_arrival_tolerance = 0.6
+    inspector.robot_settle_sec = 2.0
+    inspector.publish_canonical_plan = True
+    inspector.hazard_revision = 0
+    inspector.cancel_publisher = _Publisher()
+    inspector.goal_publisher = _Publisher()
+    inspector.plan_publisher = _Publisher()
+    inspector.waiting_for_departure = False
+    states = []
+    inspector._state = states.append
+    inspector._now = lambda: 10.0
+    inspector.get_logger = lambda: type(
+        '_Logger', (), {'info': lambda self, _message: None}
+    )()
+
+    inspector._try_start_inspection()
+
+    assert inspector.phase == 'SETTLING'
+    assert inspector.phase_deadline == 12.0
+    assert states[-1] == 'MODE3_AT_STANDOFF:ROBOT_SETTLING'
+    assert inspector.goal_publisher.messages == []
+    assert inspector.plan_publisher.messages == []

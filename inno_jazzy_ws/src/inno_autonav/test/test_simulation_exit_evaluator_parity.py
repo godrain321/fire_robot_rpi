@@ -20,14 +20,21 @@ SIMULATION = (
     Path(__file__).resolve().parents[5]
     / "fire_robot" / "simulator" / "factory_v5"
 )
-sys.path.insert(0, str(SIMULATION))
-
-from planner.exit_evaluator import (  # noqa: E402
-    ExitEvaluationConfig as SimConfig,
-    ExitEvaluator as SimEvaluator,
+SIMULATION_AVAILABLE = (
+    SIMULATION / "planner" / "exit_evaluator.py"
+).is_file()
+pytestmark = pytest.mark.skipif(
+    not SIMULATION_AVAILABLE,
+    reason="sibling factory_v5 checkout is unavailable",
 )
-from world.entities import Exit as SimExit  # noqa: E402
-from world.fire_maps import EstimatedFireMap, MapMetadata  # noqa: E402
+if SIMULATION_AVAILABLE:
+    sys.path.insert(0, str(SIMULATION))
+    from planner.exit_evaluator import (  # noqa: E402
+        ExitEvaluationConfig as SimConfig,
+        ExitEvaluator as SimEvaluator,
+    )
+    from world.entities import Exit as SimExit  # noqa: E402
+    from world.fire_maps import EstimatedFireMap, MapMetadata  # noqa: E402
 
 
 def test_same_fixture_matches_simulation_exit_metrics_and_reasons():

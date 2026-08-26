@@ -94,7 +94,7 @@ class KeyboardCmdVelDemo(Node):
 
     def _render_waypoint_prompt(self):
         self._write_terminal(
-            '\r\033[2KMODE 2 waypoints (example w1,w5,w6) > '
+            '\r\033[2K[모드 2] 웨이포인트 입력 (예: w1,w5,w6) > '
             + self._waypoint_buffer
         )
 
@@ -124,7 +124,7 @@ class KeyboardCmdVelDemo(Node):
         if key == '\x1b':
             self._waypoint_collecting = False
             self._waypoint_buffer = ''
-            self._write_terminal('\r\033[2KMODE 2 input cancelled\n')
+            self._write_terminal('\r\033[2K[모드 2] 입력 취소\n')
             return
         if key in ('\x7f', '\b'):
             self._waypoint_buffer = self._waypoint_buffer[:-1]
@@ -137,7 +137,8 @@ class KeyboardCmdVelDemo(Node):
     def _waypoint_status(self, message):
         if not message.data.startswith('MODE2_'):
             return
-        self._write_terminal(f'\r\033[2K[MODE 2] {message.data}\n')
+        # The operator console translates these status codes into Korean.
+        # Do not leak the raw internal code directly to /dev/tty.
         if self._waypoint_collecting:
             self._render_waypoint_prompt()
 
@@ -153,7 +154,7 @@ class KeyboardCmdVelDemo(Node):
         if self._waypoint_collecting and new_mode != 2:
             self._waypoint_collecting = False
             self._waypoint_buffer = ''
-            self._write_terminal('\r\033[2KMODE 2 input cancelled\n')
+            self._write_terminal('\r\033[2K[모드 2] 입력 취소\n')
         self.drive_mode = new_mode
         self.command = Twist()
         if new_mode == 5:
@@ -326,9 +327,15 @@ class KeyboardCmdVelDemo(Node):
             self._owns_terminal_output = False
 
     def destroy_node(self):
-        self._stop_all_motion()
-        self.restore_terminal()
-        super().destroy_node()
+        try:
+            # ROS 2's SIGINT handler can invalidate the context before launch
+            # asks this node to clean up. Publishing after that point raises
+            # RCLError and turns a normal shutdown into a process failure.
+            if rclpy.ok():
+                self._stop_all_motion()
+        finally:
+            self.restore_terminal()
+        return super().destroy_node()
 
 
 def main(args=None):

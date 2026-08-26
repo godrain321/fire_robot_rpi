@@ -25,16 +25,21 @@ from inno_autonav.exit_switching import (
 SIMULATION_ROOT = (
     Path(__file__).resolve().parents[5] / "fire_robot" / "simulator" / "factory_v5"
 )
-if not (SIMULATION_ROOT / "navigation" / "exit_switching.py").is_file():
-    pytest.skip("sibling factory_v5 checkout is unavailable", allow_module_level=True)
-sys.path.insert(0, str(SIMULATION_ROOT))
-
-from navigation.exit_switching import (  # noqa: E402
-    DelayedCostSwitch as SimDelayedCostSwitch,
-    RouteTemperatureTrendMonitor as SimMonitor,
-    current_direction_world as sim_current_direction_world,
-    is_opposite_direction as sim_is_opposite_direction,
+SIMULATION_AVAILABLE = (
+    SIMULATION_ROOT / "navigation" / "exit_switching.py"
+).is_file()
+pytestmark = pytest.mark.skipif(
+    not SIMULATION_AVAILABLE,
+    reason="sibling factory_v5 checkout is unavailable",
 )
+if SIMULATION_AVAILABLE:
+    sys.path.insert(0, str(SIMULATION_ROOT))
+    from navigation.exit_switching import (  # noqa: E402
+        DelayedCostSwitch as SimDelayedCostSwitch,
+        RouteTemperatureTrendMonitor as SimMonitor,
+        current_direction_world as sim_current_direction_world,
+        is_opposite_direction as sim_is_opposite_direction,
+    )
 
 
 PATH = ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0))

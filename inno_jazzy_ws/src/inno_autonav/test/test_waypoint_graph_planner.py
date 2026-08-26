@@ -130,7 +130,9 @@ def test_9_deterministic_result_across_repeated_calls():
 # -- Test 10/8: real 159-waypoint graph build and connectivity -----------------
 
 def test_10_real_159_waypoint_graph_builds_and_connects():
-    document = load_waypoint_document(project_path("maps", "waypoint_queue_latest.yaml"))
+    document = load_waypoint_document(project_path(
+        "docs", "full_map_waypoints_1m_numbered.yaml"
+    ))
     records = named_waypoints_from_document(document, "map")
     assert len(records) == 159
     waypoints = {item.name: (item.x, item.y) for item in records}
