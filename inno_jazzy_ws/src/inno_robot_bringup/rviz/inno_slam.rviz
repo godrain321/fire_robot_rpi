@@ -3,8 +3,6 @@ Panels:
     Name: Displays
   - Class: rviz_common/Views
     Name: Views
-  - Class: slam_toolbox::SlamToolboxPlugin
-    Name: Slam Toolbox
 Visualization Manager:
   Class: ""
   Global Options:
@@ -152,6 +150,27 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /waypoint_route_markers
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/Path
+      Name: MODE5 EXIT1-Blocked Preview Path (Magenta)
+      Enabled: true
+      Topic:
+        Value: /mode5_route_preview/path
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+      Color: 255; 0; 200
+      Line Style: Lines
+      Line Width: 0.14
+    - Class: rviz_default_plugins/MarkerArray
+      Name: MODE5 Preview Route Waypoints / Blocked Exit
+      Enabled: true
+      Topic:
+        Value: /mode5_route_preview/markers
         Reliability Policy: Reliable
         Durability Policy: Transient Local
         History Policy: Keep Last

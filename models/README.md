@@ -16,7 +16,8 @@ ONNX 메타데이터와 무결성 확인 결과:
 - task: `detect`
 - architecture: `YOLOv8n`
 - input: dynamic batch, `3 x height x width` (기본 `640 x 640`)
-- output: `batch x 5 x anchors`
+- dynamic model output: `batch x 5 x anchors`
+- static OpenCV model output: raw DFL head `batch x 65 x anchors`
 - classes: `{0: person}`
 - opset: `16`
 - SHA-256: `9d24faab26bebe6f25de708e235f02ec8733848cb0025ff67e60e4685a37e739`

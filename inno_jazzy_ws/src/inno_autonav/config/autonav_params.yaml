@@ -17,11 +17,22 @@ dynamic_obstacle_layer:
     obstacle_timeout_sec: 2.5
     # Match final_simulator factory_v5 obstacle/robot clearance.
     inflation_radius: 0.50
-    wall_exclusion_radius: 0.25
+    # Ignore mapped-wall returns over a wider 8-cell (0.40 m) buffer.
+    wall_exclusion_radius: 0.40
     cluster_radius_m: 0.50
+    minimum_cluster_cells: 3
+    # Long-range detections remain available to inspectors and RViz. Only this
+    # close frontal window becomes a navigation obstacle in Mode 5. Mode 2 is
+    # waypoint-only, while Mode 3/4 suppress avoidance so they can approach the
+    # one target locked by the inspection orchestrator.
+    avoidance_enabled_modes: [5]
+    avoidance_max_range_m: 1.00
+    avoidance_front_half_angle_deg: 45.0
     person_match_radius_m: 0.75
     person_dedup_radius_m: 0.20
-    person_track_match_radius_m: 2.50
+    person_track_match_radius_m: 1.00
+    person_track_stale_sec: 1.50
+    person_track_max_speed_mps: 1.80
     person_classification_timeout_sec: 0.0
     publish_rate_hz: 5.0
 
@@ -31,8 +42,11 @@ mode3_inspector:
     base_frame: base_link
     # Keep standalone Mode 3 and Mode 5 on the same field-test geometry.
     standoff_distance_m: 2.00
-    # Skip navigation when the robot is already close enough for inspection.
-    standoff_arrival_tolerance_m: 0.60
+    # Mode 3 must issue a real approach goal before mmWave observation. With
+    # the follower's 0.25 m goal tolerance, 0.45 m guarantees visible travel.
+    standoff_arrival_tolerance_m: 0.30
+    minimum_approach_goal_distance_m: 0.45
+    minimum_safe_standoff_m: 0.60
     robot_settle_sec: 2.0
     observation_sec: 5.0
     distance_tolerance_m: 0.60
@@ -45,20 +59,16 @@ mode4_inspector:
   ros__parameters:
     map_frame: map
     base_frame: base_link
-    camera_info_topic: /camera/camera_info
     detection_topic: /camera/person_detections
     standoff_distance_m: 1.50
     robot_settle_sec: 2.0
-    observation_sec: 5.0
-    minimum_detection_frames: 3
-    survivor_positive_frames: 2
-    detector_stale_timeout_sec: 2.0
-    minimum_confidence: 0.50
-    fallback_horizontal_fov_deg: 76.0
-    camera_yaw_offset_deg: 0.0
-    target_search_radius_m: 1.0
-    maximum_candidate_distance_m: 3.0
-    maximum_bearing_error_deg: 10.0
+    # Raspberry Pi 5 OpenCV-DNN inference is roughly 12--15 s per frame.
+    observation_sec: 20.0
+    minimum_detection_frames: 1
+    survivor_positive_frames: 1
+    detector_stale_timeout_sec: 30.0
+    detector_startup_timeout_sec: 30.0
+    minimum_confidence: 0.40
     update_rate_hz: 10.0
     publish_canonical_plan: false
 
@@ -82,6 +92,10 @@ astar_replanner:
     # /planned_path.
     path_output_topic: /planned_path
     accept_goal_pose: true
+    # Mode 2 ignores dynamic cost changes. Short Mode 3/4 inspection goals use
+    # cell A* directly instead of detouring through a reference waypoint.
+    ignore_dynamic_modes: [2]
+    direct_planning_modes: [3, 4]
     replan_request_topic: /replanning/astar_request
     replan_result_topic: /replanning/astar_result
     path_block_check_radius: 0.20
@@ -207,6 +221,9 @@ exit_switching_node:
     secondary_key: accumulated_risk_cost
     final_tie_breaker: exit_id
     float_tolerance: 1.0e-6
+    drive_mode_topic: /drive_mode
+    # Mode 3/4 owns the motor path exclusively during target inspection.
+    pause_drive_modes: [3, 4]
 
 skid_path_follower:
   ros__parameters:
@@ -215,8 +232,8 @@ skid_path_follower:
     scan_topic: /scan
     cmd_vel_topic: /cmd_vel_auto
     lookahead_distance: 0.35
-    goal_tolerance: 0.12
-    yaw_tolerance: 0.25
+    goal_tolerance: 0.25
+    yaw_tolerance: 0.35
     align_goal_yaw: false
     rotate_in_place_threshold: 0.45
     rotate_exit_threshold: 0.20
@@ -227,6 +244,10 @@ skid_path_follower:
     emergency_stop_distance: 0.28
     emergency_front_angle_deg: 35.0
     control_rate_hz: 10.0
+    spin_guard_max_rotation_rad: 3.926990817
+    spin_guard_progress_m: 0.03
+    require_localization_ready: false
+    localization_ready_topic: /localization_ready
     # Stage 6: replan_supervisor_node stops the robot through this topic while it
     # invalidates/re-requests/revalidates the active path. Unused (stays false)
     # when replan_supervisor_node is disabled or not launched.
@@ -271,6 +292,9 @@ replan_supervisor_node:
     astar_request_topic: /replanning/astar_request
     astar_result_topic: /replanning/astar_result
     selector_mode_topic: /path_selector/mode
+    drive_mode_topic: /drive_mode
+    # Drop any replan hold while an inspector approaches its locked target.
+    pause_drive_modes: [3, 4]
 
 mission_commander:
   ros__parameters:
@@ -320,3 +344,7 @@ path_selector_node:
     planned_path_topic: /planned_path
     mode_topic: /path_selector/mode
     evacuation_plan_topic: /evacuation/plan
+    direct_goal_topic: /goal_pose
+    drive_mode_topic: /drive_mode
+    direct_goal_modes: [3, 4]
+    map_frame: map

@@ -9,7 +9,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration as L, PythonExpression
+from launch.substitutions import LaunchConfiguration as L
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -61,7 +61,7 @@ def generate_launch_description():
         DeclareLaunchArgument("drive_speed", default_value="0.06"),
         DeclareLaunchArgument("turn_speed", default_value="0.35"),
         DeclareLaunchArgument("use_serial", default_value="true"),
-        DeclareLaunchArgument("use_thermal_sensor", default_value="true"),
+        DeclareLaunchArgument("use_thermal_sensor", default_value="false"),
         DeclareLaunchArgument("thermal_x", default_value="0.10"),
         DeclareLaunchArgument("thermal_y", default_value="0.0"),
         DeclareLaunchArgument("thermal_z", default_value="0.20"),
@@ -71,15 +71,15 @@ def generate_launch_description():
         DeclareLaunchArgument("event_replanning_enabled", default_value="true"),
         DeclareLaunchArgument("exit_switching_enabled", default_value="true"),
         DeclareLaunchArgument("waypoint_planning_enabled", default_value="true"),
-        DeclareLaunchArgument("evacuation_demo_auto_start", default_value="true"),
-        DeclareLaunchArgument("use_camera_mode4", default_value="true"),
+        DeclareLaunchArgument("evacuation_demo_auto_start", default_value="false"),
+        DeclareLaunchArgument("use_camera_mode4", default_value="false"),
         DeclareLaunchArgument(
             "yolo_model_path",
             default_value=project_path(
                 "models", "yolov8n_best_opencv_640.onnx"
             ),
         ),
-        DeclareLaunchArgument("yolo_confidence", default_value="0.50"),
+        DeclareLaunchArgument("yolo_confidence", default_value="0.40"),
     ]
 
     thermal_bringup = IncludeLaunchDescription(
@@ -119,6 +119,9 @@ def generate_launch_description():
             "use_rviz": L("use_rviz"),
             "assist_check_sec": L("assist_check_sec"),
             "set_initial_pose": "true",
+            # Mode 5 starts at the registered semantic init pose. Do not let a
+            # startup global-localization sweep overwrite that known pose.
+            "auto_localization": "false",
             "initial_pose_x": L("initial_pose_x"),
             "initial_pose_y": L("initial_pose_y"),
             "initial_pose_yaw": L("initial_pose_yaw"),
@@ -129,9 +132,12 @@ def generate_launch_description():
             "turn_speed": L("turn_speed"),
             "use_serial": L("use_serial"),
             "use_thermal_sensor": L("use_thermal_sensor"),
+            "require_thermal_grid": "false",
+            "require_thermal_active": "false",
             "mode5_enabled": "true",
             "use_dynamic_obstacles": "true",
             "hazard_belief_enabled": "true",
+            "hazard_thermal_enabled": L("use_thermal_sensor"),
             "exit_evaluator_enabled": "true",
             "evacuation_manager_enabled": "true",
             "evacuation_activate_selected_route": "true",
@@ -139,14 +145,13 @@ def generate_launch_description():
             "exit_switching_enabled": L("exit_switching_enabled"),
             "waypoint_planning_enabled": L("waypoint_planning_enabled"),
             "waypoint_accept_direct_goal": "false",
-            "astar_accept_goal_pose": PythonExpression([
-                "'false' if '", L("waypoint_planning_enabled"),
-                "' == 'true' else 'true'"
-            ]),
+            # Exit routes keep the teammate waypoint pipeline. Mode 3 inspection
+            # publishes /goal_pose and PathSelector relays its direct cell A*.
+            "astar_accept_goal_pose": "true",
             "mode3_standoff_distance_m": "2.0",
-            "mode3_publish_canonical_plan": "true",
+            "mode3_publish_canonical_plan": "false",
             "mode4_standoff_distance_m": "2.0",
-            "mode4_publish_canonical_plan": "true",
+            "mode4_publish_canonical_plan": "false",
             "use_camera_mode4": L("use_camera_mode4"),
             "yolo_model_path": L("yolo_model_path"),
             "yolo_confidence": L("yolo_confidence"),
@@ -163,9 +168,9 @@ def generate_launch_description():
             "auto_start": ParameterValue(
                 L("evacuation_demo_auto_start"), value_type=bool
             ),
-            "moving_survivor_enabled": ParameterValue(
-                L("use_camera_mode4"), value_type=bool
-            ),
+            # Every red LiDAR candidate follows the already field-tested Mode 3
+            # mmWave classification path; a thermal/camera detector is optional.
+            "moving_survivor_enabled": False,
         }],
     )
     return LaunchDescription(

@@ -260,6 +260,9 @@ def test_hazard_not_ready_never_substitutes_a_zero_cost_map():
     assert exit_evaluator_readiness(
         view, view.geometry, "ACTIVE_THERMAL_ONLY"
     ) == "READY"
+    assert exit_evaluator_readiness(
+        view, view.geometry, "ACTIVE_STATIC_DYNAMIC_ONLY"
+    ) == "READY"
 
 
 @pytest.mark.parametrize("resolution,size", [(0.20, 30), (0.05, 120)])

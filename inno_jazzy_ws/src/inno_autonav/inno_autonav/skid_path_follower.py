@@ -1,7 +1,7 @@
 """Conservative rotate-then-drive follower for a skid-steer robot."""
 
 import math
-from typing import Optional
+from typing import Optional, Sequence, Tuple
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Path
@@ -20,6 +20,110 @@ def clip(value: float, limit: float) -> float:
     return max(-limit, min(limit, value))
 
 
+Point2D = Tuple[float, float]
+
+
+def polyline_cumulative_lengths(points: Sequence[Point2D]) -> tuple[float, ...]:
+    """Return monotonically increasing arc lengths for a path polyline."""
+    if not points:
+        return ()
+    output = [0.0]
+    for first, second in zip(points, points[1:]):
+        output.append(
+            output[-1] + math.hypot(second[0] - first[0], second[1] - first[1])
+        )
+    return tuple(output)
+
+
+def project_progress_onto_path(
+    points: Sequence[Point2D],
+    cumulative: Sequence[float],
+    robot_x: float,
+    robot_y: float,
+    minimum_progress: float = 0.0,
+) -> float:
+    """Project the robot onto the remaining path without moving backwards."""
+    if not points:
+        return 0.0
+    if len(points) == 1:
+        return 0.0
+    minimum = max(0.0, min(float(minimum_progress), float(cumulative[-1])))
+    best_distance = math.inf
+    best_progress = minimum
+    for index, (first, second) in enumerate(zip(points, points[1:])):
+        segment_start = float(cumulative[index])
+        segment_end = float(cumulative[index + 1])
+        if segment_end + 1e-9 < minimum:
+            continue
+        dx = second[0] - first[0]
+        dy = second[1] - first[1]
+        length_squared = dx * dx + dy * dy
+        if length_squared <= 1e-12:
+            continue
+        ratio = ((robot_x - first[0]) * dx + (robot_y - first[1]) * dy) / length_squared
+        ratio = max(0.0, min(1.0, ratio))
+        progress = segment_start + ratio * (segment_end - segment_start)
+        if progress + 1e-9 < minimum:
+            progress = minimum
+        segment_length = segment_end - segment_start
+        local_ratio = 0.0 if segment_length <= 1e-12 else (
+            progress - segment_start
+        ) / segment_length
+        projected_x = first[0] + local_ratio * dx
+        projected_y = first[1] + local_ratio * dy
+        distance = math.hypot(projected_x - robot_x, projected_y - robot_y)
+        # Prefer the farther-ahead projection on equal-distance loops.
+        if (
+            distance < best_distance - 1e-9
+            or (abs(distance - best_distance) <= 1e-9 and progress > best_progress)
+        ):
+            best_distance = distance
+            best_progress = progress
+    return max(minimum, best_progress)
+
+
+def point_at_path_progress(
+    points: Sequence[Point2D], cumulative: Sequence[float], progress: float
+) -> Point2D:
+    """Interpolate a point at an arc length along ``points``."""
+    if not points:
+        raise ValueError('path points must not be empty')
+    if len(points) == 1:
+        return float(points[0][0]), float(points[0][1])
+    target = max(0.0, min(float(progress), float(cumulative[-1])))
+    for index in range(len(points) - 1):
+        end = float(cumulative[index + 1])
+        if target > end + 1e-9:
+            continue
+        start = float(cumulative[index])
+        length = end - start
+        if length <= 1e-12:
+            continue
+        ratio = (target - start) / length
+        first, second = points[index], points[index + 1]
+        return (
+            first[0] + ratio * (second[0] - first[0]),
+            first[1] + ratio * (second[1] - first[1]),
+        )
+    return float(points[-1][0]), float(points[-1][1])
+
+
+def shortest_turn_direction(
+    heading_error: float, previous_direction: float = 0.0,
+    wrap_guard_rad: float = 0.08,
+) -> float:
+    """Follow current shortest-turn sign, retaining sign only at +/-pi wrap."""
+    error = normalize_angle(float(heading_error))
+    if (
+        abs(abs(error) - math.pi) <= wrap_guard_rad
+        and previous_direction != 0.0
+    ):
+        return 1.0 if previous_direction > 0.0 else -1.0
+    if abs(error) <= 1e-12:
+        return 0.0
+    return 1.0 if error > 0.0 else -1.0
+
+
 class SkidPathFollower(Node):
     def __init__(self) -> None:
         super().__init__('skid_path_follower')
@@ -29,8 +133,8 @@ class SkidPathFollower(Node):
             'scan_topic': '/scan',
             'cmd_vel_topic': '/cmd_vel',
             'lookahead_distance': 0.35,
-            'goal_tolerance': 0.12,
-            'yaw_tolerance': 0.25,
+            'goal_tolerance': 0.25,
+            'yaw_tolerance': 0.35,
             'align_goal_yaw': False,
             'rotate_in_place_threshold': 0.45,
             'rotate_exit_threshold': 0.20,
@@ -41,6 +145,10 @@ class SkidPathFollower(Node):
             'emergency_stop_distance': 0.28,
             'emergency_front_angle_deg': 35.0,
             'control_rate_hz': 10.0,
+            'spin_guard_max_rotation_rad': 1.25 * math.pi,
+            'spin_guard_progress_m': 0.03,
+            'require_localization_ready': False,
+            'localization_ready_topic': '/localization_ready',
             'replan_hold_topic': '/replanning/hold',
             'survivor_follow_hold_topic': '/survivor_follow_hold',
         }
@@ -78,11 +186,24 @@ class SkidPathFollower(Node):
             self.get_parameter('emergency_front_angle_deg').value
         ))
         control_rate = float(self.get_parameter('control_rate_hz').value)
+        self.spin_guard_max_rotation = float(
+            self.get_parameter('spin_guard_max_rotation_rad').value
+        )
+        self.spin_guard_progress = float(
+            self.get_parameter('spin_guard_progress_m').value
+        )
+        self.require_localization_ready = bool(
+            self.get_parameter('require_localization_ready').value
+        )
+        localization_ready_topic = str(
+            self.get_parameter('localization_ready_topic').value
+        )
         positive = (
             self.lookahead, self.goal_tolerance, self.yaw_tolerance,
             self.rotate_threshold, self.max_linear, self.max_angular,
             self.k_linear, self.k_angular, self.emergency_distance,
-            self.front_angle, control_rate,
+            self.front_angle, control_rate, self.spin_guard_max_rotation,
+            self.spin_guard_progress,
         )
         if not 0.0 < self.rotate_exit_threshold < self.rotate_threshold:
             raise ValueError(
@@ -108,12 +229,25 @@ class SkidPathFollower(Node):
         self.survivor_follow_hold = False
         self.rotating_in_place = False
         self.rotation_direction = 0.0
+        self.path_progress = 0.0
+        self.active_goal_signature = None
+        self.best_goal_distance = math.inf
+        self.accumulated_rotation = 0.0
+        self.last_control_yaw = None
+        self.last_command_was_rotation = False
+        self.localization_ready = not self.require_localization_ready
         self.publisher = self.create_publisher(Twist, cmd_vel_topic, 10)
         self.state_publisher = self.create_publisher(String, '/follower_state', 10)
         self.create_subscription(Path, '/planned_path', self._path_callback, qos)
         self.create_subscription(String, '/planner_state', self._planner_callback, 10)
         self.create_subscription(LaserScan, self.scan_topic, self._scan_callback, 10)
         self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
+        self.create_subscription(
+            Bool,
+            localization_ready_topic,
+            self._localization_ready_callback,
+            qos,
+        )
         self.create_subscription(
             Empty, '/autonomy_cancel', self._cancel_callback, 10
         )
@@ -160,8 +294,19 @@ class SkidPathFollower(Node):
     def _path_callback(self, message: Path) -> None:
         self.path = message if message.poses else None
         if not message.poses:
+            self.path_progress = 0.0
             self._publish_stop('EMPTY_PATH')
             return
+        goal = message.poses[-1].pose
+        signature = (
+            round(float(goal.position.x), 4),
+            round(float(goal.position.y), 4),
+            round(float(yaw_from_quaternion(goal.orientation)), 4),
+        )
+        if signature != getattr(self, 'active_goal_signature', None):
+            self.active_goal_signature = signature
+            self._reset_motion_watchdog()
+        self.path_progress = 0.0
         # Acknowledge every newly accepted path before control can report an
         # immediate GOAL_REACHED for a waypoint already inside tolerance.
         self._state('PATH_ACCEPTED')
@@ -178,6 +323,9 @@ class SkidPathFollower(Node):
     def _survivor_follow_hold_callback(self, message: Bool) -> None:
         self.survivor_follow_hold = bool(message.data)
 
+    def _localization_ready_callback(self, message: Bool) -> None:
+        self.localization_ready = bool(message.data)
+
     def _mode_callback(self, message: Int32) -> None:
         # MODE 3/4 must finish facing the inspected obstacle so the forward
         # mmWave sensor or camera observes it at the standoff point.
@@ -190,7 +338,38 @@ class SkidPathFollower(Node):
         self.path = None
         self.rotating_in_place = False
         self.rotation_direction = 0.0
+        self.path_progress = 0.0
+        self.active_goal_signature = None
+        self._reset_motion_watchdog()
         self._publish_stop('CANCELLED')
+
+    def _reset_motion_watchdog(self) -> None:
+        self.best_goal_distance = math.inf
+        self.accumulated_rotation = 0.0
+        self.last_control_yaw = None
+        self.last_command_was_rotation = False
+
+    def _spin_guard_triggered(self, yaw: float, goal_distance: float) -> bool:
+        if goal_distance < self.best_goal_distance - self.spin_guard_progress:
+            self.best_goal_distance = goal_distance
+            self.accumulated_rotation = 0.0
+        if self.last_control_yaw is not None and self.last_command_was_rotation:
+            self.accumulated_rotation += abs(
+                normalize_angle(yaw - self.last_control_yaw)
+            )
+        self.last_control_yaw = yaw
+        if self.accumulated_rotation <= self.spin_guard_max_rotation:
+            return False
+        self.path = None
+        self.path_progress = 0.0
+        self.rotating_in_place = False
+        self.rotation_direction = 0.0
+        self.last_command_was_rotation = False
+        self.get_logger().error(
+            'SPIN_GUARD_STOP: 목표 거리 개선 없이 과도한 회전을 감지했습니다.'
+        )
+        self._publish_stop('SPIN_GUARD_STOP')
+        return True
 
     def _scan_callback(self, scan: LaserScan) -> None:
         angle = float(scan.angle_min)
@@ -213,6 +392,9 @@ class SkidPathFollower(Node):
             )
 
     def _control(self) -> None:
+        if self.require_localization_ready and not self.localization_ready:
+            self._publish_stop('WAITING_FOR_LOCALIZATION')
+            return
         if self.emergency_stop:
             self._publish_stop('EMERGENCY_STOP')
             return
@@ -235,16 +417,20 @@ class SkidPathFollower(Node):
         x, y, yaw = current
         goal = self.path.poses[-1].pose
         goal_distance = math.hypot(goal.position.x - x, goal.position.y - y)
+        if self._spin_guard_triggered(yaw, goal_distance):
+            return
         if goal_distance <= self.goal_tolerance:
             goal_yaw = yaw_from_quaternion(goal.orientation)
             if not self.align_goal_yaw:
                 self.path = None
                 self.rotating_in_place = False
+                self.last_command_was_rotation = False
                 self._publish_stop('GOAL_REACHED')
                 return
             yaw_error = normalize_angle(goal_yaw - yaw)
             if abs(yaw_error) <= self.yaw_tolerance:
                 self.path = None
+                self.last_command_was_rotation = False
                 self._publish_stop('GOAL_REACHED')
             else:
                 command = Twist()
@@ -252,25 +438,37 @@ class SkidPathFollower(Node):
                     self.k_angular * yaw_error, self.max_angular
                 )
                 self.publisher.publish(command)
+                self.last_command_was_rotation = True
                 self._state('ALIGNING_GOAL_YAW')
             return
 
-        target = self.path.poses[-1].pose.position
-        for stamped_pose in self.path.poses:
-            candidate = stamped_pose.pose.position
-            if math.hypot(candidate.x - x, candidate.y - y) >= self.lookahead:
-                target = candidate
-                break
-        target_distance = math.hypot(target.x - x, target.y - y)
-        target_heading = math.atan2(target.y - y, target.x - x)
+        points = tuple(
+            (float(item.pose.position.x), float(item.pose.position.y))
+            for item in self.path.poses
+        )
+        cumulative = polyline_cumulative_lengths(points)
+        self.path_progress = project_progress_onto_path(
+            points, cumulative, x, y, self.path_progress
+        )
+        target_x, target_y = point_at_path_progress(
+            points,
+            cumulative,
+            min(cumulative[-1], self.path_progress + self.lookahead),
+        )
+        target_distance = math.hypot(target_x - x, target_y - y)
+        target_heading = math.atan2(target_y - y, target_x - x)
         heading_error = normalize_angle(target_heading - yaw)
         if self.rotating_in_place:
             if abs(heading_error) <= self.rotate_exit_threshold:
                 self.rotating_in_place = False
                 self.rotation_direction = 0.0
+            else:
+                self.rotation_direction = shortest_turn_direction(
+                    heading_error, self.rotation_direction
+                )
         elif abs(heading_error) >= self.rotate_threshold:
             self.rotating_in_place = True
-            self.rotation_direction = 1.0 if heading_error >= 0.0 else -1.0
+            self.rotation_direction = shortest_turn_direction(heading_error)
 
         command = Twist()
         if self.rotating_in_place:
@@ -282,6 +480,7 @@ class SkidPathFollower(Node):
             )
             command.angular.z = self.rotation_direction * magnitude
             command.linear.x = 0.0
+            self.last_command_was_rotation = True
             state = 'ROTATING_IN_PLACE'
         else:
             command.angular.z = clip(
@@ -294,11 +493,13 @@ class SkidPathFollower(Node):
             command.linear.x *= max(
                 0.25, 1.0 - abs(heading_error) / self.rotate_threshold
             )
+            self.last_command_was_rotation = False
             state = 'FOLLOWING_PATH'
         self.publisher.publish(command)
         self._state(state)
 
     def _publish_stop(self, reason: str) -> None:
+        self.last_command_was_rotation = False
         self.publisher.publish(Twist())
         self._state(reason)
 

@@ -11,7 +11,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Int32
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -20,6 +20,7 @@ from .grid_utils import (
     grid_to_world,
     inflate_occupied_cells,
     is_inside_grid,
+    normalize_angle,
     quaternion_from_yaw,
     yaw_from_quaternion,
     world_to_grid,
@@ -159,6 +160,22 @@ def inflate_sparse_obstacle_indices(
     return data
 
 
+def is_in_forward_avoidance_window(
+    robot_pose: Tuple[float, float, float],
+    point: Tuple[float, float],
+    maximum_range_m: float,
+    half_angle_rad: float,
+) -> bool:
+    """Return whether a map point is close enough and in front of the robot."""
+    dx = float(point[0]) - float(robot_pose[0])
+    dy = float(point[1]) - float(robot_pose[1])
+    distance = math.hypot(dx, dy)
+    if distance > maximum_range_m + 1e-9:
+        return False
+    bearing = normalize_angle(math.atan2(dy, dx) - float(robot_pose[2]))
+    return abs(bearing) <= half_angle_rad + 1e-9
+
+
 class DynamicObstacleLayer(Node):
     def __init__(self) -> None:
         super().__init__('dynamic_obstacle_layer')
@@ -172,11 +189,20 @@ class DynamicObstacleLayer(Node):
             'persistent_obstacles': True,
             'obstacle_timeout_sec': 10.0,
             'inflation_radius': 0.50,
-            'wall_exclusion_radius': 0.25,
+            'wall_exclusion_radius': 0.40,
             'cluster_radius_m': 0.50,
+            'minimum_cluster_cells': 3,
+            # Keep long-range candidates for inspection. Avoidance is active in
+            # Mode 5 navigation only; Mode 3/4 must approach the selected target
+            # without simultaneously treating that same target as a detour.
+            'avoidance_enabled_modes': [5],
+            'avoidance_max_range_m': 1.0,
+            'avoidance_front_half_angle_deg': 45.0,
             'person_match_radius_m': 0.75,
             'person_dedup_radius_m': 0.20,
-            'person_track_match_radius_m': 2.50,
+            'person_track_match_radius_m': 1.00,
+            'person_track_stale_sec': 1.50,
+            'person_track_max_speed_mps': 1.80,
             'person_classification_timeout_sec': 0.0,
             'publish_rate_hz': 5.0,
         }
@@ -184,6 +210,7 @@ class DynamicObstacleLayer(Node):
             self.declare_parameter(name, value)
         self.scan_topic = str(self.get_parameter('scan_topic').value)
         self.map_frame = str(self.get_parameter('map_frame').value)
+        self.base_frame = str(self.get_parameter('base_frame').value)
         self.min_range = float(self.get_parameter('min_range').value)
         self.max_range = float(self.get_parameter('max_range').value)
         self.confirm_count = int(self.get_parameter('obstacle_confirm_count').value)
@@ -196,6 +223,19 @@ class DynamicObstacleLayer(Node):
         self.cluster_radius = float(
             self.get_parameter('cluster_radius_m').value
         )
+        self.minimum_cluster_cells = int(
+            self.get_parameter('minimum_cluster_cells').value
+        )
+        self.avoidance_enabled_modes = {
+            int(value)
+            for value in self.get_parameter('avoidance_enabled_modes').value
+        }
+        self.avoidance_max_range = float(
+            self.get_parameter('avoidance_max_range_m').value
+        )
+        self.avoidance_front_half_angle = math.radians(float(
+            self.get_parameter('avoidance_front_half_angle_deg').value
+        ))
         self.person_match_radius = float(
             self.get_parameter('person_match_radius_m').value
         )
@@ -204,6 +244,12 @@ class DynamicObstacleLayer(Node):
         )
         self.person_track_match_radius = float(
             self.get_parameter('person_track_match_radius_m').value
+        )
+        self.person_track_stale = float(
+            self.get_parameter('person_track_stale_sec').value
+        )
+        self.person_track_max_speed = float(
+            self.get_parameter('person_track_max_speed_mps').value
         )
         self.person_timeout = float(
             self.get_parameter('person_classification_timeout_sec').value
@@ -217,9 +263,14 @@ class DynamicObstacleLayer(Node):
             or self.inflation_radius < 0.0
             or self.wall_exclusion_radius < 0.0
             or self.cluster_radius < 0.0
+            or self.minimum_cluster_cells <= 0
+            or self.avoidance_max_range <= 0.0
+            or not 0.0 < self.avoidance_front_half_angle <= math.pi
             or self.person_match_radius <= 0.0
             or self.person_dedup_radius < 0.0
             or self.person_track_match_radius <= 0.0
+            or self.person_track_stale <= 0.0
+            or self.person_track_max_speed <= 0.0
             or self.person_timeout < 0.0
         ):
             raise ValueError('confirm_count/rate는 양수이고 반경은 0 이상이어야 합니다.')
@@ -231,6 +282,10 @@ class DynamicObstacleLayer(Node):
         self.confirmed: Dict[int, float] = {}
         self.current_seen: Set[int] = set()
         self.classified_people: List[Tuple[float, float, float]] = []
+        self.person_track_ids: List[int] = []
+        self.person_track_velocities: List[Tuple[float, float]] = []
+        self.next_person_track_id = 1
+        self.drive_mode = 1
         self._last_published_grid = None
         grid_qos = QoSProfile(depth=1)
         grid_qos.reliability = ReliabilityPolicy.RELIABLE
@@ -239,6 +294,7 @@ class DynamicObstacleLayer(Node):
             OccupancyGrid, '/planning_grid_static', self._static_callback, grid_qos
         )
         self.create_subscription(LaserScan, self.scan_topic, self._scan_callback, 10)
+        self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
         self.grid_publisher = self.create_publisher(
             OccupancyGrid, '/dynamic_obstacle_grid', grid_qos
         )
@@ -272,8 +328,19 @@ class DynamicObstacleLayer(Node):
         self.create_timer(1.0 / publish_rate, self._publish)
         self.get_logger().info(
             f'dynamic obstacle layer: scan={self.scan_topic}, '
-            f'persistent={self.persistent}, confirm={self.confirm_count}'
+            f'persistent={self.persistent}, confirm={self.confirm_count}, '
+            f'avoidance=front +/-{math.degrees(self.avoidance_front_half_angle):.0f}deg '
+            f'within {self.avoidance_max_range:.1f}m in modes '
+            f'{sorted(self.avoidance_enabled_modes)}'
         )
+
+    def _mode_callback(self, message: Int32) -> None:
+        mode = int(message.data)
+        if mode == self.drive_mode:
+            return
+        self.drive_mode = mode
+        # Force an empty/full grid update immediately after a mode switch.
+        self._last_published_grid = None
 
     def _static_callback(self, message: OccupancyGrid) -> None:
         try:
@@ -298,6 +365,8 @@ class DynamicObstacleLayer(Node):
             self.confirmed.clear()
             self.current_seen.clear()
             self.classified_people.clear()
+            self.person_track_ids.clear()
+            self.person_track_velocities.clear()
             self._last_published_grid = None
             self.get_logger().warning('static grid geometry 변경: dynamic obstacle 초기화')
         self.static_grid = incoming
@@ -354,10 +423,18 @@ class DynamicObstacleLayer(Node):
                 self.counts.pop(index, None)
         if self.person_timeout > 0.0:
             person_cutoff = now - self.person_timeout
-            self.classified_people = [
-                item
-                for item in self.classified_people
+            self._ensure_person_tracking_state()
+            old_people = list(self.classified_people)
+            old_ids = list(self.person_track_ids)
+            old_velocities = list(self.person_track_velocities)
+            retained = [
+                index for index, item in enumerate(old_people)
                 if item[2] >= person_cutoff
+            ]
+            self.classified_people = [old_people[index] for index in retained]
+            self.person_track_ids = [old_ids[index] for index in retained]
+            self.person_track_velocities = [
+                old_velocities[index] for index in retained
             ]
 
     def _person_callback(self, message: PointStamped) -> None:
@@ -380,6 +457,7 @@ class DynamicObstacleLayer(Node):
         if not math.isfinite(x) or not math.isfinite(y):
             return
         now = time.monotonic()
+        self._ensure_person_tracking_state()
         nearest = None
         nearest_distance = math.inf
         for index, (old_x, old_y, _) in enumerate(self.classified_people):
@@ -389,9 +467,88 @@ class DynamicObstacleLayer(Node):
                 nearest_distance = distance
         item = (x, y, now)
         if nearest is not None and nearest_distance <= match_radius:
+            old_x, old_y, old_time = self.classified_people[nearest]
+            elapsed = max(1e-3, now - old_time)
+            velocity_x = (x - old_x) / elapsed
+            velocity_y = (y - old_y) / elapsed
+            speed = math.hypot(velocity_x, velocity_y)
+            maximum_speed = getattr(self, 'person_track_max_speed', 1.8)
+            if speed > maximum_speed:
+                scale = maximum_speed / speed
+                velocity_x *= scale
+                velocity_y *= scale
+            self.person_track_velocities[nearest] = (velocity_x, velocity_y)
             self.classified_people[nearest] = item
         else:
             self.classified_people.append(item)
+            self.person_track_ids.append(self.next_person_track_id)
+            self.person_track_velocities.append((0.0, 0.0))
+            self.next_person_track_id += 1
+
+    def _ensure_person_tracking_state(self) -> None:
+        if not hasattr(self, 'person_track_ids'):
+            self.person_track_ids = []
+        if not hasattr(self, 'person_track_velocities'):
+            self.person_track_velocities = []
+        if not hasattr(self, 'next_person_track_id'):
+            self.next_person_track_id = 1
+        while len(self.person_track_ids) < len(self.classified_people):
+            self.person_track_ids.append(self.next_person_track_id)
+            self.next_person_track_id += 1
+        while len(self.person_track_velocities) < len(self.classified_people):
+            self.person_track_velocities.append((0.0, 0.0))
+        del self.person_track_ids[len(self.classified_people):]
+        del self.person_track_velocities[len(self.classified_people):]
+
+    def _track_people_from_current_clusters(self, clusters) -> None:
+        """Move confirmed blue survivor tracks with current LiDAR clusters."""
+        if not self.classified_people or not clusters:
+            return
+        self._ensure_person_tracking_state()
+        now = time.monotonic()
+        edges = []
+        for person_index, (old_x, old_y, seen_at) in enumerate(
+            self.classified_people
+        ):
+            age = max(0.0, now - seen_at)
+            if age > self.person_track_stale:
+                continue
+            velocity_x, velocity_y = self.person_track_velocities[person_index]
+            predicted_x = old_x + velocity_x * age
+            predicted_y = old_y + velocity_y * age
+            gate = min(
+                self.person_track_match_radius,
+                0.40 + self.person_track_max_speed * age,
+            )
+            for cluster_index, (_, center_x, center_y) in enumerate(clusters):
+                distance = math.hypot(
+                    center_x - predicted_x, center_y - predicted_y
+                )
+                if distance <= gate:
+                    edges.append((distance, person_index, cluster_index))
+        matched_people = set()
+        matched_clusters = set()
+        for _, person_index, cluster_index in sorted(edges):
+            if person_index in matched_people or cluster_index in matched_clusters:
+                continue
+            _, center_x, center_y = clusters[cluster_index]
+            old_x, old_y, seen_at = self.classified_people[person_index]
+            elapsed = max(1e-3, now - seen_at)
+            measured_vx = (center_x - old_x) / elapsed
+            measured_vy = (center_y - old_y) / elapsed
+            measured_speed = math.hypot(measured_vx, measured_vy)
+            if measured_speed > self.person_track_max_speed:
+                scale = self.person_track_max_speed / measured_speed
+                measured_vx *= scale
+                measured_vy *= scale
+            old_vx, old_vy = self.person_track_velocities[person_index]
+            self.person_track_velocities[person_index] = (
+                0.5 * old_vx + 0.5 * measured_vx,
+                0.5 * old_vy + 0.5 * measured_vy,
+            )
+            self.classified_people[person_index] = (center_x, center_y, now)
+            matched_people.add(person_index)
+            matched_clusters.add(cluster_index)
 
     def _obstacle_clusters(self, indices=None):
         clusters = cluster_obstacle_indices(
@@ -402,6 +559,8 @@ class DynamicObstacleLayer(Node):
         )
         result = []
         for indices in clusters:
+            if len(indices) < getattr(self, 'minimum_cluster_cells', 1):
+                continue
             points = []
             for index in indices:
                 grid_y, grid_x = divmod(index, self.static_grid.width)
@@ -419,10 +578,30 @@ class DynamicObstacleLayer(Node):
             for person_x, person_y, _ in self.classified_people
         )
 
-    def _dynamic_array(self) -> np.ndarray:
+    def _avoidance_indices(self) -> Set[int]:
+        if self.drive_mode not in self.avoidance_enabled_modes:
+            return set()
+        robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
+        if robot is None:
+            return set()
+        output = set()
+        for indices, _, _ in self._obstacle_clusters():
+            for index in indices:
+                grid_y, grid_x = divmod(index, self.static_grid.width)
+                point = grid_to_world(grid_x, grid_y, self.static_grid)
+                if is_in_forward_avoidance_window(
+                    robot,
+                    point,
+                    self.avoidance_max_range,
+                    self.avoidance_front_half_angle,
+                ):
+                    output.add(index)
+        return output
+
+    def _dynamic_array(self, indices=None) -> np.ndarray:
         radius_cells = int(math.ceil(self.inflation_radius / self.static_grid.resolution))
         return inflate_sparse_obstacle_indices(
-            self.confirmed,
+            self.confirmed if indices is None else indices,
             self.static_grid.width,
             self.static_grid.height,
             radius_cells,
@@ -432,7 +611,8 @@ class DynamicObstacleLayer(Node):
         if self.static_grid is None:
             return
         self._expire()
-        data = self._dynamic_array()
+        avoidance_indices = self._avoidance_indices()
+        data = self._dynamic_array(avoidance_indices)
         stamp = self.get_clock().now().to_msg()
         if (
             self._last_published_grid is None
@@ -457,13 +637,14 @@ class DynamicObstacleLayer(Node):
             message.data = data.reshape(-1).astype(int).tolist()
             self.grid_publisher.publish(message)
             self._last_published_grid = data.copy()
-        self.detected_publisher.publish(Bool(data=bool(self.confirmed)))
         clusters = self._obstacle_clusters()
         # Motion tracking intentionally sees current wall-filtered LiDAR
         # clusters before per-cell persistence confirmation. A walking person
         # can leave a grid cell before that same cell reaches confirm_count;
         # the downstream time-axis tracker supplies the multi-frame evidence.
         current_clusters = self._obstacle_clusters(self.current_seen)
+        self._track_people_from_current_clusters(current_clusters)
+        self.detected_publisher.publish(Bool(data=bool(clusters)))
         matched_people = match_people_to_clusters(
             clusters, self.classified_people, self.person_match_radius
         )
@@ -552,6 +733,8 @@ class DynamicObstacleLayer(Node):
         self.confirmed.clear()
         self.current_seen.clear()
         self.classified_people.clear()
+        self.person_track_ids.clear()
+        self.person_track_velocities.clear()
         response.success = True
         response.message = f'{count}개 dynamic obstacle을 삭제했습니다.'
         self.get_logger().warning(response.message)

@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+drive_speed='0.06'
+use_camera_mode4='true'
+launch_args=()
+for argument in "$@"; do
+  case "${argument}" in
+    drive_speed:=*) drive_speed="${argument#drive_speed:=}" ;;
+    use_camera_mode4:=*)
+      use_camera_mode4="${argument#use_camera_mode4:=}"
+      ;;
+    *) launch_args+=("${argument}") ;;
+  esac
+done
+if ! [[ "${drive_speed}" =~ ^([0-9]+([.][0-9]*)?|[.][0-9]+)$ ]] || \
+    ! awk -v value="${drive_speed}" 'BEGIN { exit !(value > 0) }'; then
+  printf '[오류] drive_speed는 0보다 큰 숫자여야 합니다: %s\n' "${drive_speed}" >&2
+  exit 2
+fi
+if [[ "${use_camera_mode4}" != 'true' && "${use_camera_mode4}" != 'false' ]]; then
+  printf '[오류] use_camera_mode4는 true 또는 false여야 합니다: %s\n' \
+    "${use_camera_mode4}" >&2
+  exit 2
+fi
+
 cd /home/seeno04/fire_robot_rpi/inno_jazzy_ws
 set +u
 source /opt/ros/jazzy/setup.bash
@@ -19,16 +42,16 @@ stdbuf -oL -eL ros2 launch inno_robot_bringup evacuation_demo.launch.py \
   use_serial:=true \
   use_lidar:=true \
   use_mmwave:=true \
-  use_camera_mode4:=true \
+  "use_camera_mode4:=${use_camera_mode4}" \
   use_thermal_sensor:=false \
   use_rviz:=true \
-  drive_speed:=0.06 \
+  "drive_speed:=${drive_speed}" \
   turn_speed:=0.35 \
   event_replanning_enabled:=true \
   exit_switching_enabled:=true \
   waypoint_planning_enabled:=true \
-  evacuation_demo_auto_start:=true \
-  "$@" 2>&1 | sed -u -n 's/^.*\[ROBOT\] //p'
+  evacuation_demo_auto_start:=false \
+  "${launch_args[@]}" 2>&1 | sed -u -n 's/^.*\[ROBOT\] //p'
 launch_status=${PIPESTATUS[0]}
 set -e
 

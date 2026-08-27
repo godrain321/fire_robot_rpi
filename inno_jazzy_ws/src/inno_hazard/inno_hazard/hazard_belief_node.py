@@ -43,6 +43,7 @@ class HazardBeliefNode(Node):
             "static_grid_topic": "/planning_grid_static",
             "dynamic_grid_topic": "/dynamic_obstacle_grid",
             "thermal_arc_topic": "/thermal/arc_points",
+            "thermal_enabled": True,
             "co_topic": "/hazard/co_ppm",
             "base_frame": "base_link",
             "co_enabled": False,
@@ -76,6 +77,9 @@ class HazardBeliefNode(Node):
         self.static_topic = str(self.get_parameter("static_grid_topic").value)
         self.dynamic_topic = str(self.get_parameter("dynamic_grid_topic").value)
         self.thermal_topic = str(self.get_parameter("thermal_arc_topic").value)
+        self.thermal_enabled = bool(
+            self.get_parameter("thermal_enabled").value
+        )
         self.co_topic = str(self.get_parameter("co_topic").value)
         self.base_frame = str(self.get_parameter("base_frame").value)
         self.co_enabled = bool(self.get_parameter("co_enabled").value)
@@ -158,7 +162,10 @@ class HazardBeliefNode(Node):
         )
         self.create_subscription(OccupancyGrid, self.static_topic, self._static, qos)
         self.create_subscription(OccupancyGrid, self.dynamic_topic, self._dynamic, qos)
-        self.create_subscription(PointCloud2, self.thermal_topic, self._thermal, 10)
+        if self.thermal_enabled:
+            self.create_subscription(
+                PointCloud2, self.thermal_topic, self._thermal, 10
+            )
         if self.co_enabled:
             self.create_subscription(Float32, self.co_topic, self._co, 10)
         self.create_timer(1.0 / publish_rate, self._timer)
@@ -217,7 +224,10 @@ class HazardBeliefNode(Node):
         # planning_grid_static is already planner-inflated. Treat it as the
         # authoritative static blocked mask and do not inflate again.
         self.belief = HazardBelief(belief_geometry, static_obstacles, self.config)
-        self._set_status("WAITING_FOR_THERMAL")
+        self._set_status(
+            "WAITING_FOR_THERMAL"
+            if self.thermal_enabled else "ACTIVE_STATIC_DYNAMIC_ONLY"
+        )
         self._publish()
 
     def _dynamic(self, message):
@@ -298,6 +308,9 @@ class HazardBeliefNode(Node):
 
     def _timer(self):
         if self.belief is None:
+            return
+        if not self.thermal_enabled:
+            self._set_status("ACTIVE_STATIC_DYNAMIC_ONLY")
             return
         now_ns = self.get_clock().now().nanoseconds
         if self.last_thermal_ns is None:

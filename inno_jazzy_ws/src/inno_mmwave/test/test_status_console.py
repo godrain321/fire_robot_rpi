@@ -57,7 +57,14 @@ def test_mode3_states_are_translated_without_raw_english_codes() -> None:
 
 def test_mode4_states_are_translated_without_raw_english_codes() -> None:
     assert mode4_log_text('MODE4_CAMERA_YOLO_OBSERVING') == (
-        '[판별] 카메라와 LiDAR 요구조자 판별 시작'
+        '[판별] 정면 카메라 사람 판별 시작 — 현재 검사 중인 빨간 점에 적용'
+    )
+    assert mode4_log_text(
+        'MODE4_DETECTION_SUMMARY:FRAMES=15:PERSON_FRAMES=9:'
+        'VOTE_FRAMES=9:DETECTIONS=10:MAX_CONF=0.84'
+    ) == (
+        '[카메라 진단] 입력 15프레임, 사람 검출 9프레임, '
+        '검사점 투표 9프레임, 최고 confidence 0.84'
     )
     assert mode4_log_text('MODE4_SURVIVOR_CONFIRMED:MARKER_BLUE') == (
         '[결과] 요구조자 감지! — 해당 점을 파란색으로 변경'

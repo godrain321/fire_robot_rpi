@@ -18,7 +18,7 @@ from nav_msgs.msg import Path
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Float32MultiArray, String
+from std_msgs.msg import Float32MultiArray, Int32, String
 from std_srvs.srv import Trigger
 
 from inno_hazard.hazard_belief import HazardGridGeometry
@@ -65,6 +65,8 @@ class ExitSwitchingNode(Node):
             "secondary_key": "accumulated_risk_cost",
             "final_tie_breaker": "exit_id",
             "float_tolerance": 1e-6,
+            "drive_mode_topic": "/drive_mode",
+            "pause_drive_modes": [3, 4],
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -89,7 +91,11 @@ class ExitSwitchingNode(Node):
             additional_travel_before_switch_m=float(value("additional_travel_before_switch_m")),
         )
         self.core = ExitSwitchingCore(config, exit_positions_world)
-        self.core.set_enabled(bool(value("enabled")))
+        self._configured_enabled = bool(value("enabled"))
+        self._pause_drive_modes = {
+            int(mode) for mode in value("pause_drive_modes")
+        }
+        self.core.set_enabled(self._configured_enabled)
         self.peek_planner = EvacuationPlanner(ExitSelectionConfig(
             prefer_confirmed_usable_exit=bool(value("prefer_confirmed_usable_exit")),
             fallback_to_shortest_reachable_exit=bool(value("fallback_to_shortest_reachable_exit")),
@@ -122,6 +128,9 @@ class ExitSwitchingNode(Node):
         )
         self.create_subscription(
             Path, str(value("planned_path_topic")), self._on_path, transient,
+        )
+        self.create_subscription(
+            Int32, str(value("drive_mode_topic")), self._on_drive_mode, 10,
         )
         self.switch_request_publisher = self.create_publisher(
             String, str(value("switch_request_topic")), 10,
@@ -193,6 +202,16 @@ class ExitSwitchingNode(Node):
 
     def _on_plan(self, message: String) -> None:
         self._apply(self.core.on_active_goal(parse_active_goal_payload(message.data)))
+
+    def _on_drive_mode(self, message: Int32) -> None:
+        """Prevent exit-switch requests while the inspector exclusively drives."""
+        paused = int(message.data) in self._pause_drive_modes
+        if paused:
+            self.core.set_enabled(False)
+            self.core.on_active_goal(None)
+        self._apply(self.core.set_enabled(
+            self._configured_enabled and not paused
+        ))
 
     def _on_switch_result(self, message: String) -> None:
         ack = parse_switch_result_payload(message.data)

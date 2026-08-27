@@ -67,6 +67,24 @@ def test_decode_single_class_yolov8_person_output():
     assert detections[0].x_min == 270.0
 
 
+def test_decode_static_export_raw_dfl_person_output():
+    output = np.full((1, 65, 8400), -20.0, dtype=np.float32)
+    # Anchor 3240 is centred near the middle of the 80x80 stride-8 level.
+    anchor = 3240
+    for side in range(4):
+        output[0, side * 16 + 10, anchor] = 20.0
+    output[0, 64, anchor] = 5.0
+    geometry = LetterboxGeometry(640, 640, 1.0, 0, 0)
+
+    detections = decode_yolov8_output(output, geometry, 0.5, {0})
+
+    assert len(detections) == 1
+    assert detections[0].class_id == 0
+    assert detections[0].confidence > 0.99
+    assert detections[0].x_min < 320.0 < detections[0].x_max
+    assert detections[0].y_min < 320.0 < detections[0].y_max
+
+
 def test_opencv_backend_runs_static_onnx_model(monkeypatch, tmp_path):
     class FakeNet:
         def setPreferableBackend(self, _backend):

@@ -18,12 +18,35 @@ from .evacuation_demo import (
     MovingCandidateTracker,
     build_next_exploration_decision,
     nearest_exit_obstacle_candidate,
+    nearest_uninspected_candidate,
     parse_activation_response,
     parse_mode3_classification,
     parse_mode4_classification,
     startup_state,
 )
 from .tf_utils import TfHelper
+
+
+def exit_navigation_log(exit_id: str, blocked_exit_ids) -> str:
+    """Build the operator log for the initial or replacement exit route."""
+    selected = str(exit_id)
+    blocked = sorted({str(item) for item in blocked_exit_ids if str(item)})
+    if blocked:
+        return (
+            f"[출구 변경] 막힌 출구 목록({', '.join(blocked)})을 제외하고 "
+            f"다음 출구 {selected}로 이동합니다."
+        )
+    return f"[출구 선택] 가장 가까운 출구 {selected}로 이동합니다."
+
+
+def mode3_inspection_progress_log(state: str) -> str | None:
+    """Translate Mode 3 arrival/measurement states for the Mode 5 console."""
+    value = str(state).strip().upper()
+    if value == "MODE3_AT_STANDOFF:ROBOT_SETTLING":
+        return "[도착] 후보 검사 위치에 도착했습니다. 완전히 정지하는 중입니다."
+    if value == "MODE3_MMWAVE_OBSERVING":
+        return "[생체 판별] 로봇이 정지했습니다. mmWave 생체신호 감지를 시작합니다."
+    return None
 
 
 class EvacuationDemoOrchestrator(Node):
@@ -35,12 +58,17 @@ class EvacuationDemoOrchestrator(Node):
         "ROTATING_IN_PLACE",
         "ALIGNING_GOAL_YAW",
     })
+    MOTION_FOLLOWER_STATES = frozenset({
+        "FOLLOWING_PATH",
+        "ROTATING_IN_PLACE",
+        "ALIGNING_GOAL_YAW",
+    })
 
     def __init__(self) -> None:
         super().__init__("evacuation_demo_orchestrator")
         defaults = {
             "enabled": True,
-            "auto_start": True,
+            "auto_start": False,
             "drive_mode": 5,
             "map_frame": "map",
             "base_frame": "base_link",
@@ -48,7 +76,9 @@ class EvacuationDemoOrchestrator(Node):
             "retry_period_sec": 1.0,
             "exit_obstacle_match_radius_m": 1.5,
             "classification_match_radius_m": 0.75,
-            "moving_survivor_enabled": True,
+            "candidate_suppression_radius_m": 1.0,
+            "inspection_after_motion_delay_sec": 2.0,
+            "moving_survivor_enabled": False,
             "moving_association_radius_m": 0.75,
             "moving_minimum_displacement_m": 0.20,
             "moving_minimum_observations": 3,
@@ -104,6 +134,12 @@ class EvacuationDemoOrchestrator(Node):
         self.retry_period = float(value("retry_period_sec"))
         self.exit_obstacle_radius = float(value("exit_obstacle_match_radius_m"))
         self.classification_radius = float(value("classification_match_radius_m"))
+        self.candidate_suppression_radius = float(
+            value("candidate_suppression_radius_m")
+        )
+        self.inspection_after_motion_delay = float(
+            value("inspection_after_motion_delay_sec")
+        )
         self.moving_survivor_enabled = bool(value("moving_survivor_enabled"))
         self.survivor_ready_wait = float(value("survivor_ready_wait_sec"))
         self.survivor_track_radius = float(value("survivor_track_match_radius_m"))
@@ -118,6 +154,8 @@ class EvacuationDemoOrchestrator(Node):
             self.retry_period,
             self.exit_obstacle_radius,
             self.classification_radius,
+            self.candidate_suppression_radius,
+            self.inspection_after_motion_delay,
             self.survivor_ready_wait,
             self.survivor_track_radius,
             self.survivor_track_stale,
@@ -252,16 +290,20 @@ class EvacuationDemoOrchestrator(Node):
         self.current_exit_id = None
         self.current_exit_position = None
         self.current_approach_position = None
+        self.current_plan_payload = None
         self.inspection_target = None
+        self.inspection_blocks_current_exit = False
+        self.inspected_dynamic_positions = []
         self.active_survivor_position = None
         self.active_survivor_seen_at = float("-inf")
         self.survivor_exit_id = None
         self.waiting_for_departure = False
+        self._inspection_allowed_after = float("inf")
         self._status_value = ""
         self._requested = self.enabled and self.auto_start
         self._route_activated = False
         self._phase = "STARTING"
-        self._resume_phase_after_mode4 = "STARTING"
+        self._resume_phase_after_inspection = "STARTING"
         self._expected_drive_mode = 5
         self._internal_mode_commands = Counter()
         self._inspection_command_sent = False
@@ -281,7 +323,8 @@ class EvacuationDemoOrchestrator(Node):
             self._publish_follow_hold(False)
             self._select_drive_mode(5)
         else:
-            self._set_status("STOPPED:CALL_START_SERVICE")
+            self._set_status("STOPPED:PRESS_5")
+            self._log("[대기] 키보드에서 숫자 5를 누르면 자동 대피를 시작합니다.")
 
     def _remember(self, attribute: str, value: str) -> None:
         setattr(self, attribute, str(value))
@@ -320,9 +363,17 @@ class EvacuationDemoOrchestrator(Node):
         if self._internal_mode_commands[mode] > 0:
             self._internal_mode_commands[mode] -= 1
             return
+        if mode == 5 and not self._requested:
+            started, reason = self._request_start(
+                "숫자 5 입력: 등록된 출구의 실제 탐색을 시작합니다."
+            )
+            if not started:
+                self._log(f"모드 5를 시작할 수 없습니다: {reason}")
+            return
         if self._requested and mode != self._expected_drive_mode:
             self._requested = False
             self._route_activated = False
+            self._cancel_pending_request()
             self.cancel_publisher.publish(Empty())
             self._publish_follow_hold(False)
             self._set_status("STOPPED:MODE_CHANGED")
@@ -334,15 +385,20 @@ class EvacuationDemoOrchestrator(Node):
         self.current_exit_id = None
         self.current_exit_position = None
         self.current_approach_position = None
+        self.current_plan_payload = None
         self.inspection_target = None
+        self.inspection_blocks_current_exit = False
+        self.inspected_dynamic_positions.clear()
         self.active_survivor_position = None
         self.active_survivor_seen_at = float("-inf")
         self.survivor_exit_id = None
         self.waiting_for_departure = False
+        self._inspection_allowed_after = float("inf")
         self._route_activated = False
         self._inspection_command_sent = False
         self._retry_after = 0.0
         self._phase = "STARTING"
+        self._resume_phase_after_inspection = "STARTING"
         self._robot_at_exit = False
         self.moving_tracker.reset()
         self._publish_follow_hold(False)
@@ -353,29 +409,39 @@ class EvacuationDemoOrchestrator(Node):
             sorted(self.blocked_exit_ids), separators=(",", ":")
         )))
 
-    def _start_service(self, _request, response):
+    def _cancel_pending_request(self) -> None:
+        """Detach a stale service response before Mode 5 can be restarted."""
+        future = self._future
+        self._future = None
+        if future is not None and not future.done():
+            future.cancel()
+
+    def _request_start(self, log_message: str) -> tuple[bool, str]:
         if not self.enabled:
-            response.success = False
-            response.message = "DISABLED"
-            return response
+            return False, "DISABLED"
         if self._future is not None and not self._future.done():
-            response.success = False
-            response.message = "REQUEST_IN_PROGRESS"
-            return response
+            return False, "REQUEST_IN_PROGRESS"
         self._requested = True
         self._reset_exploration()
         self.drive_mode_status = ""
         self._set_status("SEARCH_EXITS:STARTING")
-        self._log("모드 5 시작 명령 수신: 출구 탐색을 처음부터 시작합니다.")
+        self._log(log_message)
+        # Re-publish mode 5 so the drive mux confirms the selected source even
+        # when its first copy of the keyboard command arrived before this node.
         self._select_drive_mode(5)
-        response.success = True
-        response.message = "MODE_5_EXIT_EXPLORATION_REQUESTED"
+        return True, "MODE_5_EXIT_EXPLORATION_REQUESTED"
+
+    def _start_service(self, _request, response):
+        response.success, response.message = self._request_start(
+            "모드 5 시작 명령 수신: 출구 탐색을 처음부터 시작합니다."
+        )
         return response
 
     def _stop_service(self, _request, response):
         self._requested = False
         self._route_activated = False
         self._phase = "STOPPED"
+        self._cancel_pending_request()
         self.cancel_publisher.publish(Empty())
         self._publish_follow_hold(False)
         self._expected_drive_mode = 1
@@ -401,12 +467,18 @@ class EvacuationDemoOrchestrator(Node):
             self._tick_selecting_inspector(4)
             return
         if self._phase == "RETURNING_MODE5":
-            self._phase = self._resume_phase_after_mode4
+            resume = self._resume_phase_after_inspection
             self._retry_after = 0.0
+            if resume == "RESUME_EXIT_ROUTE":
+                self._resume_current_exit_route()
+                return
+            self._phase = resume
         if self._phase == "WAITING_SURVIVOR_READY":
             if time.monotonic() >= self._survivor_ready_after:
                 self._phase = "SURVIVOR_PLANNING"
-                self._log("요구조자 동행 준비 완료: 안전한 출구 경로를 생성합니다.")
+                self._log(
+                    "[경로 생성] 요구조자와 이동할 안전한 출구 경로를 생성합니다."
+                )
             else:
                 return
         if self._phase in {"ESCORTING_SURVIVOR", "WAITING_SURVIVOR_AT_EXIT"}:
@@ -436,7 +508,7 @@ class EvacuationDemoOrchestrator(Node):
             return
         self._phase = "EVALUATING_EXITS"
         self._set_status("SEARCH_EXITS:EVALUATING_UNCHECKED_EXITS")
-        self._log("등록된 출구를 코스트맵으로 평가하여 다음 방문 출구를 선택합니다.")
+        self._log("[출구 평가] 코스트맵을 확인하여 방문할 출구를 선택합니다.")
         self._future = self.evaluation_client.call_async(Trigger.Request())
         self._future.add_done_callback(self._on_evaluation_response)
 
@@ -454,12 +526,15 @@ class EvacuationDemoOrchestrator(Node):
         ))
         self._inspection_command_sent = True
         if mode == 3:
-            self._phase = "INSPECTING_EXIT"
+            self._phase = "INSPECTING_CANDIDATE"
+            label = self.current_exit_id or "ROUTE"
             self._set_status(
-                f"SEARCH_EXITS:MMWAVE_INSPECTION:{self.current_exit_id}:2.00M"
+                f"SEARCH_EXITS:MMWAVE_INSPECTION:{label}:2.00M"
             )
             self._log(
-                f"{self.current_exit_id} 장애물 2.0m 앞에 접근하여 mmWave 판별을 시작합니다."
+                f"[접근] 동적장애물 후보 ({target_x:.2f}, {target_y:.2f})의 "
+                "2.0m 앞 검사 위치로 이동 중입니다. 도착 후 정지하여 "
+                "생체신호를 확인합니다."
             )
         else:
             self._phase = "INSPECTING_MOVING_CANDIDATE"
@@ -470,6 +545,8 @@ class EvacuationDemoOrchestrator(Node):
             )
 
     def _on_evaluation_response(self, future) -> None:
+        if future is not self._future:
+            return
         self._future = None
         if not self._requested:
             self._reinforce_stop()
@@ -501,14 +578,21 @@ class EvacuationDemoOrchestrator(Node):
         self.current_exit_id = decision.target_exit_id
         self.current_exit_position = decision.exit_position_world
         self.current_approach_position = decision.approach_position_world
+        self.current_plan_payload = decision.plan_payload
         self.waiting_for_departure = True
+        self._inspection_allowed_after = float("inf")
         self._phase = "NAVIGATING_EXIT"
         self.plan_publisher.publish(String(data=decision.plan_payload))
         self.selected_exit_publisher.publish(String(data=self.current_exit_id))
         self._publish_goal(self.current_approach_position)
         self._set_status(f"SEARCH_EXITS:NAVIGATING:{self.current_exit_id}")
-        self._log(f"{self.current_exit_id}로 이동 중입니다.")
-        self._maybe_start_exit_inspection()
+        self._log(exit_navigation_log(
+            self.current_exit_id, self.blocked_exit_ids
+        ))
+        # A latched red candidate may already exist before this route is
+        # published.  Do not let it cancel the new waypoint path in this same
+        # callback.  Candidate inspection becomes eligible only after the
+        # follower has actually issued a motion command for this route.
 
     def _publish_goal(self, position) -> None:
         goal = PoseStamped()
@@ -534,7 +618,7 @@ class EvacuationDemoOrchestrator(Node):
         if candidates is None:
             return
         self.candidates = candidates
-        self._maybe_start_exit_inspection()
+        self._maybe_start_nearest_inspection()
 
     def _on_all_candidates(self, message: PoseArray) -> None:
         candidates = self._valid_pose_array(message)
@@ -553,7 +637,7 @@ class EvacuationDemoOrchestrator(Node):
         if not moving:
             return
         candidate = max(moving, key=lambda item: item.displacement_m)
-        self._resume_phase_after_mode4 = (
+        self._resume_phase_after_inspection = (
             "FINAL_PLANNING" if self._phase == "EVACUATING" else "STARTING"
         )
         self._route_activated = False
@@ -569,34 +653,120 @@ class EvacuationDemoOrchestrator(Node):
         )
         self._select_drive_mode(4)
 
-    def _maybe_start_exit_inspection(self) -> None:
-        if self._phase != "NAVIGATING_EXIT" or self.current_exit_id is None:
+    def _maybe_start_nearest_inspection(self) -> None:
+        """Lock and inspect exactly one closest red candidate with Mode 3."""
+        if self._phase not in {"NAVIGATING_EXIT", "EVACUATING"}:
             return
-        target = nearest_exit_obstacle_candidate(
+        if self.active_survivor_position is not None:
+            return
+        if (
+            self._phase == "NAVIGATING_EXIT"
+            and (
+                self.waiting_for_departure
+                or time.monotonic() < self._inspection_allowed_after
+            )
+        ):
+            return
+        robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
+        if robot is None:
+            return
+        target = nearest_uninspected_candidate(
             self.candidates,
-            self.current_exit_position,
-            self.current_approach_position,
-            self.exit_obstacle_radius,
+            (robot[0], robot[1]),
+            self.inspected_dynamic_positions,
+            self.candidate_suppression_radius,
         )
         if target is None:
             return
+        previous_phase = self._phase
+        exit_match = None
+        if previous_phase == "NAVIGATING_EXIT" and self.current_exit_id is not None:
+            exit_match = nearest_exit_obstacle_candidate(
+                [target],
+                self.current_exit_position,
+                self.current_approach_position,
+                self.exit_obstacle_radius,
+            )
+        self.inspection_blocks_current_exit = exit_match is not None
+        self._resume_phase_after_inspection = (
+            "FINAL_PLANNING"
+            if previous_phase == "EVACUATING"
+            else "RESUME_EXIT_ROUTE"
+        )
+        self._route_activated = False
         self.cancel_publisher.publish(Empty())
         self.inspection_target = target
         self.mode3_status = ""
         self._inspection_command_sent = False
         self._phase = "SELECTING_MODE3"
-        self._set_status(f"SEARCH_EXITS:EXIT_OBSTACLE_DETECTED:{self.current_exit_id}")
+        self._set_status(
+            f"SEARCH_EXITS:CLOSEST_RED_CANDIDATE:{target[0]:.2f},{target[1]:.2f}"
+        )
+        context = (
+            f"{self.current_exit_id} 앞 출구 차단 후보"
+            if self.inspection_blocks_current_exit
+            else "주행 경로의 동적장애물 후보"
+        )
         self._log(
-            f"{self.current_exit_id} 앞 동적장애물을 감지했습니다. "
-            "사람인지 확인하기 위해 2.0m 검사 지점으로 이동합니다."
+            f"[후보 감지] 가장 가까운 {context} "
+            f"({target[0]:.2f}, {target[1]:.2f})를 선택했습니다. "
+            "기존 출구 주행과 장애물 회피를 잠시 중단하고 이 후보만 검사합니다."
         )
         self._select_drive_mode(3)
 
+    # Backward-compatible name used by older tests/log tools.
+    def _maybe_start_exit_inspection(self) -> None:
+        self._maybe_start_nearest_inspection()
+
+    def _resume_current_exit_route(self) -> None:
+        """Recreate the interrupted waypoint route after a non-blocking check."""
+        if (
+            self.current_exit_id is None
+            or self.current_approach_position is None
+            or not self.current_plan_payload
+        ):
+            self._phase = "STARTING"
+            self._retry_after = time.monotonic() + 0.2
+            return
+        self.waiting_for_departure = True
+        self._inspection_allowed_after = float("inf")
+        self._phase = "NAVIGATING_EXIT"
+        self.plan_publisher.publish(String(data=self.current_plan_payload))
+        self.selected_exit_publisher.publish(String(data=self.current_exit_id))
+        self._publish_goal(self.current_approach_position)
+        self._set_status(f"SEARCH_EXITS:RESUMING:{self.current_exit_id}")
+        self._log(
+            f"[주행 재개] 출구 차단 장애물이 아니므로 "
+            f"{self.current_exit_id} 경로로 다시 이동합니다."
+        )
+        # As for a newly selected exit, wait for an actual follower motion
+        # command before a latched candidate may preempt this restored route.
+
     def _on_follower_state(self, message: String) -> None:
+        if not getattr(self, "_requested", True):
+            return
         if self._phase == "NAVIGATING_EXIT":
             if message.data in self.ACTIVE_FOLLOWER_STATES:
                 self.waiting_for_departure = False
+            if (
+                message.data in self.MOTION_FOLLOWER_STATES
+                and not math.isfinite(self._inspection_allowed_after)
+            ):
+                self._inspection_allowed_after = (
+                    time.monotonic() + self.inspection_after_motion_delay
+                )
+                self._log(
+                    f"[주행 시작] {self.current_exit_id} 경로의 모터 명령이 "
+                    "발행됐습니다. 주행을 안정화한 뒤 빨간 후보를 검사합니다."
+                )
             if message.data != "GOAL_REACHED" or self.waiting_for_departure:
+                return
+            # If the robot reached the exit approach before the inspection
+            # delay elapsed, inspect a currently visible blocker before marking
+            # the exit usable.
+            self._inspection_allowed_after = 0.0
+            self._maybe_start_nearest_inspection()
+            if self._phase != "NAVIGATING_EXIT":
                 return
             checked = self.current_exit_id
             self.cancel_publisher.publish(Empty())
@@ -604,6 +774,7 @@ class EvacuationDemoOrchestrator(Node):
             self.current_exit_id = None
             self.current_exit_position = None
             self.current_approach_position = None
+            self.current_plan_payload = None
             self._phase = "STARTING"
             self._retry_after = time.monotonic() + 0.2
             self._set_status(f"SEARCH_EXITS:EXIT_CHECKED_USABLE:{checked}")
@@ -628,7 +799,7 @@ class EvacuationDemoOrchestrator(Node):
 
     def _on_planner_state(self, message: String) -> None:
         if self._phase == "NAVIGATING_EXIT" and message.data == "NO_PATH":
-            self._maybe_start_exit_inspection()
+            self._maybe_start_nearest_inspection()
             if self._phase == "NAVIGATING_EXIT":
                 self._set_status(
                     f"SEARCH_EXITS:WAITING_FOR_OBSTACLE_OR_REPLAN:{self.current_exit_id}"
@@ -636,7 +807,7 @@ class EvacuationDemoOrchestrator(Node):
                 self._log(f"{self.current_exit_id} 경로 없음: 장애물 갱신 또는 리플래닝을 기다립니다.")
 
     def _on_mode3_classification(self, message: String) -> None:
-        if self._phase != "INSPECTING_EXIT":
+        if self._phase != "INSPECTING_CANDIDATE":
             return
         result = parse_mode3_classification(message.data)
         if result is None:
@@ -645,33 +816,63 @@ class EvacuationDemoOrchestrator(Node):
         if self.inspection_target is None or math.dist(position, self.inspection_target) > self.classification_radius:
             return
         checked = self.current_exit_id
+        inspected_position = self.inspection_target or position
+        self.inspected_dynamic_positions.append(tuple(inspected_position))
         if kind == "DYNAMIC_OBSTACLE":
-            self._log("mmWave 판별 결과: 사람이 아닌 동적장애물입니다.")
-            self.checked_exit_ids.add(checked)
-            self.blocked_exit_ids.add(checked)
-            self._publish_blocked_exits()
-            self.current_exit_id = None
-            self.current_exit_position = None
-            self.current_approach_position = None
+            self._log(
+                "[장애물 확정] 생체신호가 감지되지 않았습니다. "
+                "실제 동적장애물로 확정하고 RViz의 빨간색 표시를 유지합니다."
+            )
             self.inspection_target = None
-            self._resume_phase_after_mode4 = "STARTING"
+            if self.inspection_blocks_current_exit and checked is not None:
+                self.checked_exit_ids.add(checked)
+                self.blocked_exit_ids.add(checked)
+                self._publish_blocked_exits()
+                self.current_exit_id = None
+                self.current_exit_position = None
+                self.current_approach_position = None
+                self.current_plan_payload = None
+                self._resume_phase_after_inspection = "STARTING"
+                self._set_status(f"SEARCH_EXITS:EXIT_BLOCKED:{checked}")
+                self._log(
+                    f"[출구 폐쇄] {checked} 앞이 동적장애물로 막혔습니다. "
+                    "이 출구를 제외하고 다른 출구를 다시 선택합니다."
+                )
+            else:
+                self._set_status("SEARCH_EXITS:ROUTE_OBSTACLE_CONFIRMED")
+                self._log(
+                    "[경로 판단] 출구를 직접 막는 장애물은 아닙니다. "
+                    "검사 전 출구 경로로 복귀합니다."
+                )
+            self.inspection_blocks_current_exit = False
             self._phase = "RETURNING_MODE5"
-            self._set_status(f"SEARCH_EXITS:EXIT_BLOCKED:{checked}")
-            self._log(f"{checked} 막힘 확정: 다음 출구로 경로를 다시 생성합니다.")
             self._select_drive_mode(5)
             return
-        self._log("mmWave 판별 결과: 요구조자입니다. RViz 표시를 파란색으로 전환합니다.")
+        self._log(
+            "[요구조자 발견] 생체신호가 감지됐습니다. 요구조자로 확정하고 "
+            "RViz 표시를 파란색으로 전환합니다."
+        )
         self._begin_survivor_evacuation(position, "mmWave")
 
     def _on_mode3_status(self, message: String) -> None:
-        self.mode3_status = str(message.data)
-        if self._phase != "INSPECTING_EXIT":
+        state = str(message.data)
+        changed = state != self.mode3_status
+        self.mode3_status = state
+        if self._phase != "INSPECTING_CANDIDATE":
             return
-        if message.data.startswith(("MODE3_SENSOR_UNAVAILABLE", "MODE3_NO_PATH_TO_STANDOFF")):
+        progress_log = mode3_inspection_progress_log(state)
+        if changed and progress_log is not None:
+            self._log(progress_log)
+        if state.startswith((
+            "MODE3_SENSOR_UNAVAILABLE",
+            "MODE3_NO_PATH_TO_STANDOFF",
+            "MODE3_TARGET_TOO_CLOSE",
+            "MODE3_ARRIVAL_NOT_CONFIRMED",
+        )):
             self.cancel_publisher.publish(Empty())
             self._phase = "INSPECTION_FAILED"
-            self._set_status(f"SEARCH_EXITS:MMWAVE_INSPECTION_FAILED:{message.data}")
-            self._log(f"mmWave 출구 장애물 판별 실패: {message.data}")
+            self._set_status(f"SEARCH_EXITS:MMWAVE_INSPECTION_FAILED:{state}")
+            self._log(f"[판별 실패] mmWave 장애물 검사 실패: {state}")
             self._select_drive_mode(5)
 
     def _on_mode4_status(self, message: String) -> None:
@@ -707,6 +908,14 @@ class EvacuationDemoOrchestrator(Node):
         self.cancel_publisher.publish(Empty())
         self._route_activated = False
         self.active_survivor_position = tuple(map(float, position))
+        if self.inspection_target is not None:
+            self.inspected_dynamic_positions.append(tuple(self.inspection_target))
+        self.inspection_target = None
+        self.inspection_blocks_current_exit = False
+        self.current_exit_id = None
+        self.current_exit_position = None
+        self.current_approach_position = None
+        self.current_plan_payload = None
         self.active_survivor_seen_at = time.monotonic()
         self._publish_survivor_track(self.active_survivor_position)
         self._robot_at_exit = False
@@ -715,8 +924,8 @@ class EvacuationDemoOrchestrator(Node):
         self._phase = "WAITING_SURVIVOR_READY"
         self._set_status(f"SURVIVOR_CONFIRMED:{source}:WAITING_TO_ESCORT")
         self._log(
-            "요구조자에게 로봇을 따라오도록 안내한 뒤 동행 대피를 시작합니다. "
-            "사람과 거리가 멀어지거나 추적이 끊기면 로봇은 자동 정지합니다."
+            "[동행 준비] 요구조자에게 로봇을 따라오도록 안내합니다. "
+            "거리가 멀어지거나 추적이 끊기면 로봇은 자동 정지합니다."
         )
         self._select_drive_mode(5)
 
@@ -772,11 +981,16 @@ class EvacuationDemoOrchestrator(Node):
             self._set_status("PLAN_EVACUATION:WAITING_FOR_PLAN_SERVICE")
             return
         self._set_status("PLAN_EVACUATION:EVALUATING_SAFE_EXIT")
-        self._log("막힌 출구를 제외하고 현재 코스트맵에서 안전한 대피 출구를 평가합니다.")
+        self._log(
+            "[안전 출구 평가] 막힌 출구를 제외하고 요구조자와 이동할 "
+            "안전한 출구를 평가합니다."
+        )
         self._future = self.plan_client.call_async(Trigger.Request())
         self._future.add_done_callback(self._on_plan_response)
 
     def _on_plan_response(self, future) -> None:
+        if future is not self._future:
+            return
         self._future = None
         try:
             response = future.result()
@@ -792,12 +1006,14 @@ class EvacuationDemoOrchestrator(Node):
                 self.survivor_exit_id = result.exit_id
                 self._phase = "ESCORTING_SURVIVOR"
                 self._set_status(f"ESCORTING_SURVIVOR:{result.exit_id}")
-                self._log(f"요구조자와 함께 {result.exit_id}로 대피를 시작합니다.")
+                self._log(
+                    f"[동행 대피] 요구조자와 함께 출구 {result.exit_id}로 이동합니다."
+                )
                 self._tick_survivor_escort()
             else:
                 self._phase = "EVACUATING"
                 self._set_status(f"EVACUATING:{result.exit_id}")
-                self._log(f"최종 대피 출구 {result.exit_id}로 이동합니다.")
+                self._log(f"[최종 주행] 대피 출구 {result.exit_id}로 이동합니다.")
             return
         self._retry_after = time.monotonic() + self.retry_period
         self._set_status(f"PLAN_EVACUATION:RETRY:{result.reason[:160]}")

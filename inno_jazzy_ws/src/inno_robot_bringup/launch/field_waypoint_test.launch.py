@@ -34,6 +34,13 @@ def generate_launch_description():
         DeclareLaunchArgument('use_rviz', default_value='true'),
         DeclareLaunchArgument('assist_check_sec', default_value='10.0'),
         DeclareLaunchArgument('set_initial_pose', default_value='false'),
+        DeclareLaunchArgument('auto_localization', default_value='true'),
+        DeclareLaunchArgument(
+            'auto_localization_timeout_sec', default_value='45.0'
+        ),
+        DeclareLaunchArgument(
+            'auto_localization_minimum_overlap', default_value='0.65'
+        ),
         DeclareLaunchArgument('initial_pose_x', default_value='0.0'),
         DeclareLaunchArgument('initial_pose_y', default_value='0.0'),
         DeclareLaunchArgument('initial_pose_yaw', default_value='0.0'),
@@ -67,6 +74,7 @@ def generate_launch_description():
         DeclareLaunchArgument('require_thermal_grid', default_value='false'),
         DeclareLaunchArgument('require_thermal_active', default_value='false'),
         DeclareLaunchArgument('hazard_belief_enabled', default_value='false'),
+        DeclareLaunchArgument('hazard_thermal_enabled', default_value='true'),
         DeclareLaunchArgument('exit_evaluator_enabled', default_value='false'),
         DeclareLaunchArgument('evacuation_manager_enabled', default_value='false'),
         DeclareLaunchArgument(
@@ -93,6 +101,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('use_serial', default_value='true'),
         DeclareLaunchArgument('use_camera_mode4', default_value='false'),
+        DeclareLaunchArgument('camera_width', default_value='1280'),
+        DeclareLaunchArgument('camera_height', default_value='720'),
         DeclareLaunchArgument('use_thermal_sensor', default_value='false'),
         DeclareLaunchArgument('mode5_enabled', default_value='false'),
         DeclareLaunchArgument(
@@ -101,7 +111,11 @@ def generate_launch_description():
                 'models', 'yolov8n_best_opencv_640.onnx'
             ),
         ),
-        DeclareLaunchArgument('yolo_confidence', default_value='0.50'),
+        DeclareLaunchArgument('yolo_confidence', default_value='0.40'),
+        DeclareLaunchArgument('yolo_inference_rate_hz', default_value='3.0'),
+        DeclareLaunchArgument(
+            'yolo_only_during_mode4_observation', default_value='false'
+        ),
         DeclareLaunchArgument('start_thermal_viewer', default_value='true'),
     ]
     localization = IncludeLaunchDescription(
@@ -123,6 +137,22 @@ def generate_launch_description():
             'assist_check_sec': L('assist_check_sec'),
         }.items(),
         condition=IfCondition(L('use_mmwave')),
+    )
+    auto_localization = Node(
+        package='inno_robot_bringup',
+        executable='auto_localization_supervisor',
+        name='auto_localization_supervisor',
+        output='screen',
+        emulate_tty=True,
+        parameters=[{
+            'startup_timeout_sec': ParameterValue(
+                L('auto_localization_timeout_sec'), value_type=float
+            ),
+            'minimum_scan_overlap_ratio': ParameterValue(
+                L('auto_localization_minimum_overlap'), value_type=float
+            ),
+        }],
+        condition=IfCondition(L('auto_localization')),
     )
     status_console = Node(
         package='inno_mmwave', executable='mmwave_status_console',
@@ -150,8 +180,8 @@ def generate_launch_description():
             camera + '/launch/camera_module_3.launch.py'
         ),
         launch_arguments={
-            'width': '1280',
-            'height': '720',
+            'width': L('camera_width'),
+            'height': L('camera_height'),
             'rectify': 'false',
         }.items(),
         condition=IfCondition(L('use_camera_mode4')),
@@ -167,7 +197,12 @@ def generate_launch_description():
             'confidence_threshold': ParameterValue(
                 L('yolo_confidence'), value_type=float
             ),
-            'only_during_mode4_observation': True,
+            'inference_rate_hz': ParameterValue(
+                L('yolo_inference_rate_hz'), value_type=float
+            ),
+            'only_during_mode4_observation': ParameterValue(
+                L('yolo_only_during_mode4_observation'), value_type=bool
+            ),
         }],
         condition=IfCondition(L('use_camera_mode4')),
     )
@@ -190,6 +225,7 @@ def generate_launch_description():
                 'require_thermal_active': L('require_thermal_active'),
                 'waypoint_file': L('planner_waypoint_file'),
                 'hazard_belief_enabled': L('hazard_belief_enabled'),
+                'hazard_thermal_enabled': L('hazard_thermal_enabled'),
                 'exit_evaluator_enabled': L('exit_evaluator_enabled'),
                 'evacuation_manager_enabled': L(
                     'evacuation_manager_enabled'
@@ -218,6 +254,11 @@ def generate_launch_description():
                 'mode4_publish_canonical_plan': L(
                     'mode4_publish_canonical_plan'
                 ),
+                # Keep the detector and inspector on exactly the same
+                # confidence threshold.  Otherwise the detector can publish a
+                # valid box which Mode 4 silently filters out again.
+                'mode4_minimum_confidence': L('yolo_confidence'),
+                'require_localization_ready': L('auto_localization'),
             }.items(),
         )],
     )
@@ -266,7 +307,8 @@ def generate_launch_description():
     )
     return LaunchDescription(
         args + [
-            localization, mmwave_bringup, status_console, camera_bringup,
+            localization, auto_localization, mmwave_bringup, status_console,
+            camera_bringup,
             person_detector, navigation, keyboard, mux, serial,
             waypoint_queue, rviz, thermal_viewer,
         ]

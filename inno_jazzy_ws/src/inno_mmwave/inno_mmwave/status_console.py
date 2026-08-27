@@ -103,6 +103,10 @@ def mode3_log_text(state: str) -> Optional[str]:
         )
     if upper == 'MODE3_NO_PATH_TO_STANDOFF':
         return '[경고] 장애물 검사 지점까지 이동 가능한 경로가 없습니다.'
+    if upper.startswith('MODE3_TARGET_TOO_CLOSE'):
+        return '[경고] 장애물이 너무 가깝습니다. 로봇을 뒤로 옮긴 뒤 다시 검사하세요.'
+    if upper == 'MODE3_ARRIVAL_NOT_CONFIRMED':
+        return '[경고] 검사 지점 도착을 확인하지 못했습니다. Space로 다시 시도하세요.'
     if upper.startswith('MODE3_BUSY:'):
         return '[거절] 현재 장애물 검사가 진행 중입니다.'
     if upper == 'MODE3_CANCELLED':
@@ -129,7 +133,20 @@ def mode4_log_text(state: str) -> Optional[str]:
     if upper == 'MODE4_AT_STANDOFF:ROBOT_SETTLING':
         return '[도착] 검사 지점 도착 — 로봇 정지 확인 중'
     if upper == 'MODE4_CAMERA_YOLO_OBSERVING':
-        return '[판별] 카메라와 LiDAR 요구조자 판별 시작'
+        return '[판별] 정면 카메라 사람 판별 시작 — 현재 검사 중인 빨간 점에 적용'
+    if upper.startswith('MODE4_DETECTION_SUMMARY:'):
+        values = {}
+        for item in raw.split(':')[1:]:
+            if '=' not in item:
+                continue
+            key, value = item.split('=', 1)
+            values[key.upper()] = value
+        return (
+            f"[카메라 진단] 입력 {values.get('FRAMES', '?')}프레임, "
+            f"사람 검출 {values.get('PERSON_FRAMES', '?')}프레임, "
+            f"검사점 투표 {values.get('VOTE_FRAMES', '?')}프레임, "
+            f"최고 confidence {values.get('MAX_CONF', '?')}"
+        )
     if upper.startswith('MODE4_SURVIVOR_CONFIRMED'):
         return '[결과] 요구조자 감지! — 해당 점을 파란색으로 변경'
     if upper.startswith('MODE4_NO_SURVIVOR'):
@@ -302,6 +319,10 @@ class StatusConsole(Node):
         self._write(title)
         if mode == 1:
             self._write('[조작] W=전진 X=후진 A=좌회전 D=우회전 S=정지')
+            self._write(
+                '[모드 선택] 2=웨이포인트 3=mmWave 4=카메라 '
+                '5=자동 대피'
+            )
         elif mode == 2:
             self._write(
                 '[입력] 이동할 웨이포인트를 쉼표로 구분해 입력하세요.'
@@ -313,6 +334,11 @@ class StatusConsole(Node):
             self._write(
                 f'[검사] 실제 정지거리 {distance}에서 '
                 '카메라와 LiDAR로 판별합니다.'
+            )
+        elif mode == 5:
+            self._write(
+                '[자동] 출구 선택·장애물 접근·생체 판별·출구 변경 상태를 '
+                '실시간으로 표시합니다.'
             )
 
     def _on_drive_mode(self, message: String) -> None:
@@ -376,9 +402,9 @@ class StatusConsole(Node):
         if self._mode != 2 or detected == previous:
             return
         if detected:
-            self._write('[동적장애물] 감지 — 회피 경로 계산')
+            self._write('[동적장애물] 감지 — 모드 2에서는 회피하지 않고 계속 주행')
         elif previous:
-            self._write('[동적장애물] 해제 — 기존 경로로 복귀')
+            self._write('[동적장애물] 해제')
 
     def _on_mode3_state(self, message: String) -> None:
         state = message.data.strip()
@@ -428,6 +454,11 @@ class StatusConsole(Node):
         previous = self._presence
         self._presence = present
         if self._mode not in (3, 5) or present == previous:
+            return
+        if (
+            self._mode == 3
+            and str(self._mode3_state).upper() != 'MODE3_MMWAVE_OBSERVING'
+        ):
             return
         if present:
             suffix = ''

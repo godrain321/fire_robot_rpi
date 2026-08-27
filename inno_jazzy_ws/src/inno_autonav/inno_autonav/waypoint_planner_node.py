@@ -260,6 +260,7 @@ class WaypointPlannerNode(Node):
         self._publish_path(
             points,
             waypoint_ids=list(simplification.simplified_ids),
+            reference_waypoint_ids=list(result.waypoint_ids),
             is_replan=is_replan,
         )
         return True, "PATH_FOUND"
@@ -268,6 +269,7 @@ class WaypointPlannerNode(Node):
         self,
         points: list[tuple[float, float]],
         waypoint_ids: list[str] | None = None,
+        reference_waypoint_ids: list[str] | None = None,
         is_replan: bool = False,
     ) -> None:
         message = Path()
@@ -308,8 +310,13 @@ class WaypointPlannerNode(Node):
             message.poses.append(pose)
         self.waypoint_path_publisher.publish(message)
         if waypoint_ids is not None:
-            self._publish_route_status(waypoint_ids, is_replan)
-            self._publish_route_markers(message.header, waypoint_ids, points)
+            self._publish_route_status(
+                waypoint_ids, is_replan, reference_waypoint_ids
+            )
+            self._publish_route_markers(
+                message.header, waypoint_ids, points,
+                reference_waypoint_ids,
+            )
         goal_received_ns = getattr(self, "_goal_received_ns", None)
         if goal_received_ns is not None:
             elapsed_ms = (
@@ -324,7 +331,8 @@ class WaypointPlannerNode(Node):
             self._goal_received_ns = None
 
     def _publish_route_status(
-        self, waypoint_ids: list[str], is_replan: bool
+        self, waypoint_ids: list[str], is_replan: bool,
+        reference_waypoint_ids: list[str] | None = None,
     ) -> None:
         """Publish a machine-readable route and the Korean operator log."""
         event = "REPLANNED" if is_replan else "PATH_CREATED"
@@ -333,6 +341,11 @@ class WaypointPlannerNode(Node):
             "goal_id": self.active_goal.exit_id,
             "hazard_revision": self.active_goal.hazard_revision,
             "waypoints": waypoint_ids,
+            "reference_waypoints": (
+                waypoint_ids
+                if reference_waypoint_ids is None
+                else reference_waypoint_ids
+            ),
             "final_goal_world": list(self.active_goal.approach_world),
         }
         publisher = getattr(self, "route_status_publisher", None)
@@ -342,12 +355,22 @@ class WaypointPlannerNode(Node):
                 separators=(",", ":"), allow_nan=False,
             )))
         route = " -> ".join(waypoint_ids) if waypoint_ids else "직접 목표점"
+        reference_route = " -> ".join(
+            waypoint_ids
+            if reference_waypoint_ids is None
+            else reference_waypoint_ids
+        )
         prefix = "상황 변화로 경로 재생성" if is_replan else "경로 생성"
         log_info = getattr(self.get_logger(), "info", None)
         if log_info is not None:
-            log_info(f"{prefix}: {route} -> {self.active_goal.exit_id}")
+            log_info(
+                f"{prefix}: 기반={reference_route}; "
+                f"실제주행={route} -> {self.active_goal.exit_id}"
+            )
 
-    def _publish_route_markers(self, header, waypoint_ids, points) -> None:
+    def _publish_route_markers(
+        self, header, waypoint_ids, points, reference_waypoint_ids=None
+    ) -> None:
         """Overlay the currently selected waypoint route in RViz."""
         publisher = getattr(self, "route_markers_publisher", None)
         if publisher is None:
@@ -371,10 +394,70 @@ class WaypointPlannerNode(Node):
         line.points = [Point(x=float(x), y=float(y), z=0.08) for x, y in points]
 
         markers = [clear, line]
-        for index, waypoint_id in enumerate(waypoint_ids):
-            if index >= len(points):
-                break
-            x, y = points[index]
+        reference_ids = list(
+            waypoint_ids
+            if reference_waypoint_ids is None
+            else reference_waypoint_ids
+        )
+        active_ids = set(waypoint_ids)
+
+        support_points = Marker()
+        support_points.header = header
+        support_points.ns = "selected_waypoint_route_support_points"
+        support_points.id = 0
+        support_points.type = Marker.SPHERE_LIST
+        support_points.action = Marker.ADD
+        support_points.pose.orientation.w = 1.0
+        support_points.scale.x = 0.24
+        support_points.scale.y = 0.24
+        support_points.scale.z = 0.24
+        support_points.color.r = 1.0
+        support_points.color.g = 0.42
+        support_points.color.b = 0.05
+        support_points.color.a = 1.0
+        support_points.points = [
+            Point(
+                x=float(self.waypoints_world[waypoint_id][0]),
+                y=float(self.waypoints_world[waypoint_id][1]),
+                z=0.12,
+            )
+            for waypoint_id in reference_ids
+            if waypoint_id in self.waypoints_world
+            and waypoint_id not in active_ids
+        ]
+        if support_points.points:
+            markers.append(support_points)
+
+        active_points = Marker()
+        active_points.header = header
+        active_points.ns = "selected_waypoint_route_active_points"
+        active_points.id = 0
+        active_points.type = Marker.SPHERE_LIST
+        active_points.action = Marker.ADD
+        active_points.pose.orientation.w = 1.0
+        active_points.scale.x = 0.40
+        active_points.scale.y = 0.40
+        active_points.scale.z = 0.40
+        active_points.color.r = 1.0
+        active_points.color.g = 0.05
+        active_points.color.b = 0.75
+        active_points.color.a = 1.0
+        active_points.points = [
+            Point(
+                x=float(self.waypoints_world[waypoint_id][0]),
+                y=float(self.waypoints_world[waypoint_id][1]),
+                z=0.15,
+            )
+            for waypoint_id in waypoint_ids
+            if waypoint_id in self.waypoints_world
+        ]
+        if active_points.points:
+            markers.append(active_points)
+
+        for index, waypoint_id in enumerate(reference_ids):
+            if waypoint_id not in self.waypoints_world:
+                continue
+            x, y = self.waypoints_world[waypoint_id]
             label = Marker()
             label.header = header
             label.ns = "selected_waypoint_route_labels"
@@ -386,12 +469,55 @@ class WaypointPlannerNode(Node):
             label.pose.position.z = 0.42
             label.pose.orientation.w = 1.0
             label.scale.z = 0.30
-            label.color.r = 0.1
-            label.color.g = 1.0
-            label.color.b = 1.0
+            if waypoint_id in active_ids:
+                label.color.r = 1.0
+                label.color.g = 0.2
+                label.color.b = 0.85
+                label.text = f"DRIVE {waypoint_id}"
+            else:
+                label.color.r = 1.0
+                label.color.g = 0.55
+                label.color.b = 0.1
+                label.text = f"via {waypoint_id}"
             label.color.a = 1.0
-            label.text = str(waypoint_id)
             markers.append(label)
+
+        if points:
+            goal_x, goal_y = points[-1]
+            goal = Marker()
+            goal.header = header
+            goal.ns = "selected_waypoint_route_goal"
+            goal.id = 0
+            goal.type = Marker.SPHERE
+            goal.action = Marker.ADD
+            goal.pose.position.x = float(goal_x)
+            goal.pose.position.y = float(goal_y)
+            goal.pose.position.z = 0.16
+            goal.pose.orientation.w = 1.0
+            goal.scale.x = goal.scale.y = goal.scale.z = 0.46
+            goal.color.r = 0.1
+            goal.color.g = 1.0
+            goal.color.b = 0.2
+            goal.color.a = 1.0
+            markers.append(goal)
+
+            goal_label = Marker()
+            goal_label.header = header
+            goal_label.ns = "selected_waypoint_route_goal_label"
+            goal_label.id = 0
+            goal_label.type = Marker.TEXT_VIEW_FACING
+            goal_label.action = Marker.ADD
+            goal_label.pose.position.x = float(goal_x)
+            goal_label.pose.position.y = float(goal_y)
+            goal_label.pose.position.z = 0.62
+            goal_label.pose.orientation.w = 1.0
+            goal_label.scale.z = 0.34
+            goal_label.color.r = 0.2
+            goal_label.color.g = 1.0
+            goal_label.color.b = 0.2
+            goal_label.color.a = 1.0
+            goal_label.text = f"SELECTED {self.active_goal.exit_id}"
+            markers.append(goal_label)
         publisher.publish(MarkerArray(markers=markers))
 
     def _publish_empty_path(self) -> None:

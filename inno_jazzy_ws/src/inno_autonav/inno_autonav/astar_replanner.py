@@ -12,7 +12,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Empty, String
+from std_msgs.msg import Empty, Int32, String
 from std_msgs.msg import Float32MultiArray
 
 from .grid_utils import (
@@ -40,6 +40,7 @@ from .waypoint_selection import (
 from .weighted_planner import (
     combine_cost_grids,
     thermal_readiness_state,
+    weighted_a_star_with_escape,
     weighted_astar_search,
 )
 
@@ -108,6 +109,8 @@ class AstarReplanner(Node):
             # (not astar_replanner) owns /planned_path.
             'path_output_topic': '/planned_path',
             'accept_goal_pose': True,
+            'ignore_dynamic_modes': [2],
+            'direct_planning_modes': [3, 4],
             'replan_request_topic': '/replanning/astar_request',
             'replan_result_topic': '/replanning/astar_result',
             'path_block_check_radius': 0.20,
@@ -157,6 +160,12 @@ class AstarReplanner(Node):
             self.get_parameter('start_clearance_radius').value
         )
         self.allow_diagonal = bool(self.get_parameter('allow_diagonal').value)
+        self.ignore_dynamic_modes = {
+            int(value) for value in self.get_parameter('ignore_dynamic_modes').value
+        }
+        self.direct_planning_modes = {
+            int(value) for value in self.get_parameter('direct_planning_modes').value
+        }
         self.thermal_grid_topic = str(
             self.get_parameter('thermal_grid_topic').value
         )
@@ -295,6 +304,7 @@ class AstarReplanner(Node):
         self._last_plan = 0.0
         self._last_published_path_stamp_ns: Optional[int] = None
         self._last_emitted_path_stamp_ns = -1
+        self.drive_mode = 1
         self.create_subscription(
             OccupancyGrid, '/planning_grid_static', self._static_callback, qos
         )
@@ -323,6 +333,7 @@ class AstarReplanner(Node):
         self.create_subscription(
             Empty, '/autonomy_cancel', self._cancel_callback, 10
         )
+        self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
         self.grid_publisher = self.create_publisher(
             OccupancyGrid, '/planning_grid', qos
         )
@@ -400,7 +411,16 @@ class AstarReplanner(Node):
             self.dynamic_grid.data, grid.data
         )
         self.dynamic_grid = grid
-        if changed:
+        if changed and self.drive_mode not in self.ignore_dynamic_modes:
+            self._dirty = True
+            self._combine_and_publish()
+
+    def _mode_callback(self, message: Int32) -> None:
+        mode = int(message.data)
+        if mode == self.drive_mode:
+            return
+        self.drive_mode = mode
+        if self.static_grid is not None:
             self._dirty = True
             self._combine_and_publish()
 
@@ -484,7 +504,12 @@ class AstarReplanner(Node):
         try:
             combined = combine_cost_grids(
                 self.static_grid.data,
-                None if self.dynamic_grid is None else self.dynamic_grid.data,
+                (
+                    None
+                    if self.dynamic_grid is None
+                    or self.drive_mode in self.ignore_dynamic_modes
+                    else self.dynamic_grid.data
+                ),
                 (
                     None
                     if self.thermal_grid is None or self.thermal_geometry_mismatch
@@ -596,7 +621,10 @@ class AstarReplanner(Node):
         if self.hazard_belief_enabled:
             if self.hazard_grid is None:
                 return 'WAITING_FOR_HAZARD'
-            if self.hazard_status not in ('ACTIVE', 'ACTIVE_THERMAL_ONLY'):
+            if self.hazard_status not in (
+                'ACTIVE', 'ACTIVE_THERMAL_ONLY',
+                'ACTIVE_STATIC_DYNAMIC_ONLY',
+            ):
                 return 'HAZARD_NOT_READY:' + (self.hazard_status or 'NO_STATUS')
             return None
         age_sec = None
@@ -671,13 +699,7 @@ class AstarReplanner(Node):
             origin_yaw=planning_grid.origin_yaw,
             frame_id=planning_grid.frame_id,
         )
-        result = self.reference_graph_planner.plan(
-            planning_data,
-            start,
-            goal,
-            geometry,
-            static_obstacles,
-            waypoint_frame_id=self.map_frame,
+        planner_options = dict(
             unknown_is_occupied=self.unknown_is_occupied,
             allow_diagonal=self.allow_diagonal,
             thermal_cost_weight=self.thermal_cost_weight,
@@ -689,6 +711,32 @@ class AstarReplanner(Node):
             co_cost_power=self.co_cost_power,
             costs_are_traversal=self.hazard_belief_enabled,
         )
+        if self.drive_mode in self.direct_planning_modes:
+            # Inspection goals are normally only a short distance in front of
+            # the robot.  Routing them through a nearby reference waypoint can
+            # put the first target behind the robot and cause a needless turn.
+            result = weighted_a_star_with_escape(
+                planning_data,
+                start,
+                goal,
+                static_obstacles,
+                **planner_options,
+            )
+            route_source = 'DIRECT_CELL_ASTAR'
+        else:
+            result = self.reference_graph_planner.plan(
+                planning_data,
+                start,
+                goal,
+                geometry,
+                static_obstacles,
+                waypoint_frame_id=self.map_frame,
+                **planner_options,
+            )
+            route_source = (
+                'REFERENCE_WAYPOINT_GRAPH'
+                if result.used_reference_graph else 'CELL_ASTAR_FALLBACK'
+            )
         path = list(result.path)
         if not path:
             self.current_path_cells = []
@@ -734,6 +782,11 @@ class AstarReplanner(Node):
         self._last_plan = self.get_clock().now().nanoseconds / 1_000_000_000.0
         self._publish_path(simplified)
         self._state('PATH_READY')
+        if reason == 'NEW_GOAL':
+            self.get_logger().info(
+                f'PATH_SELECTED: mode={self.drive_mode}, source={route_source}, '
+                f'start={start}, goal={goal}, poses={len(simplified)}'
+            )
         self.get_logger().debug(
             f'planner {reason}: raw={len(path)}, simplified={len(simplified)}, '
             f'cost={result.total_cost:.3f}, rejected_shortcuts='

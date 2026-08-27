@@ -6,15 +6,9 @@ from builtin_interfaces.msg import Time
 from std_msgs.msg import Int32, String
 
 from inno_autonav.mode4_inspector import (
-    CameraIntrinsics,
-    PersonDetection,
     Mode4Inspector,
-    associate_detections_to_candidates,
-    fallback_intrinsics,
-    parse_mode4_inspection_command,
     parse_detection_message,
-    project_candidate_u,
-    scale_intrinsics,
+    parse_mode4_inspection_command,
 )
 
 
@@ -44,79 +38,6 @@ class _Tf:
         return 0.0, 0.0, 0.0
 
 
-def test_right_side_person_box_matches_only_right_lidar_candidate():
-    intrinsics = CameraIntrinsics(width=1000, fx=500.0, cx=500.0)
-    robot_pose = (0.0, 0.0, 0.0)
-    candidates = [(1.5, 0.25), (1.5, -0.25)]
-    right_projection = project_candidate_u(
-        robot_pose, candidates[1], intrinsics
-    )
-    assert right_projection is not None
-    right_u = right_projection[0]
-    detections = [
-        PersonDetection(right_u - 60.0, 50.0, right_u + 60.0, 700.0, 0.95)
-    ]
-
-    associations = associate_detections_to_candidates(
-        robot_pose=robot_pose,
-        inspection_target=candidates[0],
-        candidates=candidates,
-        detections=detections,
-        intrinsics=intrinsics,
-        camera_yaw_offset_rad=0.0,
-        target_search_radius_m=1.0,
-        maximum_candidate_distance_m=3.0,
-        maximum_bearing_error_rad=math.radians(10.0),
-    )
-
-    assert len(associations) == 1
-    assert associations[0].candidate_index == 1
-    assert associations[0].candidate == candidates[1]
-
-
-def test_one_detection_cannot_match_two_close_lidar_candidates():
-    intrinsics = CameraIntrinsics(width=1000, fx=500.0, cx=500.0)
-    detection = PersonDetection(480.0, 50.0, 520.0, 700.0, 0.9)
-
-    associations = associate_detections_to_candidates(
-        robot_pose=(0.0, 0.0, 0.0),
-        inspection_target=(1.5, 0.0),
-        candidates=[(1.5, 0.02), (1.5, -0.02)],
-        detections=[detection],
-        intrinsics=intrinsics,
-        camera_yaw_offset_rad=0.0,
-        target_search_radius_m=1.0,
-        maximum_candidate_distance_m=3.0,
-        maximum_bearing_error_rad=math.radians(10.0),
-    )
-
-    assert len(associations) == 1
-
-
-def test_left_and_right_projection_follow_ros_camera_convention():
-    intrinsics = CameraIntrinsics(width=1000, fx=500.0, cx=500.0)
-    left = project_candidate_u((0.0, 0.0, 0.0), (2.0, 0.5), intrinsics)
-    right = project_candidate_u((0.0, 0.0, 0.0), (2.0, -0.5), intrinsics)
-
-    assert left is not None and left[0] < intrinsics.cx
-    assert right is not None and right[0] > intrinsics.cx
-
-
-def test_camera_info_intrinsics_scale_to_detector_image_width():
-    scaled = scale_intrinsics(
-        CameraIntrinsics(width=1280, fx=800.0, cx=640.0), 640
-    )
-
-    assert scaled == CameraIntrinsics(width=640, fx=400.0, cx=320.0)
-
-
-def test_fov_fallback_places_center_at_half_image_width():
-    intrinsics = fallback_intrinsics(1280, math.radians(80.0))
-
-    assert intrinsics.fx > 0.0
-    assert intrinsics.cx == 640.0
-
-
 def test_parse_detection_payload_filters_low_confidence_box():
     payload = (
         '{"image_width":1000,"image_height":700,"detections":['
@@ -131,6 +52,114 @@ def test_parse_detection_payload_filters_low_confidence_box():
     assert (width, height) == (1000, 700)
     assert len(detections) == 1
     assert detections[0].center_x == 700.0
+
+
+def test_mode4_votes_for_locked_target_without_any_angle_gate():
+    inspector = object.__new__(Mode4Inspector)
+    inspector.phase = 'OBSERVING'
+    inspector.target = (5.0, -2.0)
+    inspector.minimum_confidence = 0.40
+    inspector.observation_sec = 5.0
+    inspector.minimum_frames = 2
+    inspector.positive_frames = 2
+    inspector.frame_count = 0
+    inspector.person_frame_count = 0
+    inspector.positive_frame_count = 0
+    inspector.person_detection_count = 0
+    inspector.maximum_person_confidence = 0.0
+    inspector.candidate_votes = {}
+    inspector.last_detector_frame = float('-inf')
+    inspector._now = lambda: 10.0
+    inspector.get_logger = lambda: type(
+        'Logger', (), {'warning': lambda _self, _message: None}
+    )()
+    payload = json.dumps({
+        'image_width': 1280,
+        'image_height': 720,
+        # Deliberately place the person at the far image edge.  Mode 4 has
+        # already faced the inspection target, so pixel bearing is irrelevant.
+        'detections': [{
+            'x_min': 1080,
+            'y_min': 30,
+            'x_max': 1270,
+            'y_max': 710,
+            'confidence': 0.82,
+        }],
+    })
+
+    inspector._detection_callback(String(data=payload))
+
+    assert inspector.frame_count == 1
+    assert inspector.person_frame_count == 1
+    assert inspector.positive_frame_count == 1
+    assert inspector.candidate_votes == {0: 1}
+    assert inspector.maximum_person_confidence == 0.82
+
+
+def test_mode4_confirms_first_positive_frame_without_waiting_for_pi_inference():
+    inspector = object.__new__(Mode4Inspector)
+    inspector.phase = 'OBSERVING'
+    inspector.target = (2.0, 0.0)
+    inspector.minimum_confidence = 0.40
+    inspector.observation_sec = 20.0
+    inspector.minimum_frames = 1
+    inspector.positive_frames = 1
+    inspector.frame_count = 0
+    inspector.person_frame_count = 0
+    inspector.positive_frame_count = 0
+    inspector.person_detection_count = 0
+    inspector.maximum_person_confidence = 0.0
+    inspector.candidate_votes = {}
+    inspector.last_detector_frame = float('-inf')
+    inspector._now = lambda: 10.0
+    inspector.get_logger = lambda: type(
+        'Logger', (), {'warning': lambda _self, _message: None}
+    )()
+    finished = []
+    inspector._finish_observation = lambda: finished.append(True)
+    payload = json.dumps({
+        'image_width': 1280,
+        'image_height': 720,
+        'detections': [{
+            'x_min': 50,
+            'y_min': 30,
+            'x_max': 600,
+            'y_max': 710,
+            'confidence': 0.82,
+        }],
+    })
+
+    inspector._detection_callback(String(data=payload))
+
+    assert finished == [True]
+
+
+def test_mode4_fresh_detection_payload_does_not_wait_for_online_status():
+    inspector = object.__new__(Mode4Inspector)
+    inspector.phase = 'OBSERVING'
+    inspector.detector_status = 'READY_WAITING_FOR_IMAGE'
+    inspector.last_detector_frame = 9.0
+    inspector.detector_stale_timeout = 30.0
+    inspector.frame_count = 1
+    inspector.minimum_frames = 1
+    inspector.positive_frames = 2
+    inspector.positive_frame_count = 0
+    inspector.person_frame_count = 0
+    inspector.person_detection_count = 0
+    inspector.maximum_person_confidence = 0.0
+    inspector.candidate_votes = {}
+    inspector.classification_publisher = _Publisher()
+    inspector.status_publisher = _Publisher()
+    inspector._now = lambda: 10.0
+    inspector._state = lambda _state: None
+    inspector.get_logger = lambda: type(
+        'Logger', (), {'warning': lambda _self, _message: None}
+    )()
+
+    inspector._finish_observation()
+
+    assert inspector.phase == 'COMPLETE'
+    assert inspector.classification_publisher.messages[-1].data == 'NO_SURVIVOR'
 
 
 def test_mode4_waits_for_space_before_trying_nearest_obstacle():
@@ -200,3 +229,42 @@ def test_explicit_mode4_target_wins_and_publishes_a_canonical_waypoint_plan():
     assert payload['selected_exit_position_world'] == [4.0, 2.0]
     assert payload['selected_approach_yaw_rad'] is not None
     assert payload['hazard_revision'] == 7
+
+
+def test_mode4_observation_waits_for_first_detector_frame():
+    inspector = object.__new__(Mode4Inspector)
+    inspector.target = (2.0, 0.0)
+    inspector.candidates = [(2.0, 0.0)]
+    inspector.observation_sec = 5.0
+    inspector.detector_startup_timeout = 8.0
+    inspector._now = lambda: 10.0
+    inspector._state = lambda _state: None
+    inspector.get_logger = lambda: type(
+        'Logger', (), {'warning': lambda _self, _message: None}
+    )()
+
+    inspector._start_observation()
+
+    assert inspector.phase == 'OBSERVING'
+    assert math.isinf(inspector.phase_deadline)
+    assert inspector.detector_start_deadline == 18.0
+    assert inspector.frame_count == 0
+
+
+def test_mode4_detector_startup_timeout_is_separate_from_observation_time():
+    inspector = object.__new__(Mode4Inspector)
+    inspector.drive_mode = 4
+    inspector.phase = 'OBSERVING'
+    inspector.frame_count = 0
+    inspector.detector_start_deadline = 18.0
+    inspector.phase_deadline = float('inf')
+    finished = []
+    inspector._finish_observation = lambda: finished.append(True)
+
+    inspector._now = lambda: 17.9
+    inspector._timer_callback()
+    assert finished == []
+
+    inspector._now = lambda: 18.0
+    inspector._timer_callback()
+    assert finished == [True]

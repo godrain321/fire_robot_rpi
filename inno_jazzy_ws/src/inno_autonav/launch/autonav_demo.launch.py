@@ -31,6 +31,7 @@ def generate_launch_description() -> LaunchDescription:
     require_thermal_active = LaunchConfiguration('require_thermal_active')
     waypoint_file = LaunchConfiguration('waypoint_file')
     hazard_belief_enabled = LaunchConfiguration('hazard_belief_enabled')
+    hazard_thermal_enabled = LaunchConfiguration('hazard_thermal_enabled')
     exit_evaluator_enabled = LaunchConfiguration('exit_evaluator_enabled')
     evacuation_manager_enabled = LaunchConfiguration('evacuation_manager_enabled')
     evacuation_activate_route = LaunchConfiguration(
@@ -57,6 +58,12 @@ def generate_launch_description() -> LaunchDescription:
     mode4_publish_canonical_plan = LaunchConfiguration(
         'mode4_publish_canonical_plan'
     )
+    mode4_minimum_confidence = LaunchConfiguration(
+        'mode4_minimum_confidence'
+    )
+    require_localization_ready = LaunchConfiguration(
+        'require_localization_ready'
+    )
     hazard_config = os.path.join(hazard_share, 'config', 'hazard_params.yaml')
 
     return LaunchDescription(
@@ -77,6 +84,9 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument(
                 'hazard_belief_enabled', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'hazard_thermal_enabled', default_value='true'
             ),
             DeclareLaunchArgument(
                 'exit_evaluator_enabled', default_value='false'
@@ -136,6 +146,12 @@ def generate_launch_description() -> LaunchDescription:
                 'mode4_publish_canonical_plan', default_value='false'
             ),
             DeclareLaunchArgument(
+                'mode4_minimum_confidence', default_value='0.40'
+            ),
+            DeclareLaunchArgument(
+                'require_localization_ready', default_value='false'
+            ),
+            DeclareLaunchArgument(
                 'map_yaml',
                 default_value=project_path('maps', 'inno_map_nav.yaml'),
             ),
@@ -150,7 +166,11 @@ def generate_launch_description() -> LaunchDescription:
                 package='inno_hazard',
                 executable='hazard_belief_node',
                 name='hazard_belief_node',
-                parameters=[hazard_config],
+                parameters=[hazard_config, {
+                    'thermal_enabled': ParameterValue(
+                        hazard_thermal_enabled, value_type=bool
+                    ),
+                }],
                 output='screen',
                 condition=IfCondition(hazard_belief_enabled),
             ),
@@ -322,6 +342,9 @@ def generate_launch_description() -> LaunchDescription:
                         'publish_canonical_plan': ParameterValue(
                             mode4_publish_canonical_plan, value_type=bool
                         ),
+                        'minimum_confidence': ParameterValue(
+                            mode4_minimum_confidence, value_type=float
+                        ),
                     },
                 ],
                 output='screen',
@@ -340,6 +363,9 @@ def generate_launch_description() -> LaunchDescription:
                         ),
                         'max_angular_speed': ParameterValue(
                             max_angular_speed, value_type=float
+                        ),
+                        'require_localization_ready': ParameterValue(
+                            require_localization_ready, value_type=bool
                         ),
                     },
                 ],

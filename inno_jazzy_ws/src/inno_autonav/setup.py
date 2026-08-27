@@ -42,6 +42,7 @@ setup(
             'path_selector_node = inno_autonav.path_selector_node:main',
             'skid_path_follower = inno_autonav.skid_path_follower:main',
             'waypoint_queue = inno_autonav.waypoint_queue:main',
+            'mode5_route_preview = inno_autonav.mode5_route_preview:main',
         ],
     },
 )

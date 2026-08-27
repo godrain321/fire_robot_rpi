@@ -180,12 +180,18 @@ def test_route_status_and_rviz_overlay_distinguish_initial_plan_from_replan():
     initial = json.loads(value.route_status_publisher.messages[-1].data)
     assert initial["event"] == "PATH_CREATED"
     assert initial["waypoints"]
-    assert value.route_markers_publisher.messages[-1].markers
+    assert initial["reference_waypoints"]
+    markers = value.route_markers_publisher.messages[-1].markers
+    assert markers
+    namespaces = {marker.ns for marker in markers}
+    assert "selected_waypoint_route_active_points" in namespaces
+    assert "selected_waypoint_route_goal" in namespaces
 
     value._replan(force=True)
     replanned = json.loads(value.route_status_publisher.messages[-1].data)
     assert replanned["event"] == "REPLANNED"
     assert replanned["waypoints"] == initial["waypoints"]
+    assert replanned["reference_waypoints"] == initial["reference_waypoints"]
 
 
 def test_real_159_waypoint_file_drives_a_full_replan():

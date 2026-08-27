@@ -6,6 +6,7 @@ from typing import Dict, List, Set
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rosidl_runtime_py.utilities import get_message
 
 
@@ -34,6 +35,14 @@ def main(args=None) -> None:
     publishers: Dict[str, list] = {}
     type_by_topic: Dict[str, str] = {}
     probe_errors: Dict[str, str] = {}
+    # A best-effort/volatile request is compatible with both reliable and
+    # best-effort publishers.  Do not copy endpoint QoS verbatim: graph
+    # discovery can legitimately report UNKNOWN policies (notably for this
+    # node's own /rosout and /parameter_events endpoints), which rclpy rejects
+    # when used to construct a subscription.
+    probe_qos = QoSProfile(depth=10)
+    probe_qos.reliability = ReliabilityPolicy.BEST_EFFORT
+    probe_qos.durability = DurabilityPolicy.VOLATILE
     try:
         discovery_deadline = time.monotonic() + min(1.0, parsed.wait * 0.5)
         while time.monotonic() < discovery_deadline:
@@ -54,7 +63,7 @@ def main(args=None) -> None:
                     message_type,
                     topic,
                     lambda _message, name=topic: received.add(name),
-                    endpoints[0].qos_profile,
+                    probe_qos,
                 )
                 subscriptions.append(subscription)
             except (

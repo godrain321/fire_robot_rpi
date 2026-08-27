@@ -94,7 +94,7 @@ def decode_yolov8_output(
     person_class_ids: Set[int],
     nms_iou_threshold: float = 0.45,
 ) -> List[DetectionBox]:
-    """Decode YOLOv8 ``[batch, 4+classes, anchors]`` output with NMS."""
+    """Decode decoded or raw-DFL YOLOv8 output with NMS."""
     output = np.asarray(raw_output, dtype=np.float32)
     if output.ndim == 3:
         if output.shape[0] != 1:
@@ -102,6 +102,24 @@ def decode_yolov8_output(
         output = output[0]
     if output.ndim != 2:
         raise ValueError('YOLO output must have two or three dimensions')
+
+    # Ultralytics can export the head before DFL decoding.  The Pi-oriented
+    # static model in this project has 64 box-distribution channels followed
+    # by one person-class logit: [1, 65, 8400].
+    raw_dfl = output if output.shape[0] >= 65 else output.T
+    if (
+        raw_dfl.shape[0] >= 65
+        and raw_dfl.shape[1] > raw_dfl.shape[0]
+        and np.any(raw_dfl[:64] < 0.0)
+    ):
+        return _decode_yolov8_raw_dfl_output(
+            raw_dfl,
+            geometry,
+            confidence_threshold,
+            person_class_ids,
+            nms_iou_threshold,
+        )
+
     if output.shape[1] < 5 or output.shape[0] < output.shape[1]:
         output = output.T
     if output.shape[1] < 5:
@@ -124,6 +142,130 @@ def decode_yolov8_output(
         )
         left = center_x - 0.5 * width
         top = center_y - 0.5 * height
+        boxes_xywh.append([left, top, width, height])
+        scores.append(confidence)
+        class_ids.append(class_id)
+
+    if not boxes_xywh:
+        return []
+    selected = cv2.dnn.NMSBoxes(
+        boxes_xywh,
+        scores,
+        confidence_threshold,
+        nms_iou_threshold,
+    )
+    detections = []
+    for raw_index in selected:
+        index = int(np.asarray(raw_index).reshape(-1)[0])
+        left, top, width, height = boxes_xywh[index]
+        x_min = (left - geometry.pad_x) / geometry.scale
+        y_min = (top - geometry.pad_y) / geometry.scale
+        x_max = (left + width - geometry.pad_x) / geometry.scale
+        y_max = (top + height - geometry.pad_y) / geometry.scale
+        x_min = max(0.0, min(float(geometry.source_width), x_min))
+        y_min = max(0.0, min(float(geometry.source_height), y_min))
+        x_max = max(0.0, min(float(geometry.source_width), x_max))
+        y_max = max(0.0, min(float(geometry.source_height), y_max))
+        if x_max <= x_min or y_max <= y_min:
+            continue
+        detections.append(
+            DetectionBox(
+                x_min=x_min,
+                y_min=y_min,
+                x_max=x_max,
+                y_max=y_max,
+                confidence=scores[index],
+                class_id=class_ids[index],
+            )
+        )
+    return detections
+
+
+def _sigmoid(values):
+    clipped = np.clip(values, -80.0, 80.0)
+    return 1.0 / (1.0 + np.exp(-clipped))
+
+
+def _yolov8_anchor_grid(anchor_count: int):
+    """Return 8/16/32-stride anchor centres for a square YOLO input."""
+    grid_size = int(round(math.sqrt(anchor_count * 16.0 / 21.0)))
+    if grid_size <= 0 or grid_size % 4:
+        raise ValueError('YOLO raw output has an unsupported anchor count')
+    image_size = grid_size * 8
+    centres = []
+    stride_values = []
+    for stride in (8, 16, 32):
+        level_size = image_size // stride
+        y_coordinates, x_coordinates = np.meshgrid(
+            np.arange(level_size, dtype=np.float32),
+            np.arange(level_size, dtype=np.float32),
+            indexing='ij',
+        )
+        centres.append(
+            np.stack(
+                (x_coordinates.reshape(-1) + 0.5,
+                 y_coordinates.reshape(-1) + 0.5),
+                axis=1,
+            )
+        )
+        stride_values.append(
+            np.full(level_size * level_size, stride, dtype=np.float32)
+        )
+    centres = np.concatenate(centres, axis=0)
+    strides = np.concatenate(stride_values, axis=0)
+    if centres.shape[0] != anchor_count:
+        raise ValueError('YOLO raw output anchor count does not match strides')
+    return centres, strides
+
+
+def _decode_yolov8_raw_dfl_output(
+    raw_dfl,
+    geometry: LetterboxGeometry,
+    confidence_threshold: float,
+    person_class_ids: Set[int],
+    nms_iou_threshold: float,
+) -> List[DetectionBox]:
+    """Decode Ultralytics raw head output ``[64+classes, anchors]``."""
+    class_count = int(raw_dfl.shape[0] - 64)
+    if class_count <= 0 or any(
+        class_id < 0 or class_id >= class_count
+        for class_id in person_class_ids
+    ):
+        raise ValueError('YOLO raw output class count does not match config')
+
+    anchor_count = int(raw_dfl.shape[1])
+    centres, strides = _yolov8_anchor_grid(anchor_count)
+    box_logits = raw_dfl[:64].reshape(4, 16, anchor_count)
+    box_logits = box_logits - np.max(box_logits, axis=1, keepdims=True)
+    distributions = np.exp(box_logits)
+    distributions /= np.sum(distributions, axis=1, keepdims=True)
+    distances = np.sum(
+        distributions * np.arange(16, dtype=np.float32)[None, :, None],
+        axis=1,
+    ).T
+    class_scores = _sigmoid(raw_dfl[64:].T)
+
+    boxes_xywh = []
+    scores = []
+    class_ids = []
+    for anchor_index in range(anchor_count):
+        allowed_scores = [
+            (class_id, float(class_scores[anchor_index, class_id]))
+            for class_id in person_class_ids
+        ]
+        class_id, confidence = max(
+            allowed_scores, key=lambda item: item[1]
+        )
+        if confidence < confidence_threshold:
+            continue
+        left_distance, top_distance, right_distance, bottom_distance = (
+            distances[anchor_index] * strides[anchor_index]
+        )
+        centre_x, centre_y = centres[anchor_index] * strides[anchor_index]
+        left = float(centre_x - left_distance)
+        top = float(centre_y - top_distance)
+        width = float(left_distance + right_distance)
+        height = float(top_distance + bottom_distance)
         boxes_xywh.append([left, top, width, height])
         scores.append(confidence)
         class_ids.append(class_id)

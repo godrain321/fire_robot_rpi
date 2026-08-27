@@ -1,8 +1,15 @@
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
+import pytest
 from std_msgs.msg import Bool, Int32, String
 
-from inno_autonav.skid_path_follower import SkidPathFollower
+from inno_autonav.skid_path_follower import (
+    SkidPathFollower,
+    point_at_path_progress,
+    polyline_cumulative_lengths,
+    project_progress_onto_path,
+    shortest_turn_direction,
+)
 from inno_autonav.waypoint_queue import WaypointQueue
 
 
@@ -32,6 +39,30 @@ def test_modes3_and4_enable_final_yaw_alignment_for_forward_sensors():
 
     follower._mode_callback(Int32(data=2))
     assert follower.align_goal_yaw is False
+
+
+def test_path_projection_never_retargets_a_passed_waypoint():
+    points = ((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))
+    cumulative = polyline_cumulative_lengths(points)
+
+    progress = project_progress_onto_path(
+        points, cumulative, 1.2, 0.0, minimum_progress=0.0
+    )
+    target = point_at_path_progress(points, cumulative, progress + 0.35)
+    assert progress == 1.2
+    assert target == pytest.approx((1.55, 0.0))
+
+    # Even a later pose estimate behind the projection cannot make progress
+    # return to the already-passed first waypoint.
+    assert project_progress_onto_path(
+        points, cumulative, 0.5, 0.0, minimum_progress=progress
+    ) >= progress
+
+
+def test_rotation_direction_changes_after_overshoot_but_not_at_pi_wrap():
+    assert shortest_turn_direction(0.3, 1.0) == 1.0
+    assert shortest_turn_direction(-0.3, 1.0) == -1.0
+    assert shortest_turn_direction(-3.13, 1.0) == 1.0
 
 
 def test_mode5_survivor_follow_hold_is_independent_from_replanning_hold():

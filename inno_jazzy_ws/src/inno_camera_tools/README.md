@@ -53,4 +53,18 @@ ros2 run inno_camera_tools camera_person_detector --ros-args \
 `/camera/person_detection_image`다. 기본 설정에서는 MODE 4가 1.5m 검사 위치에 도착해
 `MODE4_CAMERA_YOLO_OBSERVING` 상태가 된 동안에만 실제 추론한다. 바운딩박스 JSON은
 `image_width`, `image_height`, `x_min`, `y_min`, `x_max`, `y_max`, `confidence`를
-포함하며 mode4 inspector가 LiDAR 점과 방향 기준으로 결합한다.
+포함한다. 통합 MODE 4는 로봇이 선택한 빨간 LiDAR 점을 향해 정지한 뒤 판별한다.
+관찰 중 사람이 2프레임 이상 검출되면 카메라 픽셀 각도와 LiDAR 각도를 다시
+비교하지 않고 현재 검사 중인 빨간 점 하나를 요구조자로 확정한다. 시연 환경에서는
+사람과 다른 동적 장애물을 한 카메라 프레임에 동시에 두지 않는 것을 전제로 한다.
+
+카메라와 모델만 독립적으로 확인할 때는 아래 명령을 사용한다. 사람을 검출하면
+미리보기 창에 파란색 바운딩박스와 confidence가 표시된다.
+
+```bash
+cd ~/fire_robot_rpi
+./run_camera_inference_check.sh
+```
+
+필요하면 `confidence_threshold:=0.35`, `inference_rate_hz:=5.0` 같은 ROS launch
+인자를 명령 끝에 붙일 수 있다. 창과 카메라는 실행한 터미널에서 `Ctrl+C`로 종료한다.

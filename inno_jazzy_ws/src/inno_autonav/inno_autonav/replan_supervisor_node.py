@@ -15,7 +15,7 @@ from nav_msgs.msg import Path
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Bool, Float32MultiArray, String
+from std_msgs.msg import Bool, Float32MultiArray, Int32, String
 
 from inno_hazard.hazard_belief import HazardGridGeometry
 from inno_hazard.hazard_snapshot import decode_hazard_snapshot_message
@@ -61,6 +61,8 @@ class ReplanSupervisorNode(Node):
             "astar_request_topic": "/replanning/astar_request",
             "astar_result_topic": "/replanning/astar_result",
             "selector_mode_topic": "/path_selector/mode",
+            "drive_mode_topic": "/drive_mode",
+            "pause_drive_modes": [3, 4],
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -91,7 +93,11 @@ class ReplanSupervisorNode(Node):
             replan_timeout_s=float(value("replan_timeout_s")),
         )
         self.core = ReplanSupervisorCore(EventReplanningConfig(**self._config_overrides), retry)
-        self.core.set_enabled(bool(value("enabled")))
+        self._configured_enabled = bool(value("enabled"))
+        self._pause_drive_modes = {
+            int(mode) for mode in value("pause_drive_modes")
+        }
+        self.core.set_enabled(self._configured_enabled)
         self.waypoint_planning_enabled = bool(value("waypoint_planning_enabled"))
         self.coordinator = SameExitReplanCoordinator()
         self._awaiting_replacement_path = False
@@ -120,6 +126,9 @@ class ReplanSupervisorNode(Node):
         )
         self.create_subscription(
             String, str(value("evacuation_plan_topic")), self._on_plan, transient,
+        )
+        self.create_subscription(
+            Int32, str(value("drive_mode_topic")), self._on_drive_mode, 10,
         )
         self.create_subscription(
             String, str(value("waypoint_result_topic")), self._on_waypoint_result, 10,
@@ -250,6 +259,17 @@ class ReplanSupervisorNode(Node):
             self._awaiting_replacement_path = False
             self.selector_mode_publisher.publish(String(data="WAYPOINT"))
         self._publish(self.core.on_active_goal(goal))
+
+    def _on_drive_mode(self, message: Int32) -> None:
+        """Release replan holds while Mode 3/4 owns an inspection approach."""
+        paused = int(message.data) in self._pause_drive_modes
+        if paused:
+            self.coordinator.on_goal(None)
+            self._awaiting_replacement_path = False
+            self.core.on_active_goal(None)
+        self._publish(self.core.set_enabled(
+            self._configured_enabled and not paused
+        ))
 
     def _decode_result(self, message: String):
         try:

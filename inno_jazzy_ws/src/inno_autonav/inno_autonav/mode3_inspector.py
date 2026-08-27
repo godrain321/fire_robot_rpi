@@ -80,21 +80,6 @@ def compute_inspection_goal(
     return goal_x, goal_y, goal_yaw
 
 
-def is_at_standoff(
-    robot_x: float,
-    robot_y: float,
-    target_x: float,
-    target_y: float,
-    standoff_distance_m: float,
-    arrival_tolerance_m: float,
-) -> bool:
-    """Return true when navigation is unnecessary for this inspection."""
-    distance = math.hypot(float(target_x) - robot_x, float(target_y) - robot_y)
-    return abs(distance - float(standoff_distance_m)) <= (
-        float(arrival_tolerance_m) + 1e-9
-    )
-
-
 @dataclass
 class PresenceEvidence:
     """Count only fresh, online mmWave samples near the inspected target."""
@@ -137,7 +122,12 @@ class Mode3Inspector(Node):
             'map_frame': 'map',
             'base_frame': 'base_link',
             'standoff_distance_m': 2.0,
-            'standoff_arrival_tolerance_m': 0.60,
+            'standoff_arrival_tolerance_m': 0.30,
+            # Mode 3 must physically approach before mmWave classification.
+            # If the robot already happens to be near the nominal standoff,
+            # create a short forward goal instead of skipping navigation.
+            'minimum_approach_goal_distance_m': 0.45,
+            'minimum_safe_standoff_m': 0.60,
             'robot_settle_sec': 2.0,
             'observation_sec': 5.0,
             'distance_tolerance_m': 0.60,
@@ -156,6 +146,12 @@ class Mode3Inspector(Node):
         )
         self.standoff_arrival_tolerance = float(
             self.get_parameter('standoff_arrival_tolerance_m').value
+        )
+        self.minimum_approach_goal_distance = float(
+            self.get_parameter('minimum_approach_goal_distance_m').value
+        )
+        self.minimum_safe_standoff = float(
+            self.get_parameter('minimum_safe_standoff_m').value
         )
         self.robot_settle_sec = float(
             self.get_parameter('robot_settle_sec').value
@@ -182,6 +178,9 @@ class Mode3Inspector(Node):
         if (
             self.standoff_distance <= 0.0
             or self.standoff_arrival_tolerance < 0.0
+            or self.minimum_approach_goal_distance <= 0.0
+            or self.minimum_safe_standoff <= 0.0
+            or self.minimum_safe_standoff >= self.standoff_distance
             or self.robot_settle_sec < 0.0
             or self.observation_sec <= 0.0
             or self.distance_tolerance < 0.0
@@ -202,8 +201,10 @@ class Mode3Inspector(Node):
         self.candidates: Sequence[Point2D] = []
         self.target: Optional[Point2D] = None
         self.requested_target: Optional[Point2D] = None
+        self.active_standoff_distance = self.standoff_distance
         self.hazard_revision = 0
         self.waiting_for_departure = False
+        self.approach_started = False
         self.phase_deadline = 0.0
         self.sensor_online = False
         self.last_sensor_update = float('-inf')
@@ -289,6 +290,7 @@ class Mode3Inspector(Node):
             self.target = None
             self.requested_target = None
             self.waiting_for_departure = False
+            self.approach_started = False
             self._state('MODE3_READY:PRESS_SPACE')
         elif mode != 3 and previous == 3:
             self.cancel_publisher.publish(Empty())
@@ -296,6 +298,7 @@ class Mode3Inspector(Node):
             self.target = None
             self.requested_target = None
             self.waiting_for_departure = False
+            self.approach_started = False
             self._state('MODE3_CANCELLED')
 
     def _inspection_command_callback(self, message: String) -> None:
@@ -312,6 +315,7 @@ class Mode3Inspector(Node):
         self.target = None
         self.requested_target = requested_target
         self.waiting_for_departure = False
+        self.approach_started = False
         self._state('MODE3_WAITING_FOR_DYNAMIC_OBSTACLE')
         self._try_start_inspection()
 
@@ -337,32 +341,28 @@ class Mode3Inspector(Node):
         )
         if target is None:
             return
-        goal_x, goal_y, goal_yaw = compute_inspection_goal(
-            robot[0], robot[1], robot[2], target[0], target[1],
-            self.standoff_distance,
-        )
         self.target = target
-        if is_at_standoff(
-            robot[0], robot[1], target[0], target[1],
-            self.standoff_distance, self.standoff_arrival_tolerance,
+        target_distance = math.hypot(target[0] - robot[0], target[1] - robot[1])
+        if target_distance <= (
+            self.minimum_safe_standoff + self.minimum_approach_goal_distance
         ):
-            # A stationary field check must not wait forever for a path
-            # follower departure/arrival pair when the robot is already close
-            # enough to the requested inspection distance.
             self.cancel_publisher.publish(Empty())
-            self.waiting_for_departure = False
-            self.phase = 'SETTLING'
-            self.phase_deadline = self._now() + self.robot_settle_sec
-            actual_distance = math.hypot(
-                target[0] - robot[0], target[1] - robot[1]
-            )
-            self._state('MODE3_AT_STANDOFF:ROBOT_SETTLING')
-            self.get_logger().info(
-                'MODE 3 already at standoff: '
-                f'actual={actual_distance:.2f}m, '
-                f'requested={self.standoff_distance:.2f}m'
+            self.phase = 'TARGET_TOO_CLOSE'
+            self._state('MODE3_TARGET_TOO_CLOSE:MOVE_ROBOT_BACK')
+            self.get_logger().warning(
+                'MODE 3 target is too close for a mandatory approach: '
+                f'actual={target_distance:.2f}m, '
+                f'minimum_safe={self.minimum_safe_standoff:.2f}m'
             )
             return
+        self.active_standoff_distance = min(
+            self.standoff_distance,
+            target_distance - self.minimum_approach_goal_distance,
+        )
+        goal_x, goal_y, goal_yaw = compute_inspection_goal(
+            robot[0], robot[1], robot[2], target[0], target[1],
+            self.active_standoff_distance,
+        )
         goal = PoseStamped()
         goal.header.stamp = self.get_clock().now().to_msg()
         goal.header.frame_id = self.map_frame
@@ -374,6 +374,7 @@ class Mode3Inspector(Node):
         goal.pose.orientation.z = qz
         goal.pose.orientation.w = qw
         self.waiting_for_departure = True
+        self.approach_started = False
         self.phase = 'NAVIGATING'
         if self.publish_canonical_plan:
             now = self.get_clock().now()
@@ -406,18 +407,44 @@ class Mode3Inspector(Node):
             self.goal_publisher.publish(goal)
         self._state(
             f'MODE3_APPROACHING:{target[0]:.3f},{target[1]:.3f}:'
-            f'STANDOFF:{self.standoff_distance:.2f}M'
+            f'STANDOFF:{self.active_standoff_distance:.2f}M'
         )
 
     def _follower_callback(self, message: String) -> None:
         if self.drive_mode != 3 or self.phase != 'NAVIGATING':
             return
-        if message.data in (
-            'PATH_ACCEPTED', 'FOLLOWING_PATH', 'ROTATING_IN_PLACE',
-            'ALIGNING_GOAL_YAW',
-        ):
+        # PATH_ACCEPTED alone does not prove that the robot moved.  Requiring
+        # an actual path-following command prevents an in-tolerance goal from
+        # jumping directly to mmWave observation.
+        if message.data == 'FOLLOWING_PATH':
+            self.approach_started = True
             self.waiting_for_departure = False
-        if message.data != 'GOAL_REACHED' or self.waiting_for_departure:
+        if (
+            message.data != 'GOAL_REACHED'
+            or self.waiting_for_departure
+            or not self.approach_started
+        ):
+            return
+        robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
+        if robot is None or self.target is None:
+            self.cancel_publisher.publish(Empty())
+            self.phase = 'ARRIVAL_UNCONFIRMED'
+            self._state('MODE3_ARRIVAL_NOT_CONFIRMED')
+            return
+        actual_standoff = math.hypot(
+            self.target[0] - robot[0], self.target[1] - robot[1]
+        )
+        if abs(actual_standoff - self.active_standoff_distance) > (
+            self.standoff_arrival_tolerance
+        ):
+            self.cancel_publisher.publish(Empty())
+            self.phase = 'ARRIVAL_UNCONFIRMED'
+            self._state('MODE3_ARRIVAL_NOT_CONFIRMED')
+            self.get_logger().warning(
+                'MODE 3 follower reported arrival outside inspection '
+                f'tolerance: actual={actual_standoff:.2f}m, '
+                f'expected={self.active_standoff_distance:.2f}m'
+            )
             return
         self.cancel_publisher.publish(Empty())
         self.phase = 'SETTLING'
@@ -457,7 +484,7 @@ class Mode3Inspector(Node):
     def _start_observation(self) -> None:
         self.phase = 'OBSERVING'
         self.phase_deadline = self._now() + self.observation_sec
-        expected_distance = self.standoff_distance
+        expected_distance = self.active_standoff_distance
         robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
         if robot is not None and self.target is not None:
             expected_distance = math.hypot(

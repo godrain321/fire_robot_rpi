@@ -15,18 +15,15 @@ from rclpy.qos import (
     DurabilityPolicy,
     QoSProfile,
     ReliabilityPolicy,
-    qos_profile_sensor_data,
 )
-from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Empty, Int32, String, UInt64
 
-from .grid_utils import normalize_angle, quaternion_from_yaw
+from .grid_utils import quaternion_from_yaw
 from .mode3_inspector import compute_inspection_goal, select_nearest_candidate
 from .tf_utils import TfHelper
 
 
 Point2D = Tuple[float, float]
-RobotPose2D = Tuple[float, float, float]
 
 
 def parse_mode4_inspection_command(
@@ -61,26 +58,6 @@ class PersonDetection:
     @property
     def center_x(self) -> float:
         return 0.5 * (self.x_min + self.x_max)
-
-
-@dataclass(frozen=True)
-class CameraIntrinsics:
-    """Horizontal pinhole projection values scaled to one image."""
-
-    width: int
-    fx: float
-    cx: float
-
-
-@dataclass(frozen=True)
-class CandidateAssociation:
-    """A one-to-one camera detection and LiDAR candidate association."""
-
-    detection_index: int
-    candidate_index: int
-    candidate: Point2D
-    pixel_error: float
-    bearing_error_rad: float
 
 
 def parse_detection_message(
@@ -129,137 +106,27 @@ def parse_detection_message(
     return width, height, detections
 
 
-def scale_intrinsics(
-    intrinsics: CameraIntrinsics, image_width: int
-) -> CameraIntrinsics:
-    """Scale calibration when detector and CameraInfo image widths differ."""
-    if intrinsics.width <= 0 or image_width <= 0 or intrinsics.fx <= 0.0:
-        raise ValueError('camera intrinsics are invalid')
-    scale = float(image_width) / float(intrinsics.width)
-    return CameraIntrinsics(image_width, intrinsics.fx * scale, intrinsics.cx * scale)
-
-
-def fallback_intrinsics(image_width: int, horizontal_fov_rad: float):
-    """Create intrinsics from the measured horizontal field of view."""
-    if image_width <= 0 or not 0.0 < horizontal_fov_rad < math.pi:
-        raise ValueError('fallback camera field of view is invalid')
-    fx = 0.5 * image_width / math.tan(0.5 * horizontal_fov_rad)
-    return CameraIntrinsics(image_width, fx, 0.5 * image_width)
-
-
-def project_candidate_u(
-    robot_pose: RobotPose2D,
-    candidate: Point2D,
-    intrinsics: CameraIntrinsics,
-    camera_yaw_offset_rad: float = 0.0,
-) -> Optional[Tuple[float, float, float]]:
-    """Project a map candidate to horizontal image pixel and relative bearing."""
-    dx = candidate[0] - robot_pose[0]
-    dy = candidate[1] - robot_pose[1]
-    distance = math.hypot(dx, dy)
-    if distance <= 1e-6:
-        return None
-    bearing = normalize_angle(
-        math.atan2(dy, dx) - robot_pose[2] - camera_yaw_offset_rad
-    )
-    if abs(bearing) >= 0.5 * math.pi:
-        return None
-    pixel_u = intrinsics.cx - intrinsics.fx * math.tan(bearing)
-    if pixel_u < 0.0 or pixel_u >= intrinsics.width:
-        return None
-    return pixel_u, bearing, distance
-
-
-def associate_detections_to_candidates(
-    robot_pose: RobotPose2D,
-    inspection_target: Point2D,
-    candidates: Sequence[Point2D],
-    detections: Sequence[PersonDetection],
-    intrinsics: CameraIntrinsics,
-    camera_yaw_offset_rad: float,
-    target_search_radius_m: float,
-    maximum_candidate_distance_m: float,
-    maximum_bearing_error_rad: float,
-) -> List[CandidateAssociation]:
-    """Greedily make one-to-one matches using horizontal camera bearing."""
-    edges = []
-    for candidate_index, candidate in enumerate(candidates):
-        if math.hypot(
-            candidate[0] - inspection_target[0],
-            candidate[1] - inspection_target[1],
-        ) > target_search_radius_m:
-            continue
-        projection = project_candidate_u(
-            robot_pose, candidate, intrinsics, camera_yaw_offset_rad
-        )
-        if projection is None or projection[2] > maximum_candidate_distance_m:
-            continue
-        candidate_u, candidate_bearing, _ = projection
-        for detection_index, detection in enumerate(detections):
-            detection_bearing = math.atan2(
-                intrinsics.cx - detection.center_x, intrinsics.fx
-            )
-            bearing_error = abs(
-                normalize_angle(candidate_bearing - detection_bearing)
-            )
-            if bearing_error > maximum_bearing_error_rad:
-                continue
-            edges.append(
-                (
-                    bearing_error,
-                    -detection.confidence,
-                    abs(candidate_u - detection.center_x),
-                    detection_index,
-                    candidate_index,
-                )
-            )
-    matched_detections = set()
-    matched_candidates = set()
-    associations = []
-    for bearing_error, _, pixel_error, detection_index, candidate_index in sorted(
-        edges
-    ):
-        if (
-            detection_index in matched_detections
-            or candidate_index in matched_candidates
-        ):
-            continue
-        matched_detections.add(detection_index)
-        matched_candidates.add(candidate_index)
-        associations.append(
-            CandidateAssociation(
-                detection_index=detection_index,
-                candidate_index=candidate_index,
-                candidate=candidates[candidate_index],
-                pixel_error=pixel_error,
-                bearing_error_rad=bearing_error,
-            )
-        )
-    return associations
-
-
 class Mode4Inspector(Node):
-    """Approach on Space, then classify the correct LiDAR point with YOLO."""
+    """Approach on Space, then classify the faced LiDAR target with YOLO."""
 
     def __init__(self) -> None:
         super().__init__('mode4_inspector')
         defaults = {
             'map_frame': 'map',
             'base_frame': 'base_link',
-            'camera_info_topic': '/camera/camera_info',
             'detection_topic': '/camera/person_detections',
             'standoff_distance_m': 1.5,
             'robot_settle_sec': 2.0,
-            'observation_sec': 5.0,
-            'minimum_detection_frames': 3,
-            'survivor_positive_frames': 2,
-            'detector_stale_timeout_sec': 2.0,
-            'minimum_confidence': 0.50,
-            'fallback_horizontal_fov_deg': 76.0,
-            'camera_yaw_offset_deg': 0.0,
-            'target_search_radius_m': 1.0,
-            'maximum_candidate_distance_m': 3.0,
-            'maximum_bearing_error_deg': 10.0,
+            # OpenCV-DNN inference on the Raspberry Pi 5 takes roughly
+            # 12--15 seconds with the current 640 px model.  These defaults
+            # deliberately cover one complete inference instead of treating
+            # the slow (but healthy) detector as unavailable.
+            'observation_sec': 20.0,
+            'minimum_detection_frames': 1,
+            'survivor_positive_frames': 1,
+            'detector_stale_timeout_sec': 30.0,
+            'detector_startup_timeout_sec': 30.0,
+            'minimum_confidence': 0.40,
             'update_rate_hz': 10.0,
             'publish_canonical_plan': False,
         }
@@ -267,9 +134,6 @@ class Mode4Inspector(Node):
             self.declare_parameter(name, value)
         self.map_frame = str(self.get_parameter('map_frame').value)
         self.base_frame = str(self.get_parameter('base_frame').value)
-        camera_info_topic = str(
-            self.get_parameter('camera_info_topic').value
-        )
         detection_topic = str(self.get_parameter('detection_topic').value)
         self.standoff_distance = float(
             self.get_parameter('standoff_distance_m').value
@@ -289,23 +153,11 @@ class Mode4Inspector(Node):
         self.detector_stale_timeout = float(
             self.get_parameter('detector_stale_timeout_sec').value
         )
+        self.detector_startup_timeout = float(
+            self.get_parameter('detector_startup_timeout_sec').value
+        )
         self.minimum_confidence = float(
             self.get_parameter('minimum_confidence').value
-        )
-        self.fallback_fov = math.radians(
-            float(self.get_parameter('fallback_horizontal_fov_deg').value)
-        )
-        self.camera_yaw_offset = math.radians(
-            float(self.get_parameter('camera_yaw_offset_deg').value)
-        )
-        self.target_search_radius = float(
-            self.get_parameter('target_search_radius_m').value
-        )
-        self.maximum_candidate_distance = float(
-            self.get_parameter('maximum_candidate_distance_m').value
-        )
-        self.maximum_bearing_error = math.radians(
-            float(self.get_parameter('maximum_bearing_error_deg').value)
         )
         update_rate = float(self.get_parameter('update_rate_hz').value)
         self.publish_canonical_plan = bool(
@@ -319,11 +171,8 @@ class Mode4Inspector(Node):
             or self.positive_frames <= 0
             or self.positive_frames > self.minimum_frames
             or self.detector_stale_timeout <= 0.0
+            or self.detector_startup_timeout <= 0.0
             or not 0.0 < self.minimum_confidence <= 1.0
-            or not 0.0 < self.fallback_fov < math.pi
-            or self.target_search_radius <= 0.0
-            or self.maximum_candidate_distance <= 0.0
-            or not 0.0 < self.maximum_bearing_error < 0.5 * math.pi
             or update_rate <= 0.0
         ):
             raise ValueError('MODE 4 inspection parameters are invalid')
@@ -341,11 +190,14 @@ class Mode4Inspector(Node):
         self.hazard_revision = 0
         self.waiting_for_departure = False
         self.phase_deadline = 0.0
+        self.detector_start_deadline = 0.0
         self.detector_status = 'UNKNOWN'
         self.last_detector_frame = float('-inf')
-        self.camera_intrinsics: Optional[CameraIntrinsics] = None
         self.frame_count = 0
-        self.max_people_in_frame = 0
+        self.person_frame_count = 0
+        self.positive_frame_count = 0
+        self.person_detection_count = 0
+        self.maximum_person_confidence = 0.0
         self.candidate_votes: Dict[int, int] = {}
 
         self.goal_publisher = self.create_publisher(
@@ -384,12 +236,6 @@ class Mode4Inspector(Node):
         )
         self.create_subscription(
             String, '/planner_state', self._planner_callback, 10
-        )
-        self.create_subscription(
-            CameraInfo,
-            camera_info_topic,
-            self._camera_info_callback,
-            qos_profile_sensor_data,
         )
         self.create_subscription(
             String, detection_topic, self._detection_callback, 10
@@ -554,26 +400,11 @@ class Mode4Inspector(Node):
             self._state('MODE4_NO_PATH_TO_STANDOFF')
             self.get_logger().warning('MODE 4 검사 지점까지 경로가 없습니다.')
 
-    def _camera_info_callback(self, message: CameraInfo) -> None:
-        if message.width <= 0 or len(message.k) < 3:
-            return
-        fx = float(message.k[0])
-        cx = float(message.k[2])
-        if math.isfinite(fx) and math.isfinite(cx) and fx > 0.0:
-            self.camera_intrinsics = CameraIntrinsics(
-                int(message.width), fx, cx
-            )
-
     def _detector_status_callback(self, message: String) -> None:
         self.detector_status = message.data.strip().upper()
 
     def _hazard_revision_callback(self, message: UInt64) -> None:
         self.hazard_revision = int(message.data)
-
-    def _intrinsics_for_image(self, image_width: int) -> CameraIntrinsics:
-        if self.camera_intrinsics is not None:
-            return scale_intrinsics(self.camera_intrinsics, image_width)
-        return fallback_intrinsics(image_width, self.fallback_fov)
 
     def _detection_callback(self, message: String) -> None:
         now = self._now()
@@ -581,50 +412,58 @@ class Mode4Inspector(Node):
         if self.phase != 'OBSERVING':
             return
         try:
-            width, _, detections = parse_detection_message(
+            _, _, detections = parse_detection_message(
                 message.data, self.minimum_confidence
             )
-            intrinsics = self._intrinsics_for_image(width)
         except ValueError as error:
             self.get_logger().warning(str(error))
             return
-        robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
-        if robot is None or self.target is None:
+        if self.target is None:
             return
+        if self.frame_count == 0:
+            # The observation duration starts with the first usable inference
+            # result, not when the enable/status message was published.
+            self.phase_deadline = now + self.observation_sec
         self.frame_count += 1
-        associations = associate_detections_to_candidates(
-            robot,
-            self.target,
-            self.observation_candidates,
-            detections,
-            intrinsics,
-            self.camera_yaw_offset,
-            self.target_search_radius,
-            self.maximum_candidate_distance,
-            self.maximum_bearing_error,
-        )
-        self.max_people_in_frame = max(
-            self.max_people_in_frame, len(associations)
-        )
-        for association in associations:
-            index = association.candidate_index
-            self.candidate_votes[index] = self.candidate_votes.get(index, 0) + 1
+        if detections:
+            self.person_frame_count += 1
+            self.person_detection_count += len(detections)
+            self.maximum_person_confidence = max(
+                self.maximum_person_confidence,
+                max(detection.confidence for detection in detections),
+            )
+        # The robot has already stopped with its goal yaw facing ``target``.
+        # Field operation guarantees that a second person/dynamic object will
+        # not share this camera frame, so any stable person detection belongs
+        # to the one red point currently being inspected.  Deliberately avoid
+        # camera-FOV, pixel-bearing, and LiDAR-angle gates here.
+        if detections:
+            self.positive_frame_count += 1
+            self.candidate_votes[0] = self.candidate_votes.get(0, 0) + 1
+        # A positive person result is conclusive in the field scenario: the
+        # robot has stopped facing the one red candidate and no second person
+        # shares the frame.  Finish immediately so another 12--15 second Pi
+        # inference is not required before turning the marker blue.
+        if (
+            self.frame_count >= self.minimum_frames
+            and self.positive_frame_count >= self.positive_frames
+        ):
+            self._finish_observation()
 
     def _start_observation(self) -> None:
         assert self.target is not None
         self.phase = 'OBSERVING'
-        self.phase_deadline = self._now() + self.observation_sec
-        self.observation_candidates = list(self.candidates)
-        if not any(
-            math.hypot(point[0] - self.target[0], point[1] - self.target[1])
-            < 0.05
-            for point in self.observation_candidates
-        ):
-            self.observation_candidates = list(self.observation_candidates) + [
-                self.target
-            ]
+        now = self._now()
+        self.phase_deadline = float('inf')
+        self.detector_start_deadline = now + self.detector_startup_timeout
+        # Freeze exactly the selected red point.  Other red candidates in the
+        # scene must never receive this camera result.
+        self.observation_candidates = [self.target]
         self.frame_count = 0
-        self.max_people_in_frame = 0
+        self.person_frame_count = 0
+        self.positive_frame_count = 0
+        self.person_detection_count = 0
+        self.maximum_person_confidence = 0.0
         self.candidate_votes = {}
         self._state('MODE4_CAMERA_YOLO_OBSERVING')
         self.get_logger().warning(
@@ -633,8 +472,12 @@ class Mode4Inspector(Node):
 
     def _finish_observation(self) -> None:
         now = self._now()
+        # The detector publishes the result immediately before its ONLINE
+        # status.  A valid, fresh payload is therefore stronger evidence than
+        # the asynchronously delivered status value and avoids rejecting the
+        # first successful inference due to topic callback ordering.
         detector_online = (
-            self.detector_status == 'ONLINE'
+            self.frame_count > 0
             and now - self.last_detector_frame <= self.detector_stale_timeout
         )
         if not detector_online or self.frame_count < self.minimum_frames:
@@ -644,18 +487,33 @@ class Mode4Inspector(Node):
                 '[MODE 4] 카메라/YOLO 데이터 없음 - 판정 보류, 빨간 점 유지'
             )
             return
+        self._state(
+            'MODE4_DETECTION_SUMMARY:'
+            f'FRAMES={self.frame_count}:'
+            f'PERSON_FRAMES={self.person_frame_count}:'
+            f'VOTE_FRAMES={self.positive_frame_count}:'
+            f'DETECTIONS={self.person_detection_count}:'
+            f'MAX_CONF={self.maximum_person_confidence:.2f}'
+        )
         ranked = sorted(
             self.candidate_votes.items(), key=lambda item: (-item[1], item[0])
         )
         confirmed = [
             item for item in ranked if item[1] >= self.positive_frames
-        ][:self.max_people_in_frame]
+        ][:1]
         if not confirmed:
             self.classification_publisher.publish(
                 String(data='NO_SURVIVOR')
             )
             self._state('MODE4_NO_SURVIVOR:KEEP_RED')
-            self.get_logger().warning('요구조자 미감지!')
+            if self.person_frame_count == 0:
+                reason = 'YOLO 사람 박스가 confidence 기준을 넘지 못했습니다.'
+            else:
+                reason = (
+                    'YOLO 사람 박스의 연속 검출 투표가 기준 횟수보다 '
+                    '부족했습니다.'
+                )
+            self.get_logger().warning(f'요구조자 미감지: {reason}')
             self.phase = 'COMPLETE'
             return
         labels = []
@@ -685,8 +543,13 @@ class Mode4Inspector(Node):
             self._try_start_inspection()
         elif self.phase == 'SETTLING' and self._now() >= self.phase_deadline:
             self._start_observation()
-        elif self.phase == 'OBSERVING' and self._now() >= self.phase_deadline:
-            self._finish_observation()
+        elif self.phase == 'OBSERVING':
+            now = self._now()
+            if self.frame_count == 0:
+                if now >= self.detector_start_deadline:
+                    self._finish_observation()
+            elif now >= self.phase_deadline:
+                self._finish_observation()
 
 
 def main(args=None) -> None:

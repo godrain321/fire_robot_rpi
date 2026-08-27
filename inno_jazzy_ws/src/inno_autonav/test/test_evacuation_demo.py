@@ -6,6 +6,7 @@ from inno_autonav.evacuation_demo import (
     MovingCandidateTracker,
     build_next_exploration_decision,
     nearest_exit_obstacle_candidate,
+    nearest_uninspected_candidate,
     parse_activation_response,
     parse_mode3_classification,
     parse_mode4_classification,
@@ -23,6 +24,7 @@ from inno_autonav.exit_evaluator import ExitEvaluation, ExitEvaluationBatch
         (("ACTIVE", "READY", "", "5:EVACUATION_DEMO", False), "SEARCH_EXITS:WAITING_FOR_MANAGER"),
         (("ACTIVE", "READY", "READY", "5:EVACUATION_DEMO", False), "SEARCH_EXITS:WAITING_FOR_EVALUATION_SERVICE"),
         (("ACTIVE_THERMAL_ONLY", "READY", "READY", "5:EVACUATION_DEMO", True), "SEARCH_EXITS"),
+        (("ACTIVE_STATIC_DYNAMIC_ONLY", "READY", "READY", "5:EVACUATION_DEMO", True), "SEARCH_EXITS"),
     ],
 )
 def test_startup_state(values, expected):
@@ -103,6 +105,22 @@ def test_only_candidate_near_exit_or_approach_is_selected():
         0.5,
     )
     assert selected == (1.8, 0.0)
+
+
+def test_closest_uninspected_candidate_is_selected_from_multiple_red_points():
+    selected = nearest_uninspected_candidate(
+        [(4.0, 0.0), (1.2, 0.0), (2.0, 0.0)],
+        (0.0, 0.0),
+        inspected_positions=[(1.0, 0.0)],
+        suppression_radius_m=0.5,
+    )
+    assert selected == (2.0, 0.0)
+
+
+def test_uninspected_candidate_rejects_invalid_robot_pose_and_radius():
+    assert nearest_uninspected_candidate([(1.0, 0.0)], None) is None
+    with pytest.raises(ValueError):
+        nearest_uninspected_candidate([(1.0, 0.0)], (0.0, 0.0), (), 0.0)
 
 
 @pytest.mark.parametrize(

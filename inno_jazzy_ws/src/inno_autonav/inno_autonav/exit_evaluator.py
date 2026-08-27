@@ -384,7 +384,9 @@ def exit_evaluator_readiness(
         return "HAZARD_GEOMETRY_MISMATCH"
     if snapshot.geometry.frame_id.lstrip("/") != str(map_frame).lstrip("/"):
         return "HAZARD_FRAME_MISMATCH"
-    if hazard_status not in {"ACTIVE", "ACTIVE_THERMAL_ONLY"}:
+    if hazard_status not in {
+        "ACTIVE", "ACTIVE_THERMAL_ONLY", "ACTIVE_STATIC_DYNAMIC_ONLY",
+    }:
         return "HAZARD_NOT_READY:" + (hazard_status or "NO_STATUS")
     return "READY"
 

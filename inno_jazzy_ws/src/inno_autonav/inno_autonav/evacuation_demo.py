@@ -13,7 +13,9 @@ from .evacuation_planner import (
 )
 
 
-ACTIVE_HAZARD_STATES = frozenset({"ACTIVE", "ACTIVE_THERMAL_ONLY"})
+ACTIVE_HAZARD_STATES = frozenset({
+    "ACTIVE", "ACTIVE_THERMAL_ONLY", "ACTIVE_STATIC_DYNAMIC_ONLY",
+})
 
 
 @dataclass(frozen=True)
@@ -243,6 +245,50 @@ def nearest_exit_obstacle_candidate(
         if distance <= radius:
             matches.append((distance, candidate))
     return None if not matches else min(matches)[1]
+
+
+def nearest_uninspected_candidate(
+    candidates,
+    robot_position_world,
+    inspected_positions=(),
+    suppression_radius_m: float = 1.0,
+) -> tuple[float, float] | None:
+    """Choose the closest finite candidate that has not already been checked.
+
+    The Mode 5 orchestrator uses this before it changes drive mode, so one
+    target is locked for the whole approach/classification transaction.  A
+    spatial suppression radius prevents a stationary red obstacle from
+    immediately starting the same inspection again after Mode 5 resumes.
+    """
+    radius = float(suppression_radius_m)
+    if not math.isfinite(radius) or radius <= 0.0:
+        raise ValueError("suppression_radius_m must be finite and positive")
+    try:
+        robot = tuple(float(value) for value in robot_position_world)
+    except (TypeError, ValueError):
+        return None
+    if len(robot) != 2 or not all(math.isfinite(value) for value in robot):
+        return None
+    inspected = []
+    for value in inspected_positions:
+        try:
+            point = tuple(float(item) for item in value)
+        except (TypeError, ValueError):
+            continue
+        if len(point) == 2 and all(math.isfinite(item) for item in point):
+            inspected.append(point)
+    eligible = []
+    for value in candidates:
+        try:
+            point = tuple(float(item) for item in value)
+        except (TypeError, ValueError):
+            continue
+        if len(point) != 2 or not all(math.isfinite(item) for item in point):
+            continue
+        if any(math.dist(point, old) <= radius for old in inspected):
+            continue
+        eligible.append((math.dist(robot, point), point))
+    return None if not eligible else min(eligible)[1]
 
 
 def parse_mode3_classification(value: str):

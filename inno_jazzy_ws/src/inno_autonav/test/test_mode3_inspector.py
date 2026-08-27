@@ -8,7 +8,6 @@ from inno_autonav.mode3_inspector import (
     Mode3Inspector,
     PresenceEvidence,
     compute_inspection_goal,
-    is_at_standoff,
     parse_inspection_command,
     select_nearest_candidate,
 )
@@ -40,6 +39,12 @@ class _Tf:
         return 0.0, 0.0, 0.0
 
 
+class _TfAtInspectionGoal:
+    @staticmethod
+    def lookup_pose_2d(_map_frame, _base_frame):
+        return 0.45, 0.0, 0.0
+
+
 def test_select_nearest_dynamic_obstacle():
     assert select_nearest_candidate(0.0, 0.0, [(4.0, 0.0), (2.0, 1.0)]) == (
         2.0,
@@ -65,11 +70,6 @@ def test_mode5_can_request_an_explicit_two_metre_inspection_target():
         0.0, 0.0, 0.0, target[0], target[1], 2.0
     )
     assert math.isclose(math.dist((goal_x, goal_y), target), 2.0)
-
-
-def test_standoff_tolerance_accepts_stationary_field_check():
-    assert is_at_standoff(0.0, 0.0, 1.5, 0.0, 2.0, 0.6)
-    assert not is_at_standoff(0.0, 0.0, 1.3, 0.0, 2.0, 0.6)
 
 
 def test_presence_requires_online_samples_at_expected_distance():
@@ -135,7 +135,9 @@ def test_mode5_mode3_publishes_only_canonical_plan_with_inspection_yaw():
     inspector.candidates = []
     inspector.requested_target = (4.0, 0.0)
     inspector.standoff_distance = 2.0
-    inspector.standoff_arrival_tolerance = 0.6
+    inspector.standoff_arrival_tolerance = 0.3
+    inspector.minimum_approach_goal_distance = 0.45
+    inspector.minimum_safe_standoff = 0.60
     inspector.publish_canonical_plan = True
     inspector.hazard_revision = 7
     inspector.goal_publisher = _Publisher()
@@ -153,7 +155,7 @@ def test_mode5_mode3_publishes_only_canonical_plan_with_inspection_yaw():
     assert payload['selected_approach_yaw_rad'] == 0.0
 
 
-def test_mode3_already_at_standoff_skips_navigation_and_starts_settling():
+def test_mode3_near_standoff_still_publishes_a_real_approach_plan():
     inspector = object.__new__(Mode3Inspector)
     inspector.drive_mode = 3
     inspector.phase = 'WAITING_FOR_OBSTACLE'
@@ -163,7 +165,9 @@ def test_mode3_already_at_standoff_skips_navigation_and_starts_settling():
     inspector.candidates = [(1.5, 0.0)]
     inspector.requested_target = None
     inspector.standoff_distance = 2.0
-    inspector.standoff_arrival_tolerance = 0.6
+    inspector.standoff_arrival_tolerance = 0.3
+    inspector.minimum_approach_goal_distance = 0.45
+    inspector.minimum_safe_standoff = 0.60
     inspector.robot_settle_sec = 2.0
     inspector.publish_canonical_plan = True
     inspector.hazard_revision = 0
@@ -177,11 +181,45 @@ def test_mode3_already_at_standoff_skips_navigation_and_starts_settling():
     inspector.get_logger = lambda: type(
         '_Logger', (), {'info': lambda self, _message: None}
     )()
+    inspector.get_clock = lambda: _Clock()
 
     inspector._try_start_inspection()
 
+    assert inspector.phase == 'NAVIGATING'
+    assert inspector.approach_started is False
+    assert inspector.waiting_for_departure is True
+    assert states[-1].startswith('MODE3_APPROACHING:')
+    assert inspector.goal_publisher.messages == []
+    payload = json.loads(inspector.plan_publisher.messages[-1].data)
+    assert math.isclose(payload['selected_approach_position_world'][0], 0.45)
+    assert math.isclose(inspector.active_standoff_distance, 1.05)
+
+
+def test_mode3_does_not_observe_until_following_and_arrival_are_confirmed():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.drive_mode = 3
+    inspector.phase = 'NAVIGATING'
+    inspector.waiting_for_departure = True
+    inspector.approach_started = False
+    inspector.map_frame = 'map'
+    inspector.base_frame = 'base_link'
+    inspector.target = (1.5, 0.0)
+    inspector.active_standoff_distance = 1.05
+    inspector.standoff_arrival_tolerance = 0.30
+    inspector.robot_settle_sec = 2.0
+    inspector.tf = _TfAtInspectionGoal()
+    inspector.cancel_publisher = _Publisher()
+    inspector._now = lambda: 10.0
+    states = []
+    inspector._state = states.append
+
+    inspector._follower_callback(String(data='PATH_ACCEPTED'))
+    inspector._follower_callback(String(data='GOAL_REACHED'))
+    assert inspector.phase == 'NAVIGATING'
+    assert states == []
+
+    inspector._follower_callback(String(data='FOLLOWING_PATH'))
+    inspector._follower_callback(String(data='GOAL_REACHED'))
     assert inspector.phase == 'SETTLING'
     assert inspector.phase_deadline == 12.0
     assert states[-1] == 'MODE3_AT_STANDOFF:ROBOT_SETTLING'
-    assert inspector.goal_publisher.messages == []
-    assert inspector.plan_publisher.messages == []

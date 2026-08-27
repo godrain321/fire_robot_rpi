@@ -80,7 +80,7 @@ class KeyboardCmdVelDemo(Node):
         self.get_logger().info(
             'Keyboard ready: 1=manual, 2=select named waypoints, '
             '3=mmWave inspection, 4=camera+LiDAR inspection, '
-            '5=automatic evacuation demo (launch controlled), '
+            '5=automatic evacuation demo, '
             'SPACE=start/next, '
             'c=cancel mission, w/x/a/d/s, q=quit'
         )
@@ -197,7 +197,7 @@ class KeyboardCmdVelDemo(Node):
 
         command = Twist()
         label = None
-        if key in ('1', '2', '3', '4'):
+        if key in ('1', '2', '3', '4', '5'):
             previous_mode = self.drive_mode
             self.autonomy_cancel_publisher.publish(Empty())
             # Clear any stale planner goal before selecting/reselecting the
@@ -216,8 +216,10 @@ class KeyboardCmdVelDemo(Node):
                 label = 'MODE 2: NAMED WAYPOINT STEP MISSION'
             elif self.drive_mode == 3:
                 label = 'MODE 3: MMWAVE OBSTACLE INSPECTION'
-            else:
+            elif self.drive_mode == 4:
                 label = 'MODE 4: CAMERA + LIDAR SURVIVOR INSPECTION'
+            else:
+                label = 'MODE 5: AUTOMATIC EVACUATION DEMO'
             self.get_logger().info(label)
             if self.drive_mode == 2:
                 self._begin_waypoint_input()
@@ -244,7 +246,7 @@ class KeyboardCmdVelDemo(Node):
                 )
             return
         if key == 'c':
-            if self.drive_mode in (3, 4, 5):
+            if self.drive_mode in (2, 3, 4, 5):
                 cancelled_mode = self.drive_mode
                 self._stop_all_motion()
                 self.get_logger().warning(
@@ -252,10 +254,6 @@ class KeyboardCmdVelDemo(Node):
                     'zero velocity and MODE 1 selected'
                 )
                 return
-            self.waypoint_command_publisher.publish(
-                String(data='MODE2_CANCEL')
-            )
-            self.get_logger().info('Requested MODE 2 mission cancel')
             return
         if key == 's' and self.drive_mode != 1:
             self._stop_all_motion()
