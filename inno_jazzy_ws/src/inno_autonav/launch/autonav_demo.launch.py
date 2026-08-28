@@ -100,16 +100,12 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 'event_replanning_enabled', default_value='false'
             ),
-            # Auto-connected to event_replanning_enabled so the default
-            # configuration can never have both the timer/dirty-grid periodic
-            # A* in astar_replanner and Stage 6 event-driven replanning making
-            # decisions at once. Passing this explicitly still overrides the
-            # derived default if a launch invocation genuinely needs to.
+            # Stage 7 is event/dirty driven by default. This remains an explicit
+            # compatibility switch for field diagnostics that require legacy
+            # unconditional periodic A*.
             DeclareLaunchArgument(
                 'astar_periodic_replanning_enabled',
-                default_value=PythonExpression([
-                    "'false' if '", event_replanning_enabled, "' == 'true' else 'true'"
-                ]),
+                default_value='false',
             ),
             DeclareLaunchArgument(
                 'exit_switching_enabled', default_value='false'

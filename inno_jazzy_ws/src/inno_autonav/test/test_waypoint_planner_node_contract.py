@@ -160,6 +160,31 @@ def test_waypoint_path_poses_follow_the_simplified_route_order():
     assert xs == sorted(xs)  # monotonically progresses along the line toward the exit
 
 
+def test_blocked_final_waypoint_to_goal_connector_publishes_no_path():
+    waypoints = {"W0": (0.5, 0.5), "W1": (1.5, 0.5)}
+    value = node(waypoints)
+    message = occupancy_grid_message(size=6)
+    message.data[2] = 100  # (2, 0), between W1 and the exact goal
+    WaypointPlannerNode._on_plan(
+        value, String(data=plan_payload("EXIT1", (3.5, 0.5)))
+    )
+    WaypointPlannerNode._on_grid(value, message)
+    assert value.waypoint_path_publisher.messages
+    assert not value.waypoint_path_publisher.messages[-1].poses
+
+
+def test_start_inside_inflated_area_keeps_existing_waypoint_escape_behavior():
+    waypoints = {"W0": (2.5, 0.5), "W1": (3.5, 0.5)}
+    value = node(waypoints, pose=(0.5, 0.5))
+    message = occupancy_grid_message(size=6)
+    message.data[0] = 100  # robot start blocked; safe waypoint route is clear
+    WaypointPlannerNode._on_plan(
+        value, String(data=plan_payload("EXIT1", (3.5, 0.5)))
+    )
+    WaypointPlannerNode._on_grid(value, message)
+    assert value.waypoint_path_publisher.messages[-1].poses
+
+
 def test_mode3_inspection_yaw_reaches_final_waypoint_pose():
     value = node(small_waypoints())
     WaypointPlannerNode._on_plan(value, String(data=plan_payload(

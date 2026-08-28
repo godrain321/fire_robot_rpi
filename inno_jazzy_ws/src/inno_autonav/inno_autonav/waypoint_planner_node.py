@@ -24,7 +24,8 @@ from std_msgs.msg import Empty, String
 from visualization_msgs.msg import Marker, MarkerArray
 
 from .astar_replanner import message_to_grid
-from .grid_utils import quaternion_from_yaw
+from .grid_utils import quaternion_from_yaw, world_to_grid
+from .safe_path_simplifier import segment_is_safe
 from .replan_supervisor import parse_active_goal_payload
 from .replan_supervisor import ActiveGoal
 from .tf_utils import TfHelper
@@ -256,6 +257,23 @@ class WaypointPlannerNode(Node):
             return False, simplification.detail
 
         points = [self.waypoints_world[wid] for wid in simplification.simplified_ids]
+        goal_connector_start = world_to_grid(points[-1][0], points[-1][1], self.grid)
+        goal_cell = world_to_grid(
+            self.active_goal.approach_world[0],
+            self.active_goal.approach_world[1],
+            self.grid,
+        )
+        if not segment_is_safe(
+            goal_connector_start,
+            goal_cell,
+            self.grid.data,
+            self.simplifier_config.unknown_is_occupied,
+        ):
+            self.get_logger().error(
+                "final waypoint-to-goal connector crosses blocked planning grid"
+            )
+            self._publish_empty_path()
+            return False, "GOAL_CONNECTOR_BLOCKED"
         points.append(self.active_goal.approach_world)
         self._publish_path(
             points,

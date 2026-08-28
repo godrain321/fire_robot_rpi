@@ -30,14 +30,22 @@ class Publisher:
 
 def fake_astar_node():
     calls = []
+    clock = SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_000_000_000))
     value = SimpleNamespace(
-        goal=None, _dirty=False, periodic_replanning_enabled=False,
+        goal=None, _dirty=False, _replan_requested=False,
+        _replan_reason="", _planning=False,
+        goal_duplicate_tolerance=0.01, periodic_replanning_enabled=False,
+        replan_rate=1.0, _last_plan=0.0,
         map_frame="map", state_publisher=Publisher(),
-        get_logger=lambda: SimpleNamespace(error=lambda *a, **k: None),
+        get_logger=lambda: SimpleNamespace(
+            error=lambda *a, **k: None, debug=lambda *a, **k: None
+        ),
+        get_clock=lambda: clock,
     )
     value.calls = calls
     value._plan = lambda reason: calls.append(reason)
     value._state = MethodType(AstarReplanner._state, value)
+    value._same_goal = MethodType(AstarReplanner._same_goal, value)
     return value
 
 
@@ -113,8 +121,7 @@ def test_7_unsafe_revision_change_causes_exactly_one_plan_via_same_goal():
     assert out.publish_goal == GOAL.approach_world
 
     # This is exactly what replan_supervisor_node._publish() does with a
-    # non-None publish_goal: republish /goal_pose, which astar_replanner answers
-    # synchronously and immediately regardless of periodic_replanning_enabled.
+    # non-None publish_goal. A distinct first goal plans immediately.
     deliver_goal(astar, out.publish_goal)
     assert astar.calls == ["NEW_GOAL"]
 

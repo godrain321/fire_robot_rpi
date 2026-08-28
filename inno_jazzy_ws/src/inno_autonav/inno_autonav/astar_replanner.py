@@ -101,7 +101,11 @@ class AstarReplanner(Node):
             'base_frame': 'base_link',
             'unknown_is_occupied': True,
             'replan_rate_hz': 1.0,
-            'periodic_replanning_enabled': True,
+            'periodic_replanning_enabled': False,
+            'replan_on_thermal_update': True,
+            'replan_on_dynamic_update': True,
+            'path_replan_thermal_threshold': 60,
+            'goal_duplicate_tolerance_m': 0.01,
             # Stage 8-8: defaults to the original topic so Stage 1-7 behavior is
             # byte-identical when the waypoint planning pipeline is disabled.
             # The launch file overrides this to /astar_path only when
@@ -152,6 +156,18 @@ class AstarReplanner(Node):
         self.replan_rate = float(self.get_parameter('replan_rate_hz').value)
         self.periodic_replanning_enabled = bool(
             self.get_parameter('periodic_replanning_enabled').value
+        )
+        self.replan_on_thermal_update = bool(
+            self.get_parameter('replan_on_thermal_update').value
+        )
+        self.replan_on_dynamic_update = bool(
+            self.get_parameter('replan_on_dynamic_update').value
+        )
+        self.path_replan_thermal_threshold = int(
+            self.get_parameter('path_replan_thermal_threshold').value
+        )
+        self.goal_duplicate_tolerance = float(
+            self.get_parameter('goal_duplicate_tolerance_m').value
         )
         self.clearance_radius = float(
             self.get_parameter('path_block_check_radius').value
@@ -246,6 +262,7 @@ class AstarReplanner(Node):
             self.co_blocked_ppm, self.co_cost_weight, self.co_cost_power,
             self.simplification_maximum_risk_ratio,
             self.simplification_risk_absolute_tolerance,
+            self.goal_duplicate_tolerance,
         )
         if (not all(math.isfinite(value) for value in numeric_parameters)
                 or self.replan_rate <= 0.0 or self.clearance_radius < 0.0
@@ -258,7 +275,9 @@ class AstarReplanner(Node):
                 or self.co_cost_weight < 0.0
                 or self.co_cost_power <= 0.0
                 or self.simplification_maximum_risk_ratio < 1.0
-                or self.simplification_risk_absolute_tolerance < 0.0):
+                or self.simplification_risk_absolute_tolerance < 0.0
+                or self.goal_duplicate_tolerance < 0.0
+                or not 0 <= self.path_replan_thermal_threshold <= 100):
             raise ValueError(
                 'rate/power는 양수, radius/timeout/weight/CO는 0 이상, '
                 'co_blocked_ppm은 co_safe_ppm보다 커야 하고, '
@@ -301,6 +320,9 @@ class AstarReplanner(Node):
         self.current_simplified_cells: List[Cell] = []
         self.current_path_total_cost = math.inf
         self._dirty = False
+        self._replan_requested = False
+        self._replan_reason = ''
+        self._planning = False
         self._last_plan = 0.0
         self._last_published_path_stamp_ns: Optional[int] = None
         self._last_emitted_path_stamp_ns = -1
@@ -407,13 +429,16 @@ class AstarReplanner(Node):
         if self.static_grid is not None and not self._same_geometry(self.static_grid, grid):
             self.get_logger().error('dynamic grid geometry가 static grid와 다릅니다.')
             return
-        changed = self.dynamic_grid is None or not np.array_equal(
-            self.dynamic_grid.data, grid.data
-        )
+        previous = self.dynamic_grid
+        changed = previous is None or not np.array_equal(previous.data, grid.data)
         self.dynamic_grid = grid
         if changed and self.drive_mode not in self.ignore_dynamic_modes:
             self._dirty = True
             self._combine_and_publish()
+            if self.replan_on_dynamic_update and self._new_dynamic_block_on_path(
+                previous, grid
+            ):
+                self._request_replan('DYNAMIC_PATH_BLOCKED')
 
     def _mode_callback(self, message: Int32) -> None:
         mode = int(message.data)
@@ -442,15 +467,18 @@ class AstarReplanner(Node):
             self._publish_empty_path()
             self.get_logger().error('thermal grid geometry가 static grid와 다릅니다.')
             return
-        changed = self.thermal_grid is None or not np.array_equal(
-            self.thermal_grid.data, grid.data
-        )
+        previous = self.thermal_grid
+        changed = previous is None or not np.array_equal(previous.data, grid.data)
         self.thermal_grid = grid
         self.thermal_received_ns = self.get_clock().now().nanoseconds
         self.thermal_geometry_mismatch = False
         if changed:
             self._dirty = True
             self._combine_and_publish()
+            if self.replan_on_thermal_update and self._thermal_path_risk_increased(
+                previous, grid
+            ):
+                self._request_replan('THERMAL_PATH_RISK_INCREASED')
 
     def _thermal_status_callback(self, message: String) -> None:
         if self.hazard_belief_enabled:
@@ -567,9 +595,96 @@ class AstarReplanner(Node):
                 f'goal frame={message.header.frame_id!r}; {self.map_frame!r}만 지원합니다.'
             )
             return
+        if self._same_goal(self.goal, message):
+            if not (self._replan_requested or self._dirty):
+                self.get_logger().debug('동일한 /goal_pose 반복 수신을 무시합니다.')
+                return
+            # A supervisor may republish the active goal to request a replan.
+            # Queue it instead of bypassing the same rate limiter used by grid
+            # events; the supervisor has already asserted follower hold.
+            self._request_replan('SAME_GOAL_EVENT')
+            return
         self.goal = message
         self._dirty = True
         self._plan('NEW_GOAL')
+
+    def _same_goal(
+        self, first: Optional[PoseStamped], second: PoseStamped
+    ) -> bool:
+        if first is None:
+            return False
+        return math.hypot(
+            first.pose.position.x - second.pose.position.x,
+            first.pose.position.y - second.pose.position.y,
+        ) <= self.goal_duplicate_tolerance
+
+    def _remaining_path_cells(self, grid: MapGrid) -> List[Cell]:
+        cells = list(self.current_path_cells)
+        tf = getattr(self, 'tf', None)
+        if not cells or tf is None:
+            return cells
+        pose = tf.lookup_pose_2d(self.map_frame, self.base_frame)
+        if pose is None:
+            return cells
+        robot = world_to_grid(pose[0], pose[1], grid)
+        nearest = min(
+            range(len(cells)),
+            key=lambda index: (
+                (cells[index][0] - robot[0]) ** 2
+                + (cells[index][1] - robot[1]) ** 2
+            ),
+        )
+        return cells[nearest:]
+
+    def _path_values(
+        self, grid: Optional[MapGrid], path_cells: Optional[List[Cell]] = None
+    ) -> np.ndarray:
+        if grid is None or not self.current_path_cells:
+            return np.asarray([], dtype=float)
+        values = []
+        for col, row in (
+            self.current_path_cells if path_cells is None else path_cells
+        ):
+            if 0 <= col < grid.width and 0 <= row < grid.height:
+                values.append(float(grid.data[row, col]))
+        return np.asarray(values, dtype=float)
+
+    def _new_dynamic_block_on_path(
+        self, previous: Optional[MapGrid], current: MapGrid
+    ) -> bool:
+        cells = self._remaining_path_cells(current)
+        current_values = self._path_values(current, cells)
+        if current_values.size == 0:
+            return False
+        previous_values = self._path_values(previous, cells)
+        if previous_values.size != current_values.size:
+            return bool(np.any(current_values >= 100.0))
+        return bool(np.any((current_values >= 100.0) & (previous_values < 100.0)))
+
+    def _thermal_path_risk_increased(
+        self, previous: Optional[MapGrid], current: MapGrid
+    ) -> bool:
+        cells = self._remaining_path_cells(current)
+        current_values = self._path_values(current, cells)
+        if current_values.size == 0:
+            return False
+        previous_values = self._path_values(previous, cells)
+        threshold = float(self.path_replan_thermal_threshold)
+        if previous_values.size != current_values.size:
+            return bool(np.any(current_values >= threshold))
+        newly_blocked = (current_values >= 100.0) & (previous_values < 100.0)
+        crossed_threshold = (
+            (current_values >= threshold)
+            & (previous_values < threshold)
+            & (current_values > previous_values)
+        )
+        return bool(np.any(newly_blocked | crossed_threshold))
+
+    def _request_replan(self, reason: str) -> None:
+        if self.goal is None:
+            return
+        self._replan_requested = True
+        self._replan_reason = reason
 
     def _replan_request_callback(self, message: String) -> None:
         try:
@@ -600,22 +715,31 @@ class AstarReplanner(Node):
         self.goal = None
         self.current_path_cells = []
         self._dirty = False
+        self._replan_requested = False
+        self._replan_reason = ''
         self._publish_empty_path()
         self._state('CANCELLED')
 
     def _timer_callback(self) -> None:
-        if not self.periodic_replanning_enabled:
-            # Stage 6 (replan_supervisor_node) owns replan timing when this is
-            # false: it decides whether the active path is still safe and, if
-            # not, republishes /goal_pose itself -- which _goal_callback below
-            # still answers immediately. Neither a plain tick nor a dirty grid
-            # may trigger A* on their own in that mode.
-            return
         if self.goal is None:
             return
-        # Periodic replanning also corrects for robot motion, even without grid changes.
-        reason = 'GRID_UPDATE' if self._dirty else 'PERIODIC'
-        self._plan(reason)
+        if self._planning:
+            return
+        if self._replan_requested:
+            now = self.get_clock().now().nanoseconds / 1_000_000_000.0
+            if now - self._last_plan < 1.0 / self.replan_rate:
+                return
+            reason = self._replan_reason or 'GRID_UPDATE'
+            # Consume the coalesced request before planning. A failed plan
+            # publishes an empty path (STOP) and waits for a genuinely new
+            # grid/goal event; supervisor-owned operation retains its existing
+            # bounded retry/backoff state machine.
+            self._replan_requested = False
+            self._replan_reason = ''
+            self._plan(reason)
+            return
+        if self.periodic_replanning_enabled:
+            self._plan('PERIODIC')
 
     def _thermal_failure(self) -> Optional[str]:
         if self.hazard_belief_enabled:
@@ -645,6 +769,15 @@ class AstarReplanner(Node):
         )
 
     def _plan(self, reason: str) -> bool:
+        if self._planning:
+            return False
+        self._planning = True
+        try:
+            return self._plan_once(reason)
+        finally:
+            self._planning = False
+
+    def _plan_once(self, reason: str) -> bool:
         planning_grid = (
             self.hazard_grid if self.hazard_belief_enabled
             else self.combined_grid
@@ -678,7 +811,7 @@ class AstarReplanner(Node):
             self.get_logger().error(f'start={start} 또는 goal={goal}이 지도 밖입니다.')
             self._publish_empty_path()
             return False
-        if reason == 'GRID_UPDATE' and self.current_path_cells:
+        if reason not in ('NEW_GOAL', 'PERIODIC') and self.current_path_cells:
             if path_cells_collision(
                 self.current_path_cells,
                 planning_grid.data,
@@ -779,6 +912,8 @@ class AstarReplanner(Node):
         self.current_simplified_cells = simplified
         self.current_path_total_cost = result.total_cost
         self._dirty = False
+        self._replan_requested = False
+        self._replan_reason = ''
         self._last_plan = self.get_clock().now().nanoseconds / 1_000_000_000.0
         self._publish_path(simplified)
         self._state('PATH_READY')

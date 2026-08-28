@@ -78,13 +78,16 @@ astar_replanner:
     base_frame: base_link
     unknown_is_occupied: true
     replan_rate_hz: 1.0
-    # false hands "when to replan" entirely to replan_supervisor_node (Stage 6):
-    # neither a plain timer tick nor a dirty/changed grid triggers A* on its
-    # own -- only /goal_pose (new goal, or the same goal republished by the
-    # supervisor) does. Stays true so Stage 1-5 behavior is unchanged unless
-    # something (normally the launch file, when event_replanning_enabled) sets
-    # it false.
-    periodic_replanning_enabled: true
+    # False disables unconditional timer replans. Path-affecting thermal/dynamic
+    # callbacks below can still queue event replans; replan_supervisor_node may
+    # additionally request the same active goal while keeping the follower held.
+    # Grid callbacks only request work when the active path is affected. The
+    # 1 Hz timer coalesces fast thermal/dynamic updates into one A* execution.
+    periodic_replanning_enabled: false
+    replan_on_thermal_update: true
+    replan_on_dynamic_update: true
+    path_replan_thermal_threshold: 60
+    goal_duplicate_tolerance_m: 0.01
     # Stage 8-8: stays /planned_path so Stage 1-7 launches are byte-identical
     # when the waypoint planning pipeline is disabled. The launch file
     # overrides this to /astar_path only when waypoint_planning_enabled is
@@ -98,7 +101,9 @@ astar_replanner:
     direct_planning_modes: [3, 4]
     replan_request_topic: /replanning/astar_request
     replan_result_topic: /replanning/astar_result
-    path_block_check_radius: 0.20
+    # Common static-obstacle clearance applied to /planning_grid before both
+    # waypoint-route validation and cell-A* fallback planning.
+    path_block_check_radius: 0.80
     start_clearance_radius: 0.18
     allow_diagonal: true
     thermal_grid_topic: /thermal_cost_grid
