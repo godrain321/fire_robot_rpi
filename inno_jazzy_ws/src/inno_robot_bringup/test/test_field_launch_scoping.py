@@ -84,3 +84,26 @@ def test_mode4_camera_defaults_keep_inference_warm_on_pi():
     assert default('yolo_model_path').endswith(
         'models/yolov8n_best_opencv_640.onnx'
     )
+
+
+def test_mode3_audio_is_enabled_with_safe_usb_auto_detection():
+    description = _load_field_launch_module().generate_launch_description()
+    declared = {
+        entity.name: entity
+        for entity in description.entities
+        if isinstance(entity, DeclareLaunchArgument)
+    }
+    context = LaunchContext()
+
+    def default(name):
+        return perform_substitutions(context, declared[name].default_value)
+
+    assert default('use_mode3_audio') == 'true'
+    assert default('mode3_audio_directory') == '~/fire_robot_audio'
+    assert default('mode3_audio_device') == 'auto'
+    assert default('mode3_audio_volume_percent') == '100'
+    assert any(
+        isinstance(entity, Node)
+        and entity.node_executable == 'mode3_audio_guide'
+        for entity in description.entities
+    )

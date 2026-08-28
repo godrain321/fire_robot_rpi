@@ -84,6 +84,7 @@ declare -a topics=(
   # Mode 3/4 state machines and their inspection results.
   /mode3_status
   /mode3_classification
+  /mode3_audio_status
   /mode4_status
   /mode4_classification
   /autonomy_cancel

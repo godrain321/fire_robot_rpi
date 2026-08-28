@@ -14,6 +14,7 @@ setup(
         ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
         ("share/" + package_name + "/config", glob("config/*.yaml")),
         ("share/" + package_name + "/rviz", glob("rviz/*.rviz")),
+        ("share/" + package_name + "/audio", glob("audio/*.wav")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -30,5 +31,6 @@ setup(
         "lifecycle_autostart = inno_robot_bringup.lifecycle_autostart:main",
         "slam_keyboard_runner = inno_robot_bringup.slam_keyboard_runner:main",
         "bag_topic_preflight = inno_robot_bringup.bag_topic_preflight:main",
+        "mode3_audio_guide = inno_robot_bringup.mode3_audio_guide:main",
     ]},
 )

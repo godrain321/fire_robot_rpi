@@ -101,6 +101,14 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('use_serial', default_value='true'),
         DeclareLaunchArgument('use_camera_mode4', default_value='false'),
+        DeclareLaunchArgument('use_mode3_audio', default_value='true'),
+        DeclareLaunchArgument(
+            'mode3_audio_directory', default_value='~/fire_robot_audio'
+        ),
+        DeclareLaunchArgument('mode3_audio_device', default_value='auto'),
+        DeclareLaunchArgument(
+            'mode3_audio_volume_percent', default_value='100'
+        ),
         DeclareLaunchArgument('camera_width', default_value='1280'),
         DeclareLaunchArgument('camera_height', default_value='720'),
         DeclareLaunchArgument('use_thermal_sensor', default_value='false'),
@@ -206,6 +214,22 @@ def generate_launch_description():
         }],
         condition=IfCondition(L('use_camera_mode4')),
     )
+    mode3_audio = Node(
+        package='inno_robot_bringup',
+        executable='mode3_audio_guide',
+        name='mode3_audio_guide',
+        output='screen',
+        emulate_tty=True,
+        parameters=[{
+            'enabled': True,
+            'audio_directory': L('mode3_audio_directory'),
+            'audio_device': L('mode3_audio_device'),
+            'playback_volume_percent': ParameterValue(
+                L('mode3_audio_volume_percent'), value_type=int
+            ),
+        }],
+        condition=IfCondition(L('use_mode3_audio')),
+    )
     # autonav_demo also declares ``use_serial``.  Keep the include scoped so
     # its deliberately disabled internal bridge cannot overwrite this launch
     # file's top-level ``use_serial`` value and suppress the ESP32 bridge.
@@ -309,7 +333,7 @@ def generate_launch_description():
         args + [
             localization, auto_localization, mmwave_bringup, status_console,
             camera_bringup,
-            person_detector, navigation, keyboard, mux, serial,
+            person_detector, mode3_audio, navigation, keyboard, mux, serial,
             waypoint_queue, rviz, thermal_viewer,
         ]
     )

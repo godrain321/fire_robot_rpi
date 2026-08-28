@@ -73,6 +73,14 @@ def generate_launch_description():
         DeclareLaunchArgument("waypoint_planning_enabled", default_value="true"),
         DeclareLaunchArgument("evacuation_demo_auto_start", default_value="false"),
         DeclareLaunchArgument("use_camera_mode4", default_value="false"),
+        DeclareLaunchArgument("use_mode3_audio", default_value="true"),
+        DeclareLaunchArgument(
+            "mode3_audio_directory", default_value="~/fire_robot_audio"
+        ),
+        DeclareLaunchArgument("mode3_audio_device", default_value="auto"),
+        DeclareLaunchArgument(
+            "mode3_audio_volume_percent", default_value="100"
+        ),
         DeclareLaunchArgument(
             "yolo_model_path",
             default_value=project_path(
@@ -153,6 +161,12 @@ def generate_launch_description():
             "mode4_standoff_distance_m": "2.0",
             "mode4_publish_canonical_plan": "false",
             "use_camera_mode4": L("use_camera_mode4"),
+            "use_mode3_audio": L("use_mode3_audio"),
+            "mode3_audio_directory": L("mode3_audio_directory"),
+            "mode3_audio_device": L("mode3_audio_device"),
+            "mode3_audio_volume_percent": L(
+                "mode3_audio_volume_percent"
+            ),
             "yolo_model_path": L("yolo_model_path"),
             "yolo_confidence": L("yolo_confidence"),
             "start_thermal_viewer": "false",
