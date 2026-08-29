@@ -29,7 +29,12 @@ def hazard_snapshot_message(belief, fire_probability, *, status):
         "origin_yaw": float(belief.geometry.origin_yaw),
         "base_cost": float(belief.config.base_cost),
         "temperature_blocked_c": float(belief.config.temperature_blocked_c),
-        "co_blocked_ppm": float(belief.config.co_blocked_ppm),
+        # Stage 6: the *effective* gas blocked threshold actually used to mark
+        # cells lethal (Stage 4). In legacy_ppm mode this is co_blocked_ppm
+        # unchanged; in adc mode it is gas_blocked_adc, so every /hazard/snapshot
+        # consumer's `co_ppm >= co_blocked_ppm` check stays consistent with the
+        # `blocked` mask and the inf cells in `final_cost`.
+        "co_blocked_ppm": float(belief.config.gas_blocked_threshold),
     }
     layers = np.stack((
         belief.final_cost_map,

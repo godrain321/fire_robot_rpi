@@ -170,13 +170,23 @@ class ReplanSupervisorNode(Node):
         ):
             return
         was_enabled = self.core.enabled
-        new_config = EventReplanningConfig(
-            **{
-                **self._config_overrides,
-                "temperature_block_c": snapshot.temperature_blocked_c,
-                "co_block_ppm": snapshot.co_blocked_ppm,
-            }
-        )
+        try:
+            new_config = EventReplanningConfig(
+                **{
+                    **self._config_overrides,
+                    "temperature_block_c": snapshot.temperature_blocked_c,
+                    "co_block_ppm": snapshot.co_blocked_ppm,
+                }
+            )
+        except ValueError as exc:
+            # A snapshot's effective gas block threshold (Stage 6) can land below
+            # the configured co_release_ppm hysteresis floor if adc thresholds are
+            # left uncalibrated. Keep the previous core rather than crash the
+            # supervisor; the operator sees the warning and fixes co_release_ppm.
+            self.get_logger().warning(
+                f"keeping previous replan thresholds; snapshot rebuild invalid: {exc}"
+            )
+            return
         self.core = ReplanSupervisorCore(new_config, self.core.retry)
         self.core.set_enabled(was_enabled)
 

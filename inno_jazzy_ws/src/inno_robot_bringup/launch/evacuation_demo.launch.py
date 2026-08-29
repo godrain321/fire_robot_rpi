@@ -70,7 +70,7 @@ def generate_launch_description():
         DeclareLaunchArgument("gas_input_mode", default_value="legacy_ppm"),
         DeclareLaunchArgument("gas_safe_adc", default_value="0.0"),
         DeclareLaunchArgument("gas_blocked_adc", default_value="4096.0"),
-        DeclareLaunchArgument("thermal_x", default_value="0.10"),
+        DeclareLaunchArgument("thermal_x", default_value="0.085"),
         DeclareLaunchArgument("thermal_y", default_value="0.0"),
         DeclareLaunchArgument("thermal_z", default_value="0.20"),
         DeclareLaunchArgument("thermal_roll", default_value="0.0"),
