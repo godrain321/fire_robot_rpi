@@ -18,6 +18,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from inno_thermal.thermal_cost_geometry import GridGeometry, quaternion_to_yaw
 
+from .gas_planning_grid import gas_overlay_cells
 from .hazard_belief import HazardBelief, HazardBeliefConfig, HazardGridGeometry
 from .hazard_snapshot import hazard_snapshot_message
 from .thermal_adapter import localized_temperature_cells
@@ -47,6 +48,7 @@ class HazardBeliefNode(Node):
             "co_topic": "/hazard/co_ppm",
             "base_frame": "base_link",
             "co_enabled": False,
+            "gas_input_mode": "legacy_ppm",
             "base_cost": 1.0,
             "temperature_safe_c": 40.0,
             "temperature_blocked_c": 60.0,
@@ -54,6 +56,8 @@ class HazardBeliefNode(Node):
             "temperature_power": 1.5,
             "co_safe_ppm": 100.0,
             "co_blocked_ppm": 1600.0,
+            "gas_safe_adc": 0.0,
+            "gas_blocked_adc": 4096.0,
             "co_weight": 8.0,
             "co_power": 2.0,
             "gas_update_radius_m": 0.0,
@@ -98,8 +102,11 @@ class HazardBeliefNode(Node):
             temperature_weight=float(self.get_parameter("temperature_weight").value),
             temperature_power=float(self.get_parameter("temperature_power").value),
             co_enabled=self.co_enabled,
+            gas_input_mode=str(self.get_parameter("gas_input_mode").value),
             co_safe_ppm=float(self.get_parameter("co_safe_ppm").value),
             co_blocked_ppm=float(self.get_parameter("co_blocked_ppm").value),
+            gas_safe_adc=float(self.get_parameter("gas_safe_adc").value),
+            gas_blocked_adc=float(self.get_parameter("gas_blocked_adc").value),
             co_weight=float(self.get_parameter("co_weight").value),
             co_power=float(self.get_parameter("co_power").value),
             gas_update_radius_m=float(self.get_parameter("gas_update_radius_m").value),
@@ -151,6 +158,12 @@ class HazardBeliefNode(Node):
         )
         self.co_publisher = self.create_publisher(
             Float32MultiArray, "/hazard/co_grid", qos
+        )
+        # Stage 5: gas belief re-expressed in the raw /planning_grid encoding
+        # (0..99 ratio cost, 100 = at/above blocked threshold) so the waypoint
+        # pipeline can consume gas the same way it already consumes thermal.
+        self.gas_cost_grid_publisher = self.create_publisher(
+            OccupancyGrid, "/hazard/gas_cost_grid", qos
         )
         self.fire_publisher = self.create_publisher(
             Float32MultiArray, "/hazard/fire_probability_grid", qos
@@ -351,6 +364,26 @@ class HazardBeliefNode(Node):
         vis[self.belief.blocked_mask] = 100
         message.data = vis.astype(np.int8).reshape(-1).astype(int).tolist()
         self.vis_publisher.publish(message)
+
+        gas_grid = OccupancyGrid()
+        gas_grid.header.stamp = message.header.stamp
+        gas_grid.header.frame_id = self.frame_id
+        gas_grid.info = deepcopy(self.static_info)
+        gas_grid.data = self._gas_cost_cells()
+        self.gas_cost_grid_publisher.publish(gas_grid)
+
+    def _gas_cost_cells(self):
+        """Gas belief as a raw /planning_grid overlay (see gas_planning_grid).
+
+        Same ``(value - safe) / (blocked - safe)`` ratio encoding inno_thermal's
+        cost layer uses to hand a hazard to the planners -- the weight/power
+        stays in the planner, exactly as it does for thermal.
+        """
+        cells = gas_overlay_cells(
+            self.belief.co_belief_map, self.belief.co_observed_mask,
+            self.config.gas_safe_threshold, self.config.gas_blocked_threshold,
+        )
+        return cells.astype(np.int8).reshape(-1).astype(int).tolist()
 
 
 def main(args=None):

@@ -3,9 +3,19 @@ hazard_belief_node:
     static_grid_topic: /planning_grid_static
     dynamic_grid_topic: /dynamic_obstacle_grid
     thermal_arc_topic: /thermal/arc_points
-    co_topic: /hazard/co_ppm
+    # MQ-135 (Stage 2/3): filtered ESP32 ADC scalar, NOT ppm. The co_* thresholds
+    # below are still the thermal-era ppm placeholders; real ADC safe/blocked
+    # calibration is a later stage. Enable per-profile via the hazard_co_enabled
+    # launch argument (default off), not by flipping co_enabled here.
+    co_topic: /mq135/filtered_adc
     base_frame: base_link
     co_enabled: false
+    # Stage 4: which threshold domain the gas cost function uses.
+    #   legacy_ppm -> co_safe_ppm / co_blocked_ppm  (unchanged behaviour)
+    #   adc        -> gas_safe_adc / gas_blocked_adc, compared directly against
+    #                 the /mq135/filtered_adc scalar (NO ppm conversion).
+    # Switch to adc only together with real bench/field calibration values.
+    gas_input_mode: legacy_ppm
     base_cost: 1.0
     temperature_safe_c: 40.0
     temperature_blocked_c: 60.0
@@ -13,6 +23,11 @@ hazard_belief_node:
     temperature_power: 1.5
     co_safe_ppm: 100.0
     co_blocked_ppm: 1600.0
+    # UNCALIBRATED placeholders. 0..4096 spans the full 12-bit ESP32 ADC range,
+    # so in adc mode an uncalibrated sensor never trips the blocked threshold;
+    # replace both with measured MQ-135 values during calibration.
+    gas_safe_adc: 0.0
+    gas_blocked_adc: 4096.0
     co_weight: 8.0
     co_power: 2.0
     gas_update_radius_m: 0.0

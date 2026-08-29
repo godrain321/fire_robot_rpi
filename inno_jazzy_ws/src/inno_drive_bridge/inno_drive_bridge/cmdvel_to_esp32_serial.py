@@ -6,7 +6,7 @@ import rclpy
 import serial
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from std_msgs.msg import Int32, Int64MultiArray, String
+from std_msgs.msg import Float32, Int32, Int64MultiArray, String
 
 
 class CmdVelToEsp32Serial(Node):
@@ -60,6 +60,13 @@ class CmdVelToEsp32Serial(Node):
         )
         self.right_motor_publisher = self.create_publisher(
             Int32, '/motor/right_steps_per_sec', 10
+        )
+        # MQ-135 gas sensor readings forwarded from the ESP32 (GAS packets).
+        self.mq135_raw_publisher = self.create_publisher(
+            Int32, '/mq135/raw_adc', 10
+        )
+        self.mq135_filtered_publisher = self.create_publisher(
+            Float32, '/mq135/filtered_adc', 10
         )
         self.create_subscription(Twist, '/cmd_vel', self._cmd_vel_callback, 10)
 
@@ -217,6 +224,18 @@ class CmdVelToEsp32Serial(Node):
             message = Int64MultiArray()
             message.data = [left_count, right_count]
             self.ticks_publisher.publish(message)
+            return
+
+        if message_type == 'GAS' and len(fields) == 4:
+            # GAS,<millis>,<raw_adc>,<filtered_adc> from the ESP32 MQ-135 read.
+            try:
+                raw_adc = int(fields[2])
+                filtered_adc = float(fields[3])
+            except ValueError:
+                self.get_logger().warning(f'Malformed GAS message: {line}')
+                return
+            self.mq135_raw_publisher.publish(Int32(data=raw_adc))
+            self.mq135_filtered_publisher.publish(Float32(data=filtered_adc))
             return
 
         if message_type == 'ENC_ABS' and len(fields) >= 8:

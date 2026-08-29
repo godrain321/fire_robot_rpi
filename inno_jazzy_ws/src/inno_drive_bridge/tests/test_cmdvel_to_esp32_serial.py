@@ -47,6 +47,40 @@ class CmdVelToEsp32SerialParserTest(unittest.TestCase):
         self.assertEqual(node.left_motor_publisher.messages[-1].data, -123)
         self.assertEqual(node.right_motor_publisher.messages[-1].data, 456)
 
+    def _gas_node(self):
+        node = CmdVelToEsp32Serial.__new__(CmdVelToEsp32Serial)
+        node.logger = DummyLogger()
+        node.mq135_raw_publisher = DummyPublisher()
+        node.mq135_filtered_publisher = DummyPublisher()
+        node._publish_status = lambda text: None
+        node.get_logger = lambda: node.logger
+        return node
+
+    def test_gas_message_publishes_raw_and_filtered(self):
+        node = self._gas_node()
+
+        node._parse_line('GAS,15230,1851,1817.3')
+
+        self.assertEqual(node.mq135_raw_publisher.messages[-1].data, 1851)
+        self.assertAlmostEqual(
+            node.mq135_filtered_publisher.messages[-1].data, 1817.3, places=2
+        )
+        self.assertEqual(node.logger.warnings, [])
+
+    def test_malformed_gas_messages_do_not_raise(self):
+        node = self._gas_node()
+
+        for bad in (
+            'GAS',
+            'GAS,15230',
+            'GAS,15230,abc,1817.3',
+            'GAS,15230,1851,abc',
+        ):
+            node._parse_line(bad)
+
+        self.assertEqual(node.mq135_raw_publisher.messages, [])
+        self.assertEqual(node.mq135_filtered_publisher.messages, [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -15,11 +15,11 @@ from inno_autonav.weighted_planner import (
 
 
 RESOLUTION_M = 0.05
-CLEARANCE_M = 0.80
+CLEARANCE_M = 0.50
 CLEARANCE_CELLS = math.ceil(CLEARANCE_M / RESOLUTION_M)
 
 
-def test_runtime_yaml_sets_common_static_clearance_to_eight_tenths():
+def test_runtime_yaml_sets_common_static_clearance_to_half_a_metre():
     config_path = Path(__file__).parents[1] / "config" / "autonav_params.yaml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     assert config["astar_replanner"]["ros__parameters"][
@@ -33,11 +33,11 @@ def inflated_map(size=81, obstacle=(40, 40)):
     return inflate_occupied_cells(source, CLEARANCE_CELLS)
 
 
-def test_occupied_cells_are_inflated_to_eight_tenths_of_a_metre():
+def test_occupied_cells_are_inflated_to_half_a_metre():
     costs = inflated_map()
     assert costs[40, 40 + CLEARANCE_CELLS] == 100
     assert costs[40, 40 + CLEARANCE_CELLS + 1] == 0
-    assert costs[40 + 12, 40 + 12] == 0  # 0.849 m from the obstacle centre
+    assert costs[40 + 8, 40 + 8] == 0  # 0.566 m from the obstacle centre
 
 
 def test_astar_path_excludes_cells_inside_static_clearance():

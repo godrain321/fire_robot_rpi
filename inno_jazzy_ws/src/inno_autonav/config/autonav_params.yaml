@@ -103,7 +103,7 @@ astar_replanner:
     replan_result_topic: /replanning/astar_result
     # Common static-obstacle clearance applied to /planning_grid before both
     # waypoint-route validation and cell-A* fallback planning.
-    path_block_check_radius: 0.80
+    path_block_check_radius: 0.50
     start_clearance_radius: 0.18
     allow_diagonal: true
     thermal_grid_topic: /thermal_cost_grid

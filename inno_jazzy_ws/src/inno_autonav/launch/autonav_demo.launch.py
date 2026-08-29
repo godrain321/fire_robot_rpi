@@ -32,6 +32,10 @@ def generate_launch_description() -> LaunchDescription:
     waypoint_file = LaunchConfiguration('waypoint_file')
     hazard_belief_enabled = LaunchConfiguration('hazard_belief_enabled')
     hazard_thermal_enabled = LaunchConfiguration('hazard_thermal_enabled')
+    hazard_co_enabled = LaunchConfiguration('hazard_co_enabled')
+    gas_input_mode = LaunchConfiguration('gas_input_mode')
+    gas_safe_adc = LaunchConfiguration('gas_safe_adc')
+    gas_blocked_adc = LaunchConfiguration('gas_blocked_adc')
     exit_evaluator_enabled = LaunchConfiguration('exit_evaluator_enabled')
     evacuation_manager_enabled = LaunchConfiguration('evacuation_manager_enabled')
     evacuation_activate_route = LaunchConfiguration(
@@ -44,6 +48,9 @@ def generate_launch_description() -> LaunchDescription:
     exit_switching_enabled = LaunchConfiguration('exit_switching_enabled')
     waypoint_planning_enabled = LaunchConfiguration('waypoint_planning_enabled')
     waypoint_accept_direct_goal = LaunchConfiguration('waypoint_accept_direct_goal')
+    waypoint_planning_grid_topic = LaunchConfiguration(
+        'waypoint_planning_grid_topic'
+    )
     astar_path_output_topic = LaunchConfiguration('astar_path_output_topic')
     astar_accept_goal_pose = LaunchConfiguration('astar_accept_goal_pose')
     mode3_standoff_distance = LaunchConfiguration(
@@ -89,6 +96,14 @@ def generate_launch_description() -> LaunchDescription:
                 'hazard_thermal_enabled', default_value='true'
             ),
             DeclareLaunchArgument(
+                'hazard_co_enabled', default_value='false'
+            ),
+            DeclareLaunchArgument(
+                'gas_input_mode', default_value='legacy_ppm'
+            ),
+            DeclareLaunchArgument('gas_safe_adc', default_value='0.0'),
+            DeclareLaunchArgument('gas_blocked_adc', default_value='4096.0'),
+            DeclareLaunchArgument(
                 'exit_evaluator_enabled', default_value='false'
             ),
             DeclareLaunchArgument(
@@ -126,6 +141,16 @@ def generate_launch_description() -> LaunchDescription:
                 default_value=PythonExpression([
                     "'/astar_path' if '", waypoint_planning_enabled,
                     "' == 'true' else '/planned_path'"
+                ]),
+            ),
+            # Stage 5: when the gas sensor is on, the waypoint planner reads the
+            # gas-inclusive grid (astar_replanner already reads /hazard/final_cost
+            # directly). Off -> the untouched /planning_grid, Stage 1-4 unchanged.
+            DeclareLaunchArgument(
+                'waypoint_planning_grid_topic',
+                default_value=PythonExpression([
+                    "'/planning_grid_hazard' if '", hazard_co_enabled,
+                    "' == 'true' else '/planning_grid'"
                 ]),
             ),
             DeclareLaunchArgument('astar_accept_goal_pose', default_value='true'),
@@ -166,9 +191,31 @@ def generate_launch_description() -> LaunchDescription:
                     'thermal_enabled': ParameterValue(
                         hazard_thermal_enabled, value_type=bool
                     ),
+                    'co_enabled': ParameterValue(
+                        hazard_co_enabled, value_type=bool
+                    ),
+                    'gas_input_mode': ParameterValue(
+                        gas_input_mode, value_type=str
+                    ),
+                    'gas_safe_adc': ParameterValue(
+                        gas_safe_adc, value_type=float
+                    ),
+                    'gas_blocked_adc': ParameterValue(
+                        gas_blocked_adc, value_type=float
+                    ),
                 }],
                 output='screen',
                 condition=IfCondition(hazard_belief_enabled),
+            ),
+            # Stage 5: fold the gas cost overlay into a planner-consumable grid
+            # for the waypoint planner. A* is unaffected (it reads
+            # /hazard/final_cost directly). Only runs when the gas sensor is on.
+            Node(
+                package='inno_hazard',
+                executable='planning_grid_hazard_merge',
+                name='planning_grid_hazard_merge',
+                output='screen',
+                condition=IfCondition(hazard_co_enabled),
             ),
             Node(
                 package='inno_autonav',
@@ -293,6 +340,7 @@ def generate_launch_description() -> LaunchDescription:
                         'accept_direct_goal': ParameterValue(
                             waypoint_accept_direct_goal, value_type=bool
                         ),
+                        'planning_grid_topic': waypoint_planning_grid_topic,
                     },
                 ],
                 output='screen',

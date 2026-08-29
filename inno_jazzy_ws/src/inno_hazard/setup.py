@@ -25,6 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'hazard_belief_node = inno_hazard.hazard_belief_node:main',
+            'planning_grid_hazard_merge = '
+            'inno_hazard.planning_grid_hazard_merge:main',
         ],
     },
 )

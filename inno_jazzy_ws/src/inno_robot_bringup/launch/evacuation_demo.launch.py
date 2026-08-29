@@ -62,6 +62,14 @@ def generate_launch_description():
         DeclareLaunchArgument("turn_speed", default_value="0.35"),
         DeclareLaunchArgument("use_serial", default_value="true"),
         DeclareLaunchArgument("use_thermal_sensor", default_value="false"),
+        # MQ-135 gas belief input (/mq135/filtered_adc). Off by default until ADC
+        # safe/blocked thresholds are calibrated; run with use_gas_sensor:=true.
+        DeclareLaunchArgument("use_gas_sensor", default_value="false"),
+        # Stage 4: gas cost threshold domain. Keep legacy_ppm unless supplying
+        # calibrated adc thresholds via gas_safe_adc / gas_blocked_adc.
+        DeclareLaunchArgument("gas_input_mode", default_value="legacy_ppm"),
+        DeclareLaunchArgument("gas_safe_adc", default_value="0.0"),
+        DeclareLaunchArgument("gas_blocked_adc", default_value="4096.0"),
         DeclareLaunchArgument("thermal_x", default_value="0.10"),
         DeclareLaunchArgument("thermal_y", default_value="0.0"),
         DeclareLaunchArgument("thermal_z", default_value="0.20"),
@@ -146,6 +154,10 @@ def generate_launch_description():
             "use_dynamic_obstacles": "true",
             "hazard_belief_enabled": "true",
             "hazard_thermal_enabled": L("use_thermal_sensor"),
+            "hazard_co_enabled": L("use_gas_sensor"),
+            "gas_input_mode": L("gas_input_mode"),
+            "gas_safe_adc": L("gas_safe_adc"),
+            "gas_blocked_adc": L("gas_blocked_adc"),
             "exit_evaluator_enabled": "true",
             "evacuation_manager_enabled": "true",
             "evacuation_activate_selected_route": "true",

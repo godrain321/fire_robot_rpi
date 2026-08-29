@@ -75,6 +75,10 @@ def generate_launch_description():
         DeclareLaunchArgument('require_thermal_active', default_value='false'),
         DeclareLaunchArgument('hazard_belief_enabled', default_value='false'),
         DeclareLaunchArgument('hazard_thermal_enabled', default_value='true'),
+        DeclareLaunchArgument('hazard_co_enabled', default_value='false'),
+        DeclareLaunchArgument('gas_input_mode', default_value='legacy_ppm'),
+        DeclareLaunchArgument('gas_safe_adc', default_value='0.0'),
+        DeclareLaunchArgument('gas_blocked_adc', default_value='4096.0'),
         DeclareLaunchArgument('exit_evaluator_enabled', default_value='false'),
         DeclareLaunchArgument('evacuation_manager_enabled', default_value='false'),
         DeclareLaunchArgument(
@@ -250,6 +254,10 @@ def generate_launch_description():
                 'waypoint_file': L('planner_waypoint_file'),
                 'hazard_belief_enabled': L('hazard_belief_enabled'),
                 'hazard_thermal_enabled': L('hazard_thermal_enabled'),
+                'hazard_co_enabled': L('hazard_co_enabled'),
+                'gas_input_mode': L('gas_input_mode'),
+                'gas_safe_adc': L('gas_safe_adc'),
+                'gas_blocked_adc': L('gas_blocked_adc'),
                 'exit_evaluator_enabled': L('exit_evaluator_enabled'),
                 'evacuation_manager_enabled': L(
                     'evacuation_manager_enabled'

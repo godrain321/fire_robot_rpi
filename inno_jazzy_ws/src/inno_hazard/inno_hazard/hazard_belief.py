@@ -57,8 +57,14 @@ class HazardBeliefConfig:
     temperature_weight: float = 24.0
     temperature_power: float = 1.5
     co_enabled: bool = False
+    # "legacy_ppm": gas cost uses co_safe_ppm/co_blocked_ppm (unchanged).
+    # "adc": gas cost uses gas_safe_adc/gas_blocked_adc against the raw
+    # /mq135/filtered_adc scalar (no ppm conversion). See gas_*_threshold.
+    gas_input_mode: str = "legacy_ppm"
     co_safe_ppm: float = 100.0
     co_blocked_ppm: float = 1600.0
+    gas_safe_adc: float = 0.0
+    gas_blocked_adc: float = 4096.0
     co_weight: float = 8.0
     co_power: float = 2.0
     gas_update_radius_m: float = 0.0
@@ -73,13 +79,34 @@ class HazardBeliefConfig:
     stale_apply_to_temperature: bool = True
     stale_apply_to_co: bool = True
 
+    @property
+    def gas_safe_threshold(self) -> float:
+        if self.gas_input_mode == "adc":
+            return self.gas_safe_adc
+        return self.co_safe_ppm
+
+    @property
+    def gas_blocked_threshold(self) -> float:
+        if self.gas_input_mode == "adc":
+            return self.gas_blocked_adc
+        return self.co_blocked_ppm
+
     def __post_init__(self):
         if self.base_cost <= 0.0:
             raise ValueError("base_cost must be positive")
         if self.temperature_blocked_c <= self.temperature_safe_c:
             raise ValueError("temperature blocked threshold must exceed safe")
+        if self.gas_input_mode not in ("legacy_ppm", "adc"):
+            raise ValueError(
+                "gas_input_mode must be 'legacy_ppm' or 'adc'"
+            )
         if self.co_blocked_ppm <= self.co_safe_ppm:
             raise ValueError("CO blocked threshold must exceed safe")
+        if self.gas_blocked_threshold <= self.gas_safe_threshold:
+            raise ValueError(
+                "gas blocked threshold must exceed safe threshold "
+                f"({self.gas_input_mode} mode)"
+            )
         nonnegative = (
             self.temperature_weight, self.co_weight,
             self.gas_update_radius_m, self.unknown_penalty,
@@ -270,10 +297,12 @@ class HazardBelief:
             / (cfg.temperature_blocked_c - cfg.temperature_safe_c), 0.0, 1.0,
         )
         self.temperature_cost_map = cfg.temperature_weight * temp ** cfg.temperature_power
+        gas_safe = cfg.gas_safe_threshold
+        gas_span = cfg.gas_blocked_threshold - gas_safe
         co = np.zeros(self.shape)
         co[self.co_observed_mask] = np.clip(
-            (self.co_belief_map[self.co_observed_mask] - cfg.co_safe_ppm)
-            / (cfg.co_blocked_ppm - cfg.co_safe_ppm), 0.0, 1.0,
+            (self.co_belief_map[self.co_observed_mask] - gas_safe) / gas_span,
+            0.0, 1.0,
         )
         self.co_cost_map = cfg.co_weight * co ** cfg.co_power
         neither = ~self.temperature_observed_mask & ~self.co_observed_mask
@@ -300,7 +329,7 @@ class HazardBelief:
             self.temperature_belief_map >= cfg.temperature_blocked_c
         )
         co_blocked = self.co_observed_mask & (
-            self.co_belief_map >= cfg.co_blocked_ppm
+            self.co_belief_map >= cfg.gas_blocked_threshold
         )
         self.blocked_mask = (
             self.static_obstacle_map | self.dynamic_inflated_obstacle_map
