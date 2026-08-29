@@ -190,6 +190,27 @@ Visualization Manager:
         Durability Policy: Transient Local
         History Policy: Keep Last
         Depth: 5
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Active Exit Route (Cyan)
+      Enabled: true
+      Topic:
+        Value: /waypoint_route_markers
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 5
+    - Class: rviz_default_plugins/Pose
+      Name: Auto-selected Exit Goal
+      Enabled: true
+      Topic:
+        Value: /goal_pose
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Depth: 5
+      Shape: Arrow
+      Color: 255; 25; 0
+      Alpha: 1
   Enabled: true
   Name: root
   Tools:

@@ -5,6 +5,8 @@ import numpy as np
 from inno_autonav.grid_utils import MapGrid
 from inno_autonav.waypoint_route_simplifier import (
     WaypointRouteSimplifierConfig,
+    blocked_waypoint_edges,
+    nearest_reachable_waypoint,
     simplify_waypoint_route,
 )
 
@@ -75,3 +77,73 @@ def test_unknown_waypoint_id_fails_cleanly():
     result = simplify_waypoint_route(("W1", "GHOST"), waypoints, clear_grid(), CONFIG)
     assert result.success is False
     assert "GHOST" in result.detail
+
+
+def test_two_safe_waypoints_with_blocked_edge_are_rejected():
+    waypoints = {"W18": (0.5, 1.5), "W43": (3.5, 1.5)}
+    grid = clear_grid()
+    grid.data[1, 2] = 100
+    result = simplify_waypoint_route(("W18", "W43"), waypoints, grid, CONFIG)
+    assert not result.success
+    assert result.detail == "blocked_edge:W18->W43"
+
+
+def test_blocked_adjacent_edge_in_long_route_is_rejected():
+    waypoints = {
+        "W1": (0.5, 0.5), "W2": (1.5, 0.5), "W3": (2.5, 0.5),
+    }
+    grid = clear_grid()
+    grid.data[0, 2] = 100
+    result = simplify_waypoint_route(("W1", "W2", "W3"), waypoints, grid, CONFIG)
+    assert not result.success
+    assert result.detail == "blocked_edge:W2->W3"
+
+
+def test_diagonal_corner_touching_blocked_cell_is_rejected():
+    waypoints = {"A": (0.5, 0.5), "B": (1.5, 1.5)}
+    grid = clear_grid()
+    grid.data[0, 1] = 100
+    result = simplify_waypoint_route(("A", "B"), waypoints, grid, CONFIG)
+    assert not result.success
+    assert result.detail == "blocked_edge:A->B"
+
+
+def test_grid_blocked_edge_is_reported_for_graph_exclusion():
+    waypoints = {"A": (0.5, 0.5), "B": (2.5, 0.5), "C": (0.5, 2.5)}
+    grid = clear_grid()
+    grid.data[0, 1] = 100
+    edges = (("A", "B", 2.0), ("A", "C", 2.0))
+    assert blocked_waypoint_edges(edges, waypoints, grid, True) == {
+        frozenset(("A", "B")),
+    }
+
+
+def test_unknown_cell_blocks_edge_when_unknown_is_occupied():
+    waypoints = {"A": (0.5, 0.5), "B": (2.5, 0.5)}
+    grid = clear_grid()
+    grid.data[0, 1] = -1
+    edges = (("A", "B", 2.0),)
+    assert blocked_waypoint_edges(edges, waypoints, grid, True) == {
+        frozenset(("A", "B")),
+    }
+
+
+def test_nearest_reachable_waypoint_skips_blocked_connector():
+    waypoints = {"nearest": (2.5, 0.5), "reachable": (0.5, 2.5)}
+    grid = clear_grid(size=5)
+    grid.data[0, 1] = 100
+    costs = {waypoint_id: 0.0 for waypoint_id in waypoints}
+    assert nearest_reachable_waypoint(
+        (0.5, 0.5), waypoints, costs, grid, True,
+    ) == "reachable"
+
+
+def test_nearest_reachable_waypoint_fails_when_all_connectors_are_blocked():
+    waypoints = {"east": (2.5, 0.5), "north": (0.5, 2.5)}
+    grid = clear_grid(size=5)
+    grid.data[0, 1] = 100
+    grid.data[1, 0] = 100
+    costs = {waypoint_id: 0.0 for waypoint_id in waypoints}
+    assert nearest_reachable_waypoint(
+        (0.5, 0.5), waypoints, costs, grid, True,
+    ) is None

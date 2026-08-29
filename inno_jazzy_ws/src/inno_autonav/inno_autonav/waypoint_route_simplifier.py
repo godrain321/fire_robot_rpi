@@ -15,10 +15,11 @@ maps the result back to waypoint ids.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Mapping, Sequence
 
 from .grid_utils import MapGrid, world_to_grid
-from .safe_path_simplifier import simplify_path_safely
+from .safe_path_simplifier import segment_is_safe, simplify_path_safely
 from .weighted_planner import Cell
 
 
@@ -47,6 +48,57 @@ class WaypointRouteSimplificationResult:
     detail: str | None = None
 
 
+def blocked_waypoint_edges(
+    edges: Sequence[tuple[str, str, float]],
+    waypoints_world: Mapping[str, tuple[float, float]],
+    grid: MapGrid,
+    unknown_is_occupied: bool,
+) -> set[frozenset[str]]:
+    """Return candidate graph edges whose supercover touches a blocked cell."""
+    blocked = set()
+    for first_id, second_id, _distance in edges:
+        first = waypoints_world[first_id]
+        second = waypoints_world[second_id]
+        if not segment_is_safe(
+            world_to_grid(first[0], first[1], grid),
+            world_to_grid(second[0], second[1], grid),
+            grid.data,
+            unknown_is_occupied,
+        ):
+            blocked.add(frozenset((first_id, second_id)))
+    return blocked
+
+
+def nearest_reachable_waypoint(
+    position_world: tuple[float, float],
+    waypoints_world: Mapping[str, tuple[float, float]],
+    waypoint_costs: Mapping[str, float],
+    grid: MapGrid,
+    unknown_is_occupied: bool,
+) -> str | None:
+    """Return the nearest finite-cost waypoint with a clear straight connector."""
+    start_cell = world_to_grid(position_world[0], position_world[1], grid)
+    candidates = sorted(
+        waypoints_world,
+        key=lambda waypoint_id: (
+            math.dist(position_world, waypoints_world[waypoint_id]), waypoint_id,
+        ),
+    )
+    for waypoint_id in candidates:
+        cost = waypoint_costs.get(waypoint_id)
+        if cost is None or not math.isfinite(float(cost)):
+            continue
+        waypoint = waypoints_world[waypoint_id]
+        if segment_is_safe(
+            start_cell,
+            world_to_grid(waypoint[0], waypoint[1], grid),
+            grid.data,
+            unknown_is_occupied,
+        ):
+            return waypoint_id
+    return None
+
+
 def simplify_waypoint_route(
     route_ids: Sequence[str], waypoints_world: Mapping[str, tuple[float, float]],
     grid: MapGrid, config: WaypointRouteSimplifierConfig | None = None,
@@ -59,6 +111,19 @@ def simplify_waypoint_route(
         if waypoint_id not in waypoints_world:
             return WaypointRouteSimplificationResult(
                 False, ids, (), f"unknown_waypoint:{waypoint_id}",
+            )
+
+    for first_id, second_id in zip(ids, ids[1:]):
+        first_x, first_y = waypoints_world[first_id]
+        second_x, second_y = waypoints_world[second_id]
+        if not segment_is_safe(
+            world_to_grid(first_x, first_y, grid),
+            world_to_grid(second_x, second_y, grid),
+            grid.data,
+            config.unknown_is_occupied,
+        ):
+            return WaypointRouteSimplificationResult(
+                False, ids, (), f"blocked_edge:{first_id}->{second_id}",
             )
 
     cells: list[Cell] = []

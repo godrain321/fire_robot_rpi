@@ -74,6 +74,22 @@ def test_4_no_route_when_disconnected():
     assert result.status == "NO_ROUTE"
 
 
+def test_excluded_blocked_edge_uses_available_graph_detour():
+    waypoints = {
+        "A": (0.0, 0.0), "B": (1.0, 0.0),
+        "C": (0.0, 1.0), "D": (1.0, 1.0),
+    }
+    planner = WaypointGraphPlanner(
+        waypoints, WaypointGraphPlannerConfig(neighbor_radius_m=1.05),
+    )
+    result = planner.plan(
+        flat_costs(waypoints), "A", "B",
+        excluded_edges={frozenset(("A", "B"))},
+    )
+    assert result.success
+    assert result.waypoint_ids == ("A", "C", "D", "B")
+
+
 # -- Test 5: start == goal -----------------------------------------------------
 
 def test_5_start_equals_goal():

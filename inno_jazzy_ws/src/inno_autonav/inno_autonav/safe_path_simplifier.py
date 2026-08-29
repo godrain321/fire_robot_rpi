@@ -203,6 +203,13 @@ def simplify_path_safely(
     )
     if not source or not math.isfinite(raw_cost):
         return SimplifiedPathResult((), False, raw_cost, math.inf, 0)
+    if any(
+        not segment_is_safe(
+            first, second, costs, unknown_is_occupied, costs_are_traversal,
+        )
+        for first, second in zip(source, source[1:])
+    ):
+        return SimplifiedPathResult((), False, raw_cost, math.inf, 0)
     if len(source) <= 2:
         return SimplifiedPathResult(source, True, raw_cost, raw_cost, 0)
 

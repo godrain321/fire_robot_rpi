@@ -1,19 +1,25 @@
-"""Mode 7: autonomous driving on the thermal-camera hazard cost only.
+"""Mode 7: thermal-aware autonomous evacuation, gas + person detection OFF.
 
-Same waypoint + A* + Stage 6 replanning pipeline as Mode 5, but the hazard
-belief runs with the gas layer OFF -- only the MLX90640 thermal cost feeds
-``/hazard/final_cost`` (A*) and ``/planning_grid`` (waypoint planner). No gas
-sensor, no exit evaluation / switching, no evacuation manager, no mmWave /
-camera. Keyboard (drive mode 1) stays available for manual override.
+The existing Mode 5 exit-decision path (exit_evaluator_node ->
+evacuation_manager_node) auto-selects the destination exit and activates the
+route; the unchanged waypoint + weighted-A* + Stage 6 event-replanning pipeline
+drives there on a hazard belief that carries the MLX90640 thermal cost but not
+the gas layer. Removed vs Mode 5: the evacuation_demo_orchestrator victim state
+machine, mmWave / RGB camera / YOLO, Mode 3/4 person inspection, Mode 3 audio,
+and the MQ-135 / CO cost layer.
 
-This is Mode 5's ``evacuation_demo.launch.py`` wrapper trimmed to a thermal-only
-navigation test: it adds the thermal sensor stack + the base->thermal static TF
-on top of ``field_waypoint_test.launch.py``.
+Structure: this is ``field_waypoint_test.launch.py`` with the thermal sensor
+stack + base->thermal static TF added and the exit/evacuation nodes enabled.
+After localization is ready, a one-shot retrying ``ros2 service call`` on the
+existing ``/plan_evacuation`` service kicks off the first exit selection (no new
+goal publisher, no timer-driven republish).
 """
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
@@ -33,6 +39,8 @@ def generate_launch_description():
         DeclareLaunchArgument("use_lidar", default_value="true"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("auto_localization", default_value="true"),
+        # Auto-fire the existing /plan_evacuation once localization is up.
+        DeclareLaunchArgument("auto_start", default_value="true"),
         DeclareLaunchArgument("set_initial_pose", default_value="false"),
         DeclareLaunchArgument("initial_pose_x", default_value="0.0"),
         DeclareLaunchArgument("initial_pose_y", default_value="0.0"),
@@ -53,6 +61,7 @@ def generate_launch_description():
         DeclareLaunchArgument("use_dynamic_obstacles", default_value="true"),
         DeclareLaunchArgument("event_replanning_enabled", default_value="true"),
         DeclareLaunchArgument("waypoint_planning_enabled", default_value="true"),
+        DeclareLaunchArgument("exit_switching_enabled", default_value="true"),
         # base_link -> thermal_camera_link mounting offset (same names as Mode 5/6).
         DeclareLaunchArgument("thermal_x", default_value="0.10"),
         DeclareLaunchArgument("thermal_y", default_value="0.0"),
@@ -100,7 +109,7 @@ def generate_launch_description():
             "drive_speed": L("drive_speed"),
             "turn_speed": L("turn_speed"),
             "use_dynamic_obstacles": L("use_dynamic_obstacles"),
-            # thermal-only hazard belief: thermal ON, gas OFF
+            # thermal-only hazard belief: thermal ON, gas/CO OFF
             "hazard_belief_enabled": "true",
             "hazard_thermal_enabled": "true",
             "hazard_co_enabled": "false",
@@ -111,10 +120,12 @@ def generate_launch_description():
             "event_replanning_enabled": L("event_replanning_enabled"),
             "waypoint_accept_direct_goal": "false",
             "astar_accept_goal_pose": "true",
-            # trimmed: no exits / evacuation / mmwave / camera / audio / viewer
-            "exit_evaluator_enabled": "false",
-            "evacuation_manager_enabled": "false",
-            "exit_switching_enabled": "false",
+            # mission / exit decision ON (existing Mode 5 nodes, victim-independent)
+            "exit_evaluator_enabled": "true",
+            "evacuation_manager_enabled": "true",
+            "evacuation_activate_selected_route": "true",
+            "exit_switching_enabled": L("exit_switching_enabled"),
+            # person / victim detection OFF; orchestrator not started here
             "mode5_enabled": "false",
             "use_mmwave": "false",
             "use_camera_mode4": "false",
@@ -123,12 +134,32 @@ def generate_launch_description():
         }.items(),
     )
 
+    # No orchestrator in this profile, so nothing calls /plan_evacuation. Poll the
+    # existing service until it succeeds (it only succeeds once localization + the
+    # hazard snapshot are live, so this cannot plan from a stale (0,0,0) pose).
+    auto_start_plan = TimerAction(
+        period=8.0,
+        actions=[ExecuteProcess(
+            cmd=[
+                "bash", "-c",
+                "for i in $(seq 1 90); do "
+                "ros2 service call /plan_evacuation std_srvs/srv/Trigger '{}' "
+                "2>/dev/null | grep -q 'success=True' && "
+                "{ echo '[ROBOT] mode7 auto-start: exit route activated'; exit 0; }; "
+                "sleep 3; done; "
+                "echo '[ROBOT] mode7 auto-start: /plan_evacuation did not succeed' >&2",
+            ],
+            name="mode7_evacuation_autostart", output="screen",
+        )],
+        condition=IfCondition(L("auto_start")),
+    )
+
     rviz = Node(
         package="rviz2", executable="rviz2", name="mode7_thermal_drive_rviz",
         arguments=["-d", bringup + "/rviz/mode7_thermal_drive.rviz"],
         output="screen", condition=IfCondition(L("use_rviz")),
     )
 
-    return LaunchDescription(
-        args + [thermal_transform, thermal_bringup, field_bringup, rviz]
-    )
+    return LaunchDescription(args + [
+        thermal_transform, thermal_bringup, field_bringup, auto_start_plan, rviz,
+    ])

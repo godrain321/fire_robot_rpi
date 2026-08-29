@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import heapq
 import math
-from typing import Mapping, Sequence
+from typing import Collection, Mapping, Sequence
 
 
 @dataclass(frozen=True)
@@ -77,6 +77,7 @@ class WaypointGraphPlanner:
 
     def plan(
         self, waypoint_costs: Mapping[str, float], start_id: str, goal_id: str,
+        *, excluded_edges: Collection[frozenset[str]] = (),
     ) -> WaypointPlanResult:
         if start_id not in self.waypoints_world:
             return WaypointPlanResult(False, (), math.inf, "INVALID_START")
@@ -91,8 +92,11 @@ class WaypointGraphPlanner:
         if not math.isfinite(float(waypoint_costs[goal_id])):
             return WaypointPlanResult(False, (), math.inf, "GOAL_BLOCKED")
 
+        excluded = set(excluded_edges)
         adjacency: dict[str, list[tuple[str, float]]] = {}
         for a_id, b_id, distance in self._edges:
+            if frozenset((a_id, b_id)) in excluded:
+                continue
             a_cost = waypoint_costs.get(a_id)
             b_cost = waypoint_costs.get(b_id)
             if (

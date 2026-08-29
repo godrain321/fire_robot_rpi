@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import math
 
+import numpy as np
 from geometry_msgs.msg import Point, PoseStamped
 from nav_msgs.msg import OccupancyGrid, Path
 import rclpy
@@ -37,6 +38,8 @@ from .waypoint_graph_planner import (
 )
 from .waypoint_route_simplifier import (
     WaypointRouteSimplifierConfig,
+    blocked_waypoint_edges,
+    nearest_reachable_waypoint,
     simplify_waypoint_route,
 )
 from .waypoint_selection import load_waypoint_document, named_waypoints_from_document
@@ -117,6 +120,7 @@ class WaypointPlannerNode(Node):
         self.active_goal = None
         self._last_costs = None
         self._last_goal = None
+        self._last_grid_data = None
         self._last_published_path_stamp_ns = None
         self._last_emitted_path_stamp_ns = -1
         self._goal_received_ns = None
@@ -214,6 +218,7 @@ class WaypointPlannerNode(Node):
         self.active_goal = None
         self._last_costs = None
         self._last_goal = None
+        self._last_grid_data = None
         self._last_published_path_stamp_ns = None
         self._goal_received_ns = None
         self._publish_empty_path()
@@ -225,13 +230,30 @@ class WaypointPlannerNode(Node):
         if pose is None:
             return False, "NO_TF"
         costs = self.projector.project_costs(self.grid)
-        if not force and costs == self._last_costs and self.active_goal == self._last_goal:
+        previous_grid = getattr(self, "_last_grid_data", None)
+        grid_unchanged = (
+            previous_grid is not None
+            and previous_grid.shape == self.grid.data.shape
+            and np.array_equal(previous_grid, self.grid.data)
+        )
+        if (
+            not force and costs == self._last_costs
+            and self.active_goal == self._last_goal and grid_unchanged
+        ):
             return False, "UNCHANGED"
         is_replan = self._last_costs is not None and self._last_goal == self.active_goal
         self._last_costs = costs
         self._last_goal = self.active_goal
+        self._last_grid_data = self.grid.data.copy()
 
-        start_id = nearest_safe_waypoint((pose[0], pose[1]), self.waypoints_world, costs)
+        blocked_edges = blocked_waypoint_edges(
+            self.graph_planner.edges, self.waypoints_world, self.grid,
+            self.simplifier_config.unknown_is_occupied,
+        )
+        start_id = nearest_reachable_waypoint(
+            (pose[0], pose[1]), self.waypoints_world, costs, self.grid,
+            self.simplifier_config.unknown_is_occupied,
+        )
         goal_id = nearest_safe_waypoint(
             self.active_goal.approach_world, self.waypoints_world, costs,
         )
@@ -240,7 +262,9 @@ class WaypointPlannerNode(Node):
             self._publish_empty_path()
             return False, "NO_SAFE_ENDPOINT"
 
-        result = self.graph_planner.plan(costs, start_id, goal_id)
+        result = self.graph_planner.plan(
+            costs, start_id, goal_id, excluded_edges=blocked_edges,
+        )
         if not result.success:
             self.get_logger().error(f"waypoint graph planning failed: {result.status}")
             self._publish_empty_path()

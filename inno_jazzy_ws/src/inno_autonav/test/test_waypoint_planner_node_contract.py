@@ -12,11 +12,13 @@ from nav_msgs.msg import OccupancyGrid
 import pytest
 from std_msgs.msg import String
 
+from inno_autonav.astar_replanner import message_to_grid
 from inno_autonav.grid_utils import yaw_from_quaternion
 from inno_autonav.project_paths import project_path
 from inno_autonav.waypoint_cost_projector import WaypointCostProjector, WaypointCostProjectorConfig
 from inno_autonav.waypoint_graph_planner import WaypointGraphPlanner, WaypointGraphPlannerConfig
 from inno_autonav.waypoint_planner_node import WaypointPlannerNode
+from inno_autonav.waypoint_route_simplifier import nearest_reachable_waypoint
 from inno_autonav.waypoint_route_simplifier import WaypointRouteSimplifierConfig
 from inno_autonav.waypoint_selection import load_waypoint_document, named_waypoints_from_document
 
@@ -73,6 +75,7 @@ def node(waypoints_world, *, pose=(0.5, 0.5)):
         active_goal=None,
         _last_costs=None,
         _last_goal=None,
+        _last_grid_data=None,
         tf=FakeTf(pose),
         waypoint_path_publisher=Publisher(),
         route_status_publisher=Publisher(),
@@ -173,7 +176,7 @@ def test_blocked_final_waypoint_to_goal_connector_publishes_no_path():
     assert not value.waypoint_path_publisher.messages[-1].poses
 
 
-def test_start_inside_inflated_area_keeps_existing_waypoint_escape_behavior():
+def test_start_inside_inflated_area_rejects_every_connector():
     waypoints = {"W0": (2.5, 0.5), "W1": (3.5, 0.5)}
     value = node(waypoints, pose=(0.5, 0.5))
     message = occupancy_grid_message(size=6)
@@ -182,7 +185,30 @@ def test_start_inside_inflated_area_keeps_existing_waypoint_escape_behavior():
         value, String(data=plan_payload("EXIT1", (3.5, 0.5)))
     )
     WaypointPlannerNode._on_grid(value, message)
-    assert value.waypoint_path_publisher.messages[-1].poses
+    assert not value.waypoint_path_publisher.messages[-1].poses
+
+
+def test_nearest_reachable_waypoint_skips_blocked_start_connector():
+    waypoints = {"nearest": (2.5, 0.5), "reachable": (0.5, 2.5)}
+    message = occupancy_grid_message(size=5)
+    message.data[1] = 100
+    grid = message_to_grid(message)
+    costs = {waypoint_id: 0.0 for waypoint_id in waypoints}
+    assert nearest_reachable_waypoint(
+        (0.5, 0.5), waypoints, costs, grid, True,
+    ) == "reachable"
+
+
+def test_no_reachable_start_waypoint_returns_none():
+    waypoints = {"east": (2.5, 0.5), "north": (0.5, 2.5)}
+    message = occupancy_grid_message(size=5)
+    message.data[1] = 100
+    message.data[5] = 100
+    grid = message_to_grid(message)
+    costs = {waypoint_id: 0.0 for waypoint_id in waypoints}
+    assert nearest_reachable_waypoint(
+        (0.5, 0.5), waypoints, costs, grid, True,
+    ) is None
 
 
 def test_mode3_inspection_yaw_reaches_final_waypoint_pose():

@@ -45,6 +45,14 @@ def test_open_space_simplifies_to_endpoints():
     assert result.path == ((0, 2), (7, 2))
 
 
+def test_two_point_path_with_blocked_interior_cell_is_unsafe():
+    data = np.zeros((3, 4), dtype=np.int8)
+    data[1, 1] = 100
+    result = simplify_path_safely(((0, 1), (3, 1)), data)
+    assert not result.safe
+    assert not result.path
+
+
 def test_exact_corner_shortcut_touching_wall_is_rejected():
     data = np.zeros((4, 4), dtype=np.int8)
     data[0, 1] = 100
