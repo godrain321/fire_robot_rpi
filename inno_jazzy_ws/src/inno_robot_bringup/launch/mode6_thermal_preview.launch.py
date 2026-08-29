@@ -38,7 +38,7 @@ def generate_launch_description():
             "planning_map_yaml",
             default_value=project_path("maps", "inno_map_nav.yaml"),
         ),
-        DeclareLaunchArgument("set_initial_pose", default_value="false"),
+        DeclareLaunchArgument("set_initial_pose", default_value="true"),
         DeclareLaunchArgument("initial_pose_x", default_value="0.0"),
         DeclareLaunchArgument("initial_pose_y", default_value="0.0"),
         DeclareLaunchArgument("initial_pose_yaw", default_value="0.0"),
