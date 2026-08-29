@@ -15,6 +15,7 @@ C4001 mmWave 사람 판별, Camera Module 3 YOLO 요구조자 판별을 하나�
 | 4 | `4` → `Space` | 모드 2 장치 + Camera Module 3, YOLO | 카메라 바운딩박스와 LiDAR 점을 결합해 요구조자 판별 |
 | 5 | 전용 launch 실행 즉시 | 모드 2·3 장치 + MLX90640 | 출구를 실제 순차 탐색하고 장애물을 2m에서 mmWave 검사한 뒤 안전 경로로 대피 |
 | 6 | 전용 launch 실행 즉시 (`./run_mode6.sh`) | 모드 1 장치 + LiDAR, AMCL, 지도 + MLX90640 | 열화상 카메라 단독 벤치 테스트. 키보드 수동주행 중 RViz에 `/thermal_cost_grid`(열화상 cost)를 표시한다. hazard belief·gas·planner·replanning 없음 |
+| 7 | 전용 launch 실행 즉시 (`./run_mode7.sh`) | 모드 2 장치 + MLX90640 | 열화상 카메라 hazard cost만으로 자율주행. 모드 5와 동일한 waypoint + A\* + Stage 6 재계획을 쓰되 hazard belief의 gas 레이어는 끈다(`hazard_co_enabled:=false`). 출구 평가·전환·evacuation manager·mmWave·카메라 없음. 키보드 수동 개입 가능 |
 
 모든 입력은 통합 launch를 실행한 터미널에서 받는다. 모드를 바꾸면 진행 중인
 자율주행을 먼저 취소하고 속도를 0으로 만든다. 자율주행 중에는 다음 공통 키를
