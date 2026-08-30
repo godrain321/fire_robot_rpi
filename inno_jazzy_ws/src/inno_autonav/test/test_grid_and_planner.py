@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import numpy as np
@@ -5,7 +6,11 @@ from PIL import Image
 import pytest
 import yaml
 
-from inno_autonav.astar_replanner import astar_search, simplify_path
+from inno_autonav.astar_replanner import (
+    active_reachability_data,
+    astar_search,
+    simplify_path,
+)
 from inno_autonav.grid_utils import (
     MapGrid,
     grid_to_world,
@@ -57,3 +62,15 @@ def test_unknown_is_occupied_switch():
     data[:, 2] = -1
     assert not astar_search(data, (0, 1), (4, 1), True, False)
     assert astar_search(data, (0, 1), (4, 1), False, False)
+
+
+def test_active_reachability_grid_matches_occupancy_and_hazard_semantics():
+    occupancy = np.array([[0.0, 99.0, 100.0, -1.0, math.inf]])
+    assert active_reachability_data(
+        occupancy, unknown_is_occupied=True, costs_are_traversal=False,
+    ).tolist() == [[0, 0, 100, 100, 100]]
+
+    hazard = np.array([[1.0, 100.0, math.inf, 0.0]])
+    assert active_reachability_data(
+        hazard, unknown_is_occupied=True, costs_are_traversal=True,
+    ).tolist() == [[0, 0, 100, 100]]

@@ -43,7 +43,20 @@ def mode3_inspection_progress_log(state: str) -> str | None:
     """Translate Mode 3 arrival/measurement states for the Mode 5 console."""
     value = str(state).strip().upper()
     if value == "MODE3_AT_STANDOFF:ROBOT_SETTLING":
-        return "[도착] 후보 검사 위치에 도착했습니다. 완전히 정지하는 중입니다."
+        return (
+            "[도착] 최신 LiDAR 기준 후보가 2.5m 이내입니다. "
+            "완전히 정지하는 중입니다."
+        )
+    if value.startswith("MODE3_TARGET_MOVED:REPLANNING"):
+        return (
+            "[재접근] 후보가 2.5m 밖으로 이동하여 최신 LiDAR 위치로 "
+            "다시 접근합니다."
+        )
+    if value == "MODE3_WAITING_FOR_LIVE_TARGET":
+        return (
+            "[추적 대기] 기존 검사 지점에서 정지했습니다. 최신 LiDAR "
+            "후보가 다시 확인되면 실제 거리로 검사를 계속합니다."
+        )
     if value == "MODE3_MMWAVE_OBSERVING":
         return "[생체 판별] 로봇이 정지했습니다. mmWave 생체신호 감지를 시작합니다."
     return None
@@ -529,12 +542,12 @@ class EvacuationDemoOrchestrator(Node):
             self._phase = "INSPECTING_CANDIDATE"
             label = self.current_exit_id or "ROUTE"
             self._set_status(
-                f"SEARCH_EXITS:MMWAVE_INSPECTION:{label}:2.00M"
+                f"SEARCH_EXITS:MMWAVE_INSPECTION:{label}:MAX_2.50M"
             )
             self._log(
                 f"[접근] 동적장애물 후보 ({target_x:.2f}, {target_y:.2f})의 "
-                "2.0m 앞 검사 위치로 이동 중입니다. 도착 후 정지하여 "
-                "생체신호를 확인합니다."
+                "최신 LiDAR 위치를 추적합니다. 로봇과의 거리가 2.5m "
+                "이내가 되면 정지하여 생체신호를 확인합니다."
             )
         else:
             self._phase = "INSPECTING_MOVING_CANDIDATE"
@@ -625,6 +638,22 @@ class EvacuationDemoOrchestrator(Node):
         if candidates is None:
             return
         self.all_candidates = candidates
+        if (
+            self._phase == "INSPECTING_CANDIDATE"
+            and self.inspection_target is not None
+        ):
+            latest = min(
+                candidates,
+                key=lambda point: math.dist(point, self.inspection_target),
+                default=None,
+            )
+            if (
+                latest is not None
+                and math.dist(latest, self.inspection_target)
+                <= self.classification_radius
+            ):
+                self.inspection_target = latest
+            return
         now = time.monotonic()
         if self.active_survivor_position is not None:
             self._update_survivor_track(candidates, now)
@@ -868,6 +897,7 @@ class EvacuationDemoOrchestrator(Node):
             "MODE3_NO_PATH_TO_STANDOFF",
             "MODE3_TARGET_TOO_CLOSE",
             "MODE3_ARRIVAL_NOT_CONFIRMED",
+            "MODE3_TARGET_TRACK_LOST",
         )):
             self.cancel_publisher.publish(Empty())
             self._phase = "INSPECTION_FAILED"

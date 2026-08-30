@@ -95,6 +95,25 @@ def message_to_grid(message: OccupancyGrid) -> MapGrid:
     )
 
 
+def active_reachability_data(
+    data: np.ndarray,
+    *,
+    unknown_is_occupied: bool,
+    costs_are_traversal: bool,
+) -> np.ndarray:
+    """Encode the active planner's blocked cells as an OccupancyGrid layer."""
+    values = np.asarray(data, dtype=float)
+    if values.ndim != 2:
+        raise ValueError('active planning data must be two-dimensional')
+    if costs_are_traversal:
+        blocked = ~np.isfinite(values) | (values <= 0.0)
+    else:
+        blocked = ~np.isfinite(values) | (values >= 100.0)
+        if unknown_is_occupied:
+            blocked |= values < 0.0
+    return np.where(blocked, 100, 0).astype(np.int8)
+
+
 class AstarReplanner(Node):
     def __init__(self) -> None:
         super().__init__('astar_replanner')
@@ -147,6 +166,7 @@ class AstarReplanner(Node):
             'hazard_belief_enabled': False,
             'hazard_final_cost_topic': '/hazard/final_cost',
             'hazard_status_topic': '/hazard/status',
+            'active_reachability_grid_topic': '/planning_grid_active',
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -233,6 +253,9 @@ class AstarReplanner(Node):
         )
         self.hazard_status_topic = str(
             self.get_parameter('hazard_status_topic').value
+        )
+        self.active_reachability_grid_topic = str(
+            self.get_parameter('active_reachability_grid_topic').value
         )
         reference_config = ReferenceWaypointGraphConfig(
             enabled=bool(self.get_parameter(
@@ -361,6 +384,9 @@ class AstarReplanner(Node):
         self.create_subscription(Int32, '/drive_mode', self._mode_callback, 10)
         self.grid_publisher = self.create_publisher(
             OccupancyGrid, '/planning_grid', qos
+        )
+        self.active_grid_publisher = self.create_publisher(
+            OccupancyGrid, self.active_reachability_grid_topic, qos
         )
         self.path_publisher = self.create_publisher(
             Path, str(self.get_parameter('path_output_topic').value), qos
@@ -540,6 +566,7 @@ class AstarReplanner(Node):
             self.static_grid.origin_y, self.static_grid.origin_yaw,
             self.static_grid.frame_id, data,
         )
+        self._publish_active_grid(self.hazard_grid, costs_are_traversal=True)
         self._dirty = True
 
     def _combine_and_publish(self) -> None:
@@ -582,6 +609,10 @@ class AstarReplanner(Node):
             data=planning_source,
         )
         self._publish_grid()
+        if not self.hazard_belief_enabled:
+            self._publish_active_grid(
+                self.combined_grid, costs_are_traversal=False
+            )
 
     def _publish_grid(self) -> None:
         if self.combined_grid is None:
@@ -603,6 +634,32 @@ class AstarReplanner(Node):
         message.info.origin.orientation.w = qw
         message.data = self.combined_grid.data.reshape(-1).astype(int).tolist()
         self.grid_publisher.publish(message)
+
+    def _publish_active_grid(
+        self, grid: MapGrid, *, costs_are_traversal: bool
+    ) -> None:
+        """Publish exactly the finite/non-finite reachability used by A*."""
+        stamp = self.get_clock().now().to_msg()
+        message = OccupancyGrid()
+        message.header.stamp = stamp
+        message.header.frame_id = grid.frame_id
+        message.info.map_load_time = stamp
+        message.info.resolution = grid.resolution
+        message.info.width = grid.width
+        message.info.height = grid.height
+        message.info.origin.position.x = grid.origin_x
+        message.info.origin.position.y = grid.origin_y
+        qx, qy, qz, qw = quaternion_from_yaw(grid.origin_yaw)
+        message.info.origin.orientation.x = qx
+        message.info.origin.orientation.y = qy
+        message.info.origin.orientation.z = qz
+        message.info.origin.orientation.w = qw
+        message.data = active_reachability_data(
+            grid.data,
+            unknown_is_occupied=self.unknown_is_occupied,
+            costs_are_traversal=costs_are_traversal,
+        ).reshape(-1).astype(int).tolist()
+        self.active_grid_publisher.publish(message)
 
     def _goal_callback(self, message: PoseStamped) -> None:
         if message.header.frame_id and message.header.frame_id != self.map_frame:

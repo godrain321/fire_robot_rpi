@@ -116,6 +116,9 @@ def test_mode5_operator_logs_name_inspection_and_exit_change_phases():
     assert mode3_inspection_progress_log(
         'MODE3_MMWAVE_OBSERVING'
     ).startswith('[생체 판별]')
+    assert mode3_inspection_progress_log(
+        'MODE3_TARGET_MOVED:REPLANNING:DISTANCE:2.70M'
+    ).startswith('[재접근]')
     assert mode3_inspection_progress_log('MODE3_READY:PRESS_SPACE') is None
     assert exit_navigation_log('exit2', set()) == (
         '[출구 선택] 가장 가까운 출구 exit2로 이동합니다.'
@@ -124,6 +127,16 @@ def test_mode5_operator_logs_name_inspection_and_exit_change_phases():
     assert changed.startswith('[출구 변경]')
     assert '목록(exit1, exit2)' in changed
     assert '다음 출구 exit3' in changed
+
+
+def test_mode5_updates_active_inspection_target_from_latest_lidar_candidate():
+    node = nearest_inspection_node([(1.5, 0.0)])
+    node._phase = 'INSPECTING_CANDIDATE'
+    node.inspection_target = (1.5, 0.0)
+
+    node._on_all_candidates(pose_array(1.9, 0.1))
+
+    assert node.inspection_target == (1.9, 0.1)
 
 
 def test_external_mode5_command_starts_idle_orchestrator():

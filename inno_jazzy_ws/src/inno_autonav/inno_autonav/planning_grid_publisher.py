@@ -29,15 +29,30 @@ class PlanningGridPublisher(Node):
         self.publisher = self.create_publisher(
             OccupancyGrid, '/planning_grid_static', qos
         )
+        self._known_subscription_count = self.publisher.get_subscription_count()
         self.timer = (
             self.create_timer(1.0 / publish_rate, self.publish_grid)
             if publish_rate > 0.0 else None
+        )
+        self.discovery_timer = (
+            self.create_timer(1.0, self._republish_for_new_subscribers)
+            if publish_rate == 0.0 else None
         )
         self.publish_grid()
         self.get_logger().info(
             f'planning grid: {self.grid.width}x{self.grid.height}, '
             f'{self.grid.resolution:.3f} m/cell, source={map_yaml}'
         )
+
+    def _republish_for_new_subscribers(self) -> None:
+        """Replay the one-shot map once when a late subscriber is discovered."""
+        current = self.publisher.get_subscription_count()
+        if current > self._known_subscription_count:
+            self.publish_grid()
+            self.get_logger().info(
+                'planning grid replayed for a newly discovered subscriber'
+            )
+        self._known_subscription_count = current
 
     def publish_grid(self) -> None:
         message = OccupancyGrid()

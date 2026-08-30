@@ -83,13 +83,21 @@ def mode3_log_text(state: str) -> Optional[str]:
     if upper.startswith('MODE3_APPROACHING:'):
         try:
             payload = raw.split(':', 1)[1]
-            point, standoff = payload.split(':STANDOFF:', 1)
-            distance = standoff.upper().removesuffix('M')
-            return f'[접근] 장애물 ({point}) {distance}m 앞 검사 지점으로 이동 중'
+            point, _standoff = payload.split(':STANDOFF:', 1)
+            return (
+                f'[접근] 장애물 ({point})의 최신 LiDAR 위치 추적 중 — '
+                '로봇과 2.5m 이내가 되면 검사 시작'
+            )
         except ValueError:
             return '[접근] 장애물 검사 지점으로 이동 중'
     if upper == 'MODE3_AT_STANDOFF:ROBOT_SETTLING':
-        return '[도착] 검사 지점 도착 — 로봇 정지 확인 중'
+        return '[도착] 최신 장애물이 2.5m 이내 — 로봇 정지 확인 중'
+    if upper.startswith('MODE3_TARGET_MOVED:REPLANNING'):
+        return '[재접근] 장애물이 2.5m 밖으로 이동 — 최신 LiDAR 위치로 재계획'
+    if upper == 'MODE3_WAITING_FOR_LIVE_TARGET':
+        return '[추적 대기] 최신 LiDAR 후보 재검출 대기 — 로봇 정지 유지'
+    if upper == 'MODE3_TARGET_TRACK_LOST':
+        return '[판정보류] 검사 대상의 최신 LiDAR 위치를 확인할 수 없습니다.'
     if upper == 'MODE3_MMWAVE_OBSERVING':
         return '[판별] mmWave 사람 판별 시작'
     if upper.startswith('MODE3_PERSON_CONFIRMED'):
@@ -328,7 +336,10 @@ class StatusConsole(Node):
                 '[입력] 이동할 웨이포인트를 쉼표로 구분해 입력하세요.'
             )
         elif mode == 3:
-            self._write('[검사] 실제 정지거리 2.0m에서 mmWave로 판별합니다.')
+            self._write(
+                '[검사] 선택한 장애물의 최신 LiDAR 위치가 로봇에서 '
+                '2.5m 이내일 때 mmWave로 판별합니다.'
+            )
         elif mode == 4:
             distance = '2.0m' if self.mode5_enabled else '1.5m'
             self._write(

@@ -142,9 +142,12 @@ class ExitEvaluatorNode(Node):
         self._set_status(self.status)
 
     def _set_status(self, status):
-        if status != self.status:
+        changed = status != self.status
+        if changed:
             self.status = status
         self.status_publisher.publish(String(data=self.status))
+        if changed:
+            self.get_logger().info(f"exit evaluator status: {self.status}")
 
     def _static_callback(self, message):
         info, origin = message.info, message.info.origin
