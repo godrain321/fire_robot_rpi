@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-robot_root="/home/seeno04/fire_robot_rpi"
+robot_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="${robot_root}/inno_jazzy_ws"
 drive_speed='0.06'
 launch_args=()

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+robot_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+workspace="${robot_root}/inno_jazzy_ws"
+export FIRE_ROBOT_RPI_ROOT="${robot_root}"
+
 drive_speed='0.06'
 use_camera_mode4='true'
 launch_args=()
@@ -24,7 +28,7 @@ if [[ "${use_camera_mode4}" != 'true' && "${use_camera_mode4}" != 'false' ]]; th
   exit 2
 fi
 
-cd /home/seeno04/fire_robot_rpi/inno_jazzy_ws
+cd "${workspace}"
 set +u
 source /opt/ros/jazzy/setup.bash
 if [[ ! -f install/setup.bash ]]; then
