@@ -150,6 +150,7 @@ exit_evaluator_node:
     service_name: /evaluate_exits
     exit_neighborhood_radius_m: 1.0
     approach_search_radius_m: 1.0
+    path_block_check_radius: 0.50
     reject_blocked_exit: true
     reject_dangerous_exit: true
     reject_path_over_threshold: true

@@ -58,6 +58,14 @@ def activation(stamp, goal=(4.5, 0.5)):
     }))
 
 
+def plan(goal=(4.5, 0.5), revision=1):
+    return String(data=json.dumps({
+        "success": True, "activated": True, "selected_exit_id": "EXIT1",
+        "selected_approach_position_world": list(goal),
+        "hazard_revision": revision,
+    }))
+
+
 def test_cached_astar_is_relayed_unchanged_only_by_matching_activation():
     value = node(); candidate = path(101)
     PathSelectorNode._on_astar_path(value, candidate)
@@ -138,14 +146,50 @@ def test_mode5_empty_waypoint_path_uses_matching_safe_astar_fallback():
     assert value._automatic_astar_fallback is True
 
 
-def test_mode5_cached_astar_is_released_when_waypoint_failure_arrives_later():
+def test_mode5_matching_astar_is_used_without_waiting_for_waypoint_failure():
     value = node()
     value._drive_mode = 5
     candidate = path(602)
     PathSelectorNode._on_astar_path(value, candidate)
+
+    assert value.path_publisher.messages == [candidate]
+    assert value.core.mode.value == "A_STAR"
+    assert value._automatic_astar_fallback is True
+
+
+def test_mode5_valid_matching_waypoint_keeps_priority_over_astar():
+    value = node()
+    value._drive_mode = 5
+    waypoint = path(603)
+    candidate = path(604)
+    PathSelectorNode._on_waypoint_path(value, waypoint)
+    PathSelectorNode._on_astar_path(value, candidate)
+
+    assert value.path_publisher.messages == [waypoint]
+    assert value.core.mode.value == "WAYPOINT"
+
+
+def test_mode5_waypoint_failure_replaces_cached_waypoint_with_astar():
+    value = node()
+    value._drive_mode = 5
+    waypoint = path(605)
+    candidate = path(606)
+    PathSelectorNode._on_waypoint_path(value, waypoint)
+    PathSelectorNode._on_astar_path(value, candidate)
+    PathSelectorNode._on_waypoint_path(value, Path())
+
+    assert value.path_publisher.messages == [waypoint, candidate]
+    assert value.core.mode.value == "A_STAR"
+
+
+def test_mode5_cached_astar_is_released_when_matching_plan_arrives_later():
+    value = node(goal=None)
+    value._drive_mode = 5
+    candidate = path(607)
+    PathSelectorNode._on_astar_path(value, candidate)
     assert not value.path_publisher.messages
 
-    PathSelectorNode._on_waypoint_path(value, Path())
+    PathSelectorNode._on_new_goal(value, plan())
 
     assert value.path_publisher.messages == [candidate]
     assert value.core.mode.value == "A_STAR"
@@ -154,10 +198,10 @@ def test_mode5_cached_astar_is_released_when_waypoint_failure_arrives_later():
 def test_automatic_fallback_returns_to_a_recovered_waypoint_path():
     value = node()
     value._drive_mode = 5
-    fallback = path(603)
+    fallback = path(608)
     PathSelectorNode._on_waypoint_path(value, Path())
     PathSelectorNode._on_astar_path(value, fallback)
-    recovered = path(604)
+    recovered = path(609)
 
     PathSelectorNode._on_waypoint_path(value, recovered)
 
@@ -168,7 +212,7 @@ def test_automatic_fallback_returns_to_a_recovered_waypoint_path():
 
 def test_empty_waypoint_path_does_not_auto_fallback_outside_mode5():
     value = node()
-    PathSelectorNode._on_astar_path(value, path(605))
+    PathSelectorNode._on_astar_path(value, path(610))
     PathSelectorNode._on_waypoint_path(value, Path())
 
     assert not value.path_publisher.messages

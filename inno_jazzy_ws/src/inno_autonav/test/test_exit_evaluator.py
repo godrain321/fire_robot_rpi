@@ -5,9 +5,11 @@ import pytest
 
 from inno_autonav.exit_evaluator import (
     ExitEvaluationConfig, ExitEvaluator, ExitHazardSnapshot, ExitItem,
-    ExitRejectionReason, ExitStatus, exit_evaluator_readiness, load_exit_registry,
+    ExitRejectionReason, ExitStatus, apply_static_clearance_to_snapshot,
+    exit_evaluator_readiness, load_exit_registry,
     within_usable_confirmation_distance,
 )
+from inno_autonav.grid_utils import build_static_clearance_mask
 from inno_autonav.reference_waypoint_graph import (
     PlanningGridGeometry, ReferenceWaypoint, ReferenceWaypointGraphConfig,
     ReferenceWaypointGraphPlanner,
@@ -77,26 +79,45 @@ def test_reachable_registered_approach_and_basic_metrics():
     assert result.unknown_ratio == 1.0
 
 
-def test_no_path_and_invalid_registered_approach_is_not_replaced():
+def test_no_path_to_safe_registered_approach_is_not_projected():
     view = snapshot()
     static = np.array(view.static_obstacle_map, copy=True)
     static[:, 3] = True
     blocked = static.copy()
     costs = np.array(view.final_cost, copy=True)
     costs[blocked] = np.inf
-    wall = changed(view, static_obstacle_map=static, blocked_mask=blocked,
-                   final_cost=costs)
+    wall = changed(
+        view,
+        static_obstacle_map=static,
+        blocked_mask=blocked,
+        final_cost=costs,
+    )
     result = evaluate(ExitItem("E", (5.5, 0.5), (5.5, 0.5)), wall)
     assert not result.reachable
     assert result.rejection_reasons == (ExitRejectionReason.NO_PATH,)
 
+
+def test_blocked_registered_approach_is_projected_to_nearest_reachable_cell():
+    view = snapshot()
+    static = np.array(view.static_obstacle_map, copy=True)
     static[0, 2] = True
+    costs = np.array(view.final_cost, copy=True)
     costs[0, 2] = np.inf
-    invalid = changed(view, static_obstacle_map=static,
-                      blocked_mask=static, final_cost=costs)
-    result = evaluate(ExitItem("E", (4.5, 0.5), (2.5, 0.5)), invalid)
-    assert result.rejection_reasons == (ExitRejectionReason.STATIC_OBSTACLE,)
-    assert result.approach_position_grid == (2, 0)
+    blocked = changed(
+        view,
+        static_obstacle_map=static,
+        blocked_mask=static,
+        final_cost=costs,
+    )
+
+    result = evaluate(
+        ExitItem("E", (4.5, 0.5), (2.5, 0.5)),
+        blocked,
+    )
+
+    assert result.accepted
+    assert result.approach_position_grid == (1, 0)
+    assert result.approach_position_world == (1.5, 0.5)
 
 
 def test_approach_search_chooses_reachable_lowest_path_cost_candidate():
@@ -110,13 +131,13 @@ def test_approach_search_chooses_reachable_lowest_path_cost_candidate():
     assert math.dist(result.approach_position_world, (4.5, 4.5)) <= 1.0 + 1e-12
 
 
-@pytest.mark.parametrize("kind,reason", [
-    ("static", ExitRejectionReason.STATIC_OBSTACLE),
-    ("dynamic", ExitRejectionReason.DYNAMIC_OBSTACLE),
-    ("temperature", ExitRejectionReason.TEMPERATURE_LIMIT_EXCEEDED),
-    ("co", ExitRejectionReason.CO_LIMIT_EXCEEDED),
+@pytest.mark.parametrize("kind", [
+    "static",
+    "dynamic",
+    "temperature",
+    "co",
 ])
-def test_registered_approach_hard_rejection_reasons(kind, reason):
+def test_registered_approach_hard_block_is_projected(kind):
     view = snapshot()
     arrays = {name: np.array(getattr(view, name), copy=True) for name in (
         "final_cost", "temperature_c", "co_ppm", "temperature_observed_mask",
@@ -137,9 +158,57 @@ def test_registered_approach_hard_rejection_reasons(kind, reason):
     arrays["blocked_mask"][cell] = True
     arrays["final_cost"][cell] = np.inf
     result = evaluate(
-        ExitItem("E", (4.5, 0.5), (2.5, 0.5)), changed(view, **arrays)
+        ExitItem("E", (4.5, 0.5), (2.5, 0.5)),
+        changed(view, **arrays),
     )
-    assert result.rejection_reasons == (reason,)
+    assert result.accepted
+    assert result.approach_position_grid == (1, 0)
+
+
+def test_static_clearance_snapshot_blocks_inflated_cells_without_mutating_raw():
+    view = snapshot(size=9)
+    static = np.array(view.static_obstacle_map, copy=True)
+    static[4, 4] = True
+    raw = changed(view, static_obstacle_map=static)
+    clearance = build_static_clearance_mask(
+        np.where(static, 100, 0),
+        1.0,
+        raw.geometry.resolution,
+    )
+
+    planning = apply_static_clearance_to_snapshot(raw, clearance)
+
+    assert not raw.blocked_mask[4, 5]
+    assert math.isfinite(raw.final_cost[4, 5])
+    assert planning.blocked_mask[4, 5]
+    assert math.isinf(planning.final_cost[4, 5])
+
+
+def test_registered_approach_inside_static_clearance_uses_nearest_safe_goal():
+    view = snapshot(size=9)
+    static = np.array(view.static_obstacle_map, copy=True)
+    static[4, 4] = True
+    raw = changed(view, static_obstacle_map=static)
+    clearance = build_static_clearance_mask(
+        np.where(static, 100, 0),
+        1.0,
+        raw.geometry.resolution,
+    )
+    planning = apply_static_clearance_to_snapshot(raw, clearance)
+    registered = (5.5, 4.5)
+
+    result = evaluate(
+        ExitItem("E", registered, registered),
+        planning,
+        start=(8.5, 4.5),
+    )
+
+    assert result.accepted
+    assert clearance[4, 5]
+    col, row = result.approach_position_grid
+    assert not clearance[row, col]
+    assert result.approach_position_world != registered
+    assert math.dist(result.approach_position_world, registered) <= 1.0
 
 
 def test_finite_soft_risk_remains_accepted_and_integrates_by_distance():

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import Enum
 import math
 from pathlib import Path
@@ -12,6 +12,8 @@ import numpy as np
 import yaml
 
 from inno_hazard.hazard_belief import HazardGridGeometry
+
+from .grid_utils import apply_static_clearance_to_hazard_costs
 
 
 Cell = tuple[int, int]
@@ -218,6 +220,28 @@ class ExitHazardSnapshot:
             raise ValueError("hazard thresholds must be non-negative")
         if not math.isfinite(self.base_cost) or self.base_cost <= 0.0:
             raise ValueError("base_cost must be finite and positive")
+
+
+def apply_static_clearance_to_snapshot(
+    snapshot: ExitHazardSnapshot,
+    static_clearance_mask: np.ndarray,
+) -> ExitHazardSnapshot:
+    """Return a planning snapshot with static clearance marked impassable."""
+    clearance = np.asarray(static_clearance_mask, dtype=bool)
+    if clearance.shape != snapshot.final_cost.shape:
+        raise ValueError(
+            "static clearance geometry differs from the hazard snapshot"
+        )
+    final_cost = apply_static_clearance_to_hazard_costs(
+        snapshot.final_cost,
+        clearance,
+    )
+    blocked = np.asarray(snapshot.blocked_mask, dtype=bool) | clearance
+    return replace(
+        snapshot,
+        final_cost=final_cost,
+        blocked_mask=blocked,
+    )
 
 
 @dataclass(frozen=True)
@@ -441,16 +465,17 @@ class ExitEvaluator:
         if start_failure is not None:
             return self._rejected(exit_item, [start_failure], evaluated_at)
 
-        if exit_item.approach_position_world is not None:
-            registered = snapshot.geometry.world_to_grid(*exit_item.approach_position_world)
-            if registered is None:
-                return self._rejected(exit_item, [ExitRejectionReason.OUT_OF_MAP], evaluated_at)
-            failure = self._cell_failure(registered, snapshot)
-            if failure is not None:
-                return self._rejected(
-                    exit_item, [failure], evaluated_at,
-                    tuple(exit_item.approach_position_world), registered,
-                )
+        if (
+            exit_item.approach_position_world is not None
+            and snapshot.geometry.world_to_grid(
+                *exit_item.approach_position_world
+            ) is None
+        ):
+            return self._rejected(
+                exit_item,
+                [ExitRejectionReason.OUT_OF_MAP],
+                evaluated_at,
+            )
         approach = self._resolve_approach(exit_item, start, snapshot)
         if approach is None:
             return self._rejected(exit_item, [ExitRejectionReason.NO_APPROACH_CELL], evaluated_at)
@@ -502,33 +527,57 @@ class ExitEvaluator:
 
     def _resolve_approach(self, item, start, snapshot):
         registered = item.approach_position_world is not None
-        if registered:
-            grid = snapshot.geometry.world_to_grid(*item.approach_position_world)
-            candidates = [(tuple(item.approach_position_world), grid)]
-        else:
-            center = snapshot.geometry.world_to_grid(*item.position_world)
-            radius = int(math.ceil(
-                self.config.approach_search_radius_m / snapshot.geometry.resolution
-            ))
-            candidates = []
-            for row in range(center[1] - radius, center[1] + radius + 1):
-                for col in range(center[0] - radius, center[0] + radius + 1):
-                    if not (0 <= col < snapshot.geometry.width and 0 <= row < snapshot.geometry.height):
-                        continue
-                    distance_m = math.hypot(col - center[0], row - center[1]) * snapshot.geometry.resolution
-                    if 0.0 < distance_m <= self.config.approach_search_radius_m + 1e-12:
-                        candidates.append((snapshot.geometry.grid_to_world(col, row), (col, row)))
-            candidates.sort(key=lambda value: (
-                math.dist(value[0], item.position_world), value[1][1], value[1][0]
-            ))
+        target_world = tuple(
+            item.approach_position_world
+            if registered else item.position_world
+        )
+        center = snapshot.geometry.world_to_grid(*target_world)
+        if center is None:
+            return None
+
+        # Preserve the exact registered coordinate when it is already safe.
+        # Projection is used only when that destination lies in a prohibited
+        # cell, so an unrelated connectivity failure remains a normal NO_PATH.
+        if registered and self._cell_failure(center, snapshot) is None:
+            result = self.path_planner(snapshot, start, center)
+            return target_world, center, result
+
+        radius = int(math.ceil(
+            self.config.approach_search_radius_m
+            / snapshot.geometry.resolution
+        ))
+        candidates = []
+        for row in range(center[1] - radius, center[1] + radius + 1):
+            for col in range(center[0] - radius, center[0] + radius + 1):
+                if not (
+                    0 <= col < snapshot.geometry.width
+                    and 0 <= row < snapshot.geometry.height
+                ):
+                    continue
+                world = snapshot.geometry.grid_to_world(col, row)
+                distance_m = math.dist(world, target_world)
+                if (
+                    distance_m
+                    <= self.config.approach_search_radius_m + 1e-12
+                    and (registered or (col, row) != center)
+                ):
+                    candidates.append((world, (col, row), distance_m))
+        candidates.sort(key=lambda value: (
+            value[2], value[1][1], value[1][0]
+        ))
+
         best = None
-        for world, grid in candidates:
-            if grid is None or self._cell_failure(grid, snapshot) is not None:
+        for world, grid, _distance in candidates:
+            if self._cell_failure(grid, snapshot) is not None:
                 continue
             result = self.path_planner(snapshot, start, grid)
             if registered:
-                return world, grid, result
-            if result.path and (best is None or result.total_cost < best[2].total_cost):
+                if result.path:
+                    return world, grid, result
+                continue
+            if result.path and (
+                best is None or result.total_cost < best[2].total_cost
+            ):
                 best = world, grid, result
         return best
 

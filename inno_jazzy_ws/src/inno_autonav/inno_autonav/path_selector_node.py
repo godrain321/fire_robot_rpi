@@ -108,12 +108,20 @@ class PathSelectorNode(Node):
         self._apply(output)
 
     def _activate_astar_fallback_if_ready(self) -> bool:
-        """Use the safe A* candidate when Mode 5 waypoint planning failed."""
+        """Use safe A* when Mode 5 has no valid path for the active goal."""
         if (
             self._drive_mode != 5
             or self._active_goal is None
             or self._direct_goal_world is not None
-            or not self._waypoint_failed_for_goal
+            or self._automatic_astar_fallback
+        ):
+            return False
+        waypoint = self.core.latest("waypoint")
+        if (
+            not self._waypoint_failed_for_goal
+            and waypoint is not None
+            and waypoint.poses
+            and self._matches_active_goal(waypoint)
         ):
             return False
         candidate = self.core.latest("astar")
@@ -127,7 +135,8 @@ class PathSelectorNode(Node):
         self._automatic_astar_fallback = True
         self._apply(self.core.set_mode("A_STAR"))
         self.get_logger().warning(
-            "Mode 5 waypoint path unavailable; using the matching safe A* path."
+            "Mode 5 has no valid matching waypoint path; "
+            "using the matching safe A* path."
         )
         return True
 
@@ -233,6 +242,11 @@ class PathSelectorNode(Node):
                 final = output.payload.poses[-1].pose.position
                 if (final.x, final.y) == goal.approach_world:
                     self._apply(output)
+            # DDS can also deliver the matching A* Path before this plan. If
+            # there is no valid waypoint path for the newly activated goal,
+            # release that safe candidate immediately instead of waiting for
+            # an explicit empty waypoint failure message.
+            self._activate_astar_fallback_if_ready()
 
     def _on_cancel(self, _message: Empty) -> None:
         """Clear selected/cached paths and explicitly clear /planned_path."""

@@ -17,6 +17,8 @@ from std_msgs.msg import Float32MultiArray
 
 from .grid_utils import (
     MapGrid,
+    apply_static_clearance_to_hazard_costs,
+    build_static_clearance_mask,
     grid_to_world,
     inflate_occupied_cells,
     is_inside_grid,
@@ -314,6 +316,7 @@ class AstarReplanner(Node):
         self.thermal_geometry_mismatch = False
         self.combined_grid: Optional[MapGrid] = None
         self.hazard_grid: Optional[MapGrid] = None
+        self.static_clearance_mask: Optional[np.ndarray] = None
         self.hazard_status = ''
         self.goal: Optional[PoseStamped] = None
         self.current_path_cells: List[Cell] = []
@@ -404,6 +407,12 @@ class AstarReplanner(Node):
         )
         self.static_grid = grid
         if changed:
+            self.static_clearance_mask = build_static_clearance_mask(
+                grid.data,
+                self.clearance_radius,
+                grid.resolution,
+                unknown_is_occupied=self.unknown_is_occupied,
+            )
             self.hazard_grid = None
         if self.dynamic_grid is not None and not self._same_geometry(
             grid, self.dynamic_grid
@@ -518,6 +527,13 @@ class AstarReplanner(Node):
         if np.any(np.isnan(data)) or np.any(data[np.isfinite(data)] <= 0.0):
             self._state('INVALID_HAZARD_GRID')
             return
+        if self.static_clearance_mask is None:
+            self._state('WAITING_FOR_STATIC_CLEARANCE')
+            return
+        data = apply_static_clearance_to_hazard_costs(
+            data,
+            self.static_clearance_mask,
+        )
         self.hazard_grid = MapGrid(
             self.static_grid.width, self.static_grid.height,
             self.static_grid.resolution, self.static_grid.origin_x,

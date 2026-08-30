@@ -146,6 +146,46 @@ def inflate_occupied_cells(data: np.ndarray, radius_cells: int) -> np.ndarray:
     return result
 
 
+def build_static_clearance_mask(
+    static_data: np.ndarray,
+    clearance_radius_m: float,
+    resolution_m: float,
+    *,
+    unknown_is_occupied: bool = True,
+) -> np.ndarray:
+    """Return cells forbidden by the configured static-wall clearance."""
+    static = np.asarray(static_data)
+    if static.ndim != 2:
+        raise ValueError('static occupancy data must be two-dimensional')
+    if not math.isfinite(clearance_radius_m) or clearance_radius_m < 0.0:
+        raise ValueError('static clearance radius must be finite and non-negative')
+    if not math.isfinite(resolution_m) or resolution_m <= 0.0:
+        raise ValueError('static grid resolution must be finite and positive')
+
+    blocked = np.zeros(static.shape, dtype=np.int8)
+    blocked[static >= 100] = 100
+    if unknown_is_occupied:
+        blocked[static < 0] = 100
+    radius_cells = int(math.ceil(clearance_radius_m / resolution_m))
+    return inflate_occupied_cells(blocked, radius_cells) >= 100
+
+
+def apply_static_clearance_to_hazard_costs(
+    hazard_costs: np.ndarray,
+    static_clearance_mask: np.ndarray,
+) -> np.ndarray:
+    """Overlay static-wall clearance as impassable traversal costs."""
+    costs = np.asarray(hazard_costs, dtype=float)
+    blocked = np.asarray(static_clearance_mask, dtype=bool)
+    if costs.ndim != 2:
+        raise ValueError('hazard traversal costs must be two-dimensional')
+    if blocked.shape != costs.shape:
+        raise ValueError('static clearance geometry differs from hazard costs')
+    result = costs.copy()
+    result[blocked] = math.inf
+    return result
+
+
 def bresenham(start: Tuple[int, int], end: Tuple[int, int]) -> List[Tuple[int, int]]:
     x0, y0 = start
     x1, y1 = end

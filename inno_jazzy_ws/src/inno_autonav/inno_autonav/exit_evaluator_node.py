@@ -18,9 +18,10 @@ from inno_hazard.hazard_snapshot import decode_hazard_snapshot_message
 
 from .exit_evaluator import (
     ExitEvaluationConfig, ExitEvaluator, ExitHazardSnapshot,
-    exit_evaluator_readiness, load_exit_registry,
+    apply_static_clearance_to_snapshot, exit_evaluator_readiness,
+    load_exit_registry,
 )
-from .grid_utils import yaw_from_quaternion
+from .grid_utils import build_static_clearance_mask, yaw_from_quaternion
 from .reference_waypoint_graph import (
     PlanningGridGeometry, ReferenceWaypoint, ReferenceWaypointGraphConfig,
     ReferenceWaypointGraphPlanner,
@@ -44,6 +45,7 @@ class ExitEvaluatorNode(Node):
             "service_name": "/evaluate_exits",
             "exit_neighborhood_radius_m": 1.0,
             "approach_search_radius_m": 1.0,
+            "path_block_check_radius": 0.20,
             "reject_blocked_exit": True,
             "reject_dangerous_exit": True,
             "reject_path_over_threshold": True,
@@ -65,6 +67,14 @@ class ExitEvaluatorNode(Node):
         value = lambda name: self.get_parameter(name).value
         self.map_frame = str(value("map_frame"))
         self.base_frame = str(value("base_frame"))
+        self.clearance_radius = float(value("path_block_check_radius"))
+        if (
+            not math.isfinite(self.clearance_radius)
+            or self.clearance_radius < 0.0
+        ):
+            raise ValueError(
+                "path_block_check_radius must be finite and non-negative"
+            )
         exit_file = str(value("exit_registry_file")).strip()
         waypoint_file = str(value("reference_waypoint_file")).strip()
         if not exit_file or not waypoint_file:
@@ -105,8 +115,10 @@ class ExitEvaluatorNode(Node):
         )
         self.evaluator = ExitEvaluator(config, path_planner=self._plan)
         self.tf = TfHelper(self)
+        self.raw_snapshot = None
         self.snapshot = None
         self.static_geometry = None
+        self.static_clearance_mask = None
         self.status = "EXIT_EVALUATOR_NOT_READY"
 
         qos = QoSProfile(depth=1)
@@ -136,11 +148,36 @@ class ExitEvaluatorNode(Node):
 
     def _static_callback(self, message):
         info, origin = message.info, message.info.origin
-        self.static_geometry = HazardGridGeometry(
-            int(info.width), int(info.height), float(info.resolution),
-            float(origin.position.x), float(origin.position.y),
-            yaw_from_quaternion(origin.orientation), str(message.header.frame_id),
-        )
+        try:
+            geometry = HazardGridGeometry(
+                int(info.width), int(info.height), float(info.resolution),
+                float(origin.position.x), float(origin.position.y),
+                yaw_from_quaternion(origin.orientation),
+                str(message.header.frame_id),
+            )
+            static_data = np.asarray(message.data, dtype=np.int16)
+            if static_data.size != geometry.width * geometry.height:
+                raise ValueError("static occupancy data length is invalid")
+            static_data = static_data.reshape(
+                geometry.height,
+                geometry.width,
+            )
+            clearance = build_static_clearance_mask(
+                static_data,
+                self.clearance_radius,
+                geometry.resolution,
+                unknown_is_occupied=True,
+            )
+        except ValueError as exc:
+            self.get_logger().error(f"invalid static planning grid: {exc}")
+            self.static_geometry = None
+            self.static_clearance_mask = None
+            self.snapshot = None
+            self._refresh_readiness()
+            return
+        self.static_geometry = geometry
+        self.static_clearance_mask = clearance
+        self._apply_static_clearance()
         self._refresh_readiness()
 
     def _snapshot_callback(self, message):
@@ -152,7 +189,7 @@ class ExitEvaluatorNode(Node):
                 float(metadata["origin_y"]), float(metadata["origin_yaw"]),
                 str(metadata["frame_id"]),
             )
-            self.snapshot = ExitHazardSnapshot(
+            self.raw_snapshot = ExitHazardSnapshot(
                 geometry, layers["final_cost"], layers["temperature_c"],
                 layers["co_ppm"], layers["observed"].astype(bool),
                 layers["temperature_observed"].astype(bool),
@@ -164,11 +201,31 @@ class ExitEvaluatorNode(Node):
                 float(metadata["co_blocked_ppm"]), float(metadata["base_cost"]),
             )
             self.snapshot_status = str(metadata["status"])
+            self._apply_static_clearance()
         except (TypeError, ValueError) as exc:
             self.get_logger().error(f"invalid hazard snapshot: {exc}")
+            self.raw_snapshot = None
             self.snapshot = None
             self.snapshot_status = "INVALID_HAZARD_SNAPSHOT"
         self._refresh_readiness()
+
+    def _apply_static_clearance(self):
+        if self.raw_snapshot is None:
+            self.snapshot = None
+            return
+        if self.static_clearance_mask is None:
+            self.snapshot = self.raw_snapshot
+            return
+        try:
+            self.snapshot = apply_static_clearance_to_snapshot(
+                self.raw_snapshot,
+                self.static_clearance_mask,
+            )
+        except ValueError as exc:
+            self.get_logger().error(
+                f"invalid static clearance overlay: {exc}"
+            )
+            self.snapshot = None
 
     def _refresh_readiness(self):
         self._set_status(exit_evaluator_readiness(
