@@ -10,20 +10,19 @@ and the MQ-135 / CO cost layer.
 
 Structure: this is ``field_waypoint_test.launch.py`` with the thermal sensor
 stack + base->thermal static TF added and the exit/evacuation nodes enabled.
-After localization is ready, a one-shot retrying ``ros2 service call`` on the
-existing ``/plan_evacuation`` service kicks off the first exit selection (no new
-goal publisher, no timer-driven republish).
+The thin ``mode7_mission_coordinator`` waits for localization, map TF, thermal
+hazard, evaluator, and manager readiness before calling the existing
+``/plan_evacuation`` service.  It owns no exit-selection or path algorithm.
 """
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (
-    DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction,
-)
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 from inno_robot_bringup.project_paths import project_path
 
@@ -39,8 +38,7 @@ def generate_launch_description():
         DeclareLaunchArgument("use_lidar", default_value="true"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("auto_localization", default_value="true"),
-        # Auto-fire the existing /plan_evacuation once localization is up.
-        DeclareLaunchArgument("auto_start", default_value="true"),
+        DeclareLaunchArgument("mode7_auto_start", default_value="false"),
         DeclareLaunchArgument("set_initial_pose", default_value="false"),
         DeclareLaunchArgument("initial_pose_x", default_value="0.0"),
         DeclareLaunchArgument("initial_pose_y", default_value="0.0"),
@@ -109,6 +107,7 @@ def generate_launch_description():
             "drive_speed": L("drive_speed"),
             "turn_speed": L("turn_speed"),
             "use_dynamic_obstacles": L("use_dynamic_obstacles"),
+            "person_inspection_enabled": "false",
             # thermal-only hazard belief: thermal ON, gas/CO OFF
             "hazard_belief_enabled": "true",
             "hazard_thermal_enabled": "true",
@@ -134,24 +133,16 @@ def generate_launch_description():
         }.items(),
     )
 
-    # No orchestrator in this profile, so nothing calls /plan_evacuation. Poll the
-    # existing service until it succeeds (it only succeeds once localization + the
-    # hazard snapshot are live, so this cannot plan from a stale (0,0,0) pose).
-    auto_start_plan = TimerAction(
-        period=8.0,
-        actions=[ExecuteProcess(
-            cmd=[
-                "bash", "-c",
-                "for i in $(seq 1 90); do "
-                "ros2 service call /plan_evacuation std_srvs/srv/Trigger '{}' "
-                "2>/dev/null | grep -q 'success=True' && "
-                "{ echo '[ROBOT] mode7 auto-start: exit route activated'; exit 0; }; "
-                "sleep 3; done; "
-                "echo '[ROBOT] mode7 auto-start: /plan_evacuation did not succeed' >&2",
-            ],
-            name="mode7_evacuation_autostart", output="screen",
-        )],
-        condition=IfCondition(L("auto_start")),
+    mission_coordinator = Node(
+        package="inno_autonav",
+        executable="mode7_mission_coordinator",
+        name="mode7_mission_coordinator",
+        output="screen",
+        emulate_tty=True,
+        parameters=[{
+            "enabled": True,
+            "auto_start": ParameterValue(L("mode7_auto_start"), value_type=bool),
+        }],
     )
 
     rviz = Node(
@@ -161,5 +152,5 @@ def generate_launch_description():
     )
 
     return LaunchDescription(args + [
-        thermal_transform, thermal_bringup, field_bringup, auto_start_plan, rviz,
+        thermal_transform, thermal_bringup, field_bringup, mission_coordinator, rviz,
     ])

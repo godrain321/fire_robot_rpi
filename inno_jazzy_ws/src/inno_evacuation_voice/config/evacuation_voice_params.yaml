@@ -1,0 +1,12 @@
+periodic_evacuation_voice_node:
+  ros__parameters:
+    enabled: true
+    interval_sec: 7.0
+    play_immediately: true
+    active_drive_mode: 5
+    audio_directory: "~/fire_robot_audio"
+    audio_file: "evacuation_guide.wav"
+    audio_device: "auto"
+    player_executable: "aplay"
+    playback_volume_percent: 100
+    activation_mode: "drive_mode"

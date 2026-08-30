@@ -68,6 +68,7 @@ def generate_launch_description():
         DeclareLaunchArgument('drive_speed', default_value='0.12'),
         DeclareLaunchArgument('turn_speed', default_value='0.45'),
         DeclareLaunchArgument('use_dynamic_obstacles', default_value='true'),
+        DeclareLaunchArgument('person_inspection_enabled', default_value='true'),
         # Modes 1-4 must remain testable before the optional MLX90640 is
         # installed.  Mode 5 supplies its own live hazard pipeline and does
         # not use these fallbacks.
@@ -290,6 +291,7 @@ def generate_launch_description():
                 # confidence threshold.  Otherwise the detector can publish a
                 # valid box which Mode 4 silently filters out again.
                 'mode4_minimum_confidence': L('yolo_confidence'),
+                'person_inspection_enabled': L('person_inspection_enabled'),
                 'require_localization_ready': L('auto_localization'),
             }.items(),
         )],

@@ -25,6 +25,7 @@ def generate_launch_description() -> LaunchDescription:
     map_yaml = LaunchConfiguration('map_yaml')
     semantic_yaml = LaunchConfiguration('semantic_yaml')
     use_dynamic_obstacles = LaunchConfiguration('use_dynamic_obstacles')
+    person_inspection_enabled = LaunchConfiguration('person_inspection_enabled')
     max_linear_speed = LaunchConfiguration('max_linear_speed')
     max_angular_speed = LaunchConfiguration('max_angular_speed')
     require_thermal_grid = LaunchConfiguration('require_thermal_grid')
@@ -79,6 +80,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB0'),
             DeclareLaunchArgument('use_wheel_odom_tf', default_value='false'),
             DeclareLaunchArgument('use_dynamic_obstacles', default_value='false'),
+            DeclareLaunchArgument('person_inspection_enabled', default_value='true'),
             DeclareLaunchArgument('max_linear_speed', default_value='0.06'),
             DeclareLaunchArgument('max_angular_speed', default_value='0.45'),
             DeclareLaunchArgument('require_thermal_grid', default_value='true'),
@@ -371,7 +373,10 @@ def generate_launch_description() -> LaunchDescription:
                 ],
                 output='screen',
                 emulate_tty=True,
-                condition=IfCondition(use_dynamic_obstacles),
+                condition=IfCondition(PythonExpression([
+                    "'", use_dynamic_obstacles, "' == 'true' and '",
+                    person_inspection_enabled, "' == 'true'",
+                ])),
             ),
             Node(
                 package='inno_autonav',
@@ -393,7 +398,10 @@ def generate_launch_description() -> LaunchDescription:
                 ],
                 output='screen',
                 emulate_tty=True,
-                condition=IfCondition(use_dynamic_obstacles),
+                condition=IfCondition(PythonExpression([
+                    "'", use_dynamic_obstacles, "' == 'true' and '",
+                    person_inspection_enabled, "' == 'true'",
+                ])),
             ),
             Node(
                 package='inno_autonav',

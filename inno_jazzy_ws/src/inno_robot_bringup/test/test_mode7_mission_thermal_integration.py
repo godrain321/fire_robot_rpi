@@ -11,6 +11,9 @@ MODE7 = BRINGUP / "mode7_thermal_drive.launch.py"
 MODE6 = BRINGUP / "mode6_thermal_preview.launch.py"
 EVAC = BRINGUP / "evacuation_demo.launch.py"
 AUTONAV = SOURCE_ROOT / "inno_autonav" / "launch" / "autonav_demo.launch.py"
+COORDINATOR = SOURCE_ROOT / "inno_autonav" / "inno_autonav" / "mode7_mission_coordinator.py"
+MANAGER = SOURCE_ROOT / "inno_autonav" / "inno_autonav" / "evacuation_manager_node.py"
+RUN_MODE7 = SOURCE_ROOT.parents[1] / "run_mode7.sh"
 
 _MODE7_SRC = MODE7.read_text(encoding="utf-8")
 
@@ -55,12 +58,36 @@ def test_exit_switching_forwarded_for_replan_exhausted():
         in _MODE7_SRC
 
 
-def test_auto_start_calls_existing_plan_service_not_a_new_publisher():
+def test_thin_coordinator_calls_existing_plan_service():
     assert "/plan_evacuation" in _MODE7_SRC
-    assert "std_srvs/srv/Trigger" in _MODE7_SRC
-    assert "auto_start" in _MODE7_SRC
+    assert 'executable="mode7_mission_coordinator"' in _MODE7_SRC
+    assert 'DeclareLaunchArgument("mode7_auto_start", default_value="false")' in _MODE7_SRC
     assert "create_publisher" not in _MODE7_SRC          # no home-grown goal pub
     assert "rclpy" not in _MODE7_SRC                     # no new node in this file
+
+
+def test_coordinator_readiness_plan_and_cancel_contract():
+    src = COORDINATOR.read_text(encoding="utf-8")
+    for interface in (
+        "/localization_ready", "/hazard/status", "/exit_evaluator/status",
+        "/evacuation/status", "/plan_evacuation", "/mode7/start",
+        "/mode7/stop", "/autonomy_cancel", "/follower_state",
+    ):
+        assert interface in src
+    assert "lookup_pose_2d" in src
+    assert 'Int32(data=5)' in src
+    assert 'message.data == "GOAL_REACHED"' in src
+    assert "future.cancel()" in src
+
+
+def test_existing_manager_owns_evaluation_selection_plan_and_goal_activation():
+    src = MANAGER.read_text(encoding="utf-8")
+    assert '"exit_evaluation_service": "/evaluate_exits"' in src
+    assert '"plan_service": "/plan_evacuation"' in src
+    assert '"plan_topic": "/evacuation/plan"' in src
+    assert '"selected_exit_topic": "/evacuation/selected_exit"' in src
+    assert '"planner_goal_topic": "/goal_pose"' in src
+    assert "build_evacuation_decision" in src
 
 
 # -- person / victim detection OFF --------------------------------------
@@ -69,6 +96,7 @@ def test_person_detection_all_off():
     assert FIELD["use_camera_mode4"] == "false"
     assert FIELD["use_mode3_audio"] == "false"
     assert FIELD["mode5_enabled"] == "false"             # orchestrator not started
+    assert FIELD["person_inspection_enabled"] == "false"
 
 
 def test_mode5_orchestrator_tree_not_included():
@@ -89,6 +117,14 @@ def test_gas_layer_off():
     assert "mq135" not in _MODE7_SRC.lower()
 
 
+def test_dynamic_obstacles_remain_on_without_person_inspectors():
+    assert FIELD["use_dynamic_obstacles"] == "<launchconfig>"
+    autonav = AUTONAV.read_text(encoding="utf-8")
+    assert "person_inspection_enabled" in autonav
+    assert "executable='dynamic_obstacle_layer'" in autonav
+    assert autonav.count("person_inspection_enabled, \"' == 'true'\"") == 2
+
+
 # -- thermal ON ---------------------------------------------------
 def test_thermal_hazard_on():
     assert FIELD["hazard_belief_enabled"] == "true"
@@ -104,6 +140,26 @@ def test_planner_pipeline_forwarded_unchanged():
     assert FIELD["event_replanning_enabled"] == "<launchconfig>"
     assert FIELD["waypoint_accept_direct_goal"] == "false"
     assert FIELD["use_dynamic_obstacles"] == "<launchconfig>"
+    assert FIELD["astar_accept_goal_pose"] == "true"
+
+
+def test_required_navigation_nodes_are_present_in_shared_launch():
+    autonav = AUTONAV.read_text(encoding="utf-8")
+    for executable in (
+        "hazard_belief_node", "exit_evaluator_node",
+        "evacuation_manager_node", "replan_supervisor_node",
+        "exit_switching_node", "waypoint_planner_node",
+        "path_selector_node", "astar_replanner", "skid_path_follower",
+    ):
+        assert f"executable='{executable}'" in autonav
+
+
+def test_run_script_parses_safety_arguments_without_duplicate_forwarding():
+    src = RUN_MODE7.read_text(encoding="utf-8")
+    assert 'use_serial:=*) use_serial=' in src
+    assert 'mode7_auto_start:=*) mode7_auto_start=' in src
+    assert src.count('"use_serial:=${use_serial}"') == 1
+    assert src.count('"mode7_auto_start:=${mode7_auto_start}"') == 1
 
 
 # -- Mode 6 / Mode 5 untouched ------------------------------------

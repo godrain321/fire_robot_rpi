@@ -9,12 +9,16 @@ workspace="${robot_root}/inno_jazzy_ws"
 esp32_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_de2033aed827f0119bb79ad8346f00fe-if00-port0'
 lidar_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_4a5b9018526eef11bff6e0c2c169b110-if00-port0'
 drive_speed='0.06'
+use_serial='true'
+mode7_auto_start='false'
 launch_args=()
 for argument in "$@"; do
   case "${argument}" in
     esp32_port:=*) esp32_port="${argument#esp32_port:=}" ;;
     lidar_port:=*) lidar_port="${argument#lidar_port:=}" ;;
     drive_speed:=*) drive_speed="${argument#drive_speed:=}" ;;
+    use_serial:=*) use_serial="${argument#use_serial:=}" ;;
+    mode7_auto_start:=*) mode7_auto_start="${argument#mode7_auto_start:=}" ;;
     *) launch_args+=("${argument}") ;;
   esac
 done
@@ -23,6 +27,14 @@ if ! [[ "${drive_speed}" =~ ^([0-9]+([.][0-9]*)?|[.][0-9]+)$ ]] || \
   printf '[오류] drive_speed는 0보다 큰 숫자여야 합니다: %s\n' "${drive_speed}" >&2
   exit 2
 fi
+for boolean_name in use_serial mode7_auto_start; do
+  boolean_value="${!boolean_name}"
+  if [[ "${boolean_value}" != 'true' && "${boolean_value}" != 'false' ]]; then
+    printf '[오류] %s은 true 또는 false여야 합니다: %s\n' \
+      "${boolean_name}" "${boolean_value}" >&2
+    exit 2
+  fi
+done
 
 cd "${workspace}"
 set +u
@@ -39,7 +51,8 @@ stdbuf -oL -eL ros2 launch inno_robot_bringup mode7_thermal_drive.launch.py \
   "esp32_port:=${esp32_port}" \
   "lidar_port:=${lidar_port}" \
   "drive_speed:=${drive_speed}" \
-  use_serial:=true \
+  "use_serial:=${use_serial}" \
+  "mode7_auto_start:=${mode7_auto_start}" \
   use_rviz:=true \
   "${launch_args[@]}"
 launch_status=${PIPESTATUS[0]}
