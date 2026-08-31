@@ -170,10 +170,26 @@ class ReplanSupervisorNode(Node):
         ):
             return
         was_enabled = self.core.enabled
+        overrides = dict(self._config_overrides)
+        configured_release = float(overrides.get(
+            "temperature_release_c", current.temperature_release_c,
+        ))
+        if configured_release >= snapshot.temperature_blocked_c:
+            # Preserve the configured hysteresis width when Mode 8 lowers the
+            # live hard-block threshold (60 -> 50 C). Keeping the old 55 C
+            # release value would make EventReplanningConfig invalid forever.
+            hysteresis_width = max(
+                1e-6,
+                current.temperature_block_c - current.temperature_release_c,
+            )
+            overrides["temperature_release_c"] = max(
+                0.0,
+                snapshot.temperature_blocked_c - hysteresis_width,
+            )
         try:
             new_config = EventReplanningConfig(
                 **{
-                    **self._config_overrides,
+                    **overrides,
                     "temperature_block_c": snapshot.temperature_blocked_c,
                     "co_block_ppm": snapshot.co_blocked_ppm,
                 }

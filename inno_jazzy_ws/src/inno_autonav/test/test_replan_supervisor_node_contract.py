@@ -88,3 +88,14 @@ def test_rebuild_core_is_a_no_op_when_thresholds_already_match():
     original_core = value.core
     ReplanSupervisorNode._rebuild_core_if_thresholds_changed(value, snapshot())
     assert value.core is original_core
+
+
+def test_lower_live_temperature_block_preserves_five_degree_hysteresis():
+    value = node()
+
+    ReplanSupervisorNode._rebuild_core_if_thresholds_changed(
+        value, snapshot(temperature_blocked_c=50.0),
+    )
+
+    assert value.core.config.temperature_block_c == 50.0
+    assert value.core.config.temperature_release_c == 45.0

@@ -135,7 +135,10 @@ class AstarReplanner(Node):
             'path_output_topic': '/planned_path',
             'accept_goal_pose': True,
             'ignore_dynamic_modes': [2],
-            'direct_planning_modes': [3, 4],
+            # Mode 5 already has a dedicated waypoint planner. This A* output
+            # is its fast cell-level fallback and must not traverse the same
+            # reference graph again before PathSelector can release it.
+            'direct_planning_modes': [3, 4, 5],
             'replan_request_topic': '/replanning/astar_request',
             'replan_result_topic': '/replanning/astar_result',
             'path_block_check_radius': 0.20,
@@ -350,6 +353,8 @@ class AstarReplanner(Node):
         self._replan_reason = ''
         self._planning = False
         self._last_plan = 0.0
+        self._last_plan_attempt = 0.0
+        self._goal_plan_pending = False
         self._last_published_path_stamp_ns: Optional[int] = None
         self._last_emitted_path_stamp_ns = -1
         self.drive_mode = 1
@@ -679,6 +684,7 @@ class AstarReplanner(Node):
             return
         self.goal = message
         self._dirty = True
+        self._goal_plan_pending = False
         self._plan('NEW_GOAL')
 
     def _same_goal(
@@ -788,6 +794,7 @@ class AstarReplanner(Node):
         self.goal = None
         self.current_path_cells = []
         self._dirty = False
+        self._goal_plan_pending = False
         self._replan_requested = False
         self._replan_reason = ''
         self._publish_empty_path()
@@ -797,6 +804,12 @@ class AstarReplanner(Node):
         if self.goal is None:
             return
         if self._planning:
+            return
+        if getattr(self, '_goal_plan_pending', False):
+            now = self.get_clock().now().nanoseconds / 1_000_000_000.0
+            last_attempt = getattr(self, '_last_plan_attempt', 0.0)
+            if now - last_attempt >= 1.0 / self.replan_rate:
+                self._plan('PENDING_GOAL_READINESS')
             return
         if self._replan_requested:
             now = self.get_clock().now().nanoseconds / 1_000_000_000.0
@@ -851,15 +864,20 @@ class AstarReplanner(Node):
             self._planning = False
 
     def _plan_once(self, reason: str) -> bool:
+        self._last_plan_attempt = (
+            self.get_clock().now().nanoseconds / 1_000_000_000.0
+        )
         planning_grid = (
             self.hazard_grid if self.hazard_belief_enabled
             else self.combined_grid
         )
         if self.goal is None or planning_grid is None:
+            self._goal_plan_pending = self.goal is not None
             self._state('WAITING_FOR_GRID')
             return False
         thermal_failure = self._thermal_failure()
         if thermal_failure is not None:
+            self._goal_plan_pending = True
             self.current_path_cells = []
             self.current_simplified_cells = []
             self.current_path_total_cost = math.inf
@@ -868,6 +886,7 @@ class AstarReplanner(Node):
             return False
         pose = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
         if pose is None:
+            self._goal_plan_pending = True
             self._state('WAITING_FOR_TF')
             self._publish_empty_path()
             return False
@@ -880,6 +899,7 @@ class AstarReplanner(Node):
         if not is_inside_grid(*start, planning_grid) or not is_inside_grid(
             *goal, planning_grid
         ):
+            self._goal_plan_pending = False
             self._state('NO_PATH')
             self.get_logger().error(f'start={start} 또는 goal={goal}이 지도 밖입니다.')
             self._publish_empty_path()
@@ -945,6 +965,7 @@ class AstarReplanner(Node):
             )
         path = list(result.path)
         if not path:
+            self._goal_plan_pending = False
             self.current_path_cells = []
             self.current_simplified_cells = []
             self.current_path_total_cost = math.inf
@@ -973,6 +994,7 @@ class AstarReplanner(Node):
             costs_are_traversal=self.hazard_belief_enabled,
         )
         if not simplification.safe or not simplification.path:
+            self._goal_plan_pending = False
             self.current_path_cells = []
             self.current_simplified_cells = []
             self.current_path_total_cost = math.inf
@@ -984,6 +1006,7 @@ class AstarReplanner(Node):
         self.current_path_cells = path
         self.current_simplified_cells = simplified
         self.current_path_total_cost = result.total_cost
+        self._goal_plan_pending = False
         self._dirty = False
         self._replan_requested = False
         self._replan_reason = ''

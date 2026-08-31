@@ -97,3 +97,11 @@ def test_selector_contains_no_planner_or_path_mutation_algorithms():
     text = (_SRC / "path_selector.py").read_text(encoding="utf-8")
     for forbidden in ("weighted_astar", "WaypointGraphPlanner", "simplify_path", "path_cost"):
         assert forbidden not in text
+
+
+def test_mode5_astar_candidate_is_the_direct_cell_fallback():
+    astar = (_SRC / "astar_replanner.py").read_text(encoding="utf-8")
+    config = (_SRC.parent / "config/autonav_params.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "'direct_planning_modes': [3, 4, 5]" in astar

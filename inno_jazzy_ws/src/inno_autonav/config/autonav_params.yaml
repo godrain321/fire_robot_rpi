@@ -111,10 +111,12 @@ astar_replanner:
     # /planned_path.
     path_output_topic: /planned_path
     accept_goal_pose: true
-    # Mode 2 ignores dynamic cost changes. Short Mode 3/4 inspection goals use
-    # cell A* directly instead of detouring through a reference waypoint.
+    # Mode 2 ignores dynamic cost changes. Mode 3/4 inspection and Mode 5's
+    # waypoint-failure fallback use cell A* directly. Mode 5's primary route is
+    # already handled by waypoint_planner_node; repeating that graph here can
+    # delay the fallback path for tens of seconds.
     ignore_dynamic_modes: [2]
-    direct_planning_modes: [3, 4]
+    direct_planning_modes: [3, 4, 5]
     replan_request_topic: /replanning/astar_request
     replan_result_topic: /replanning/astar_result
     # Common static-obstacle clearance applied to /planning_grid before both

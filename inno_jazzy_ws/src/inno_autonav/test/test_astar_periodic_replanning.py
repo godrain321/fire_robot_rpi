@@ -79,6 +79,15 @@ def test_2_periodic_disabled_ticks_never_call_plan():
     assert value.calls == []
 
 
+def test_pending_initial_goal_retries_when_periodic_replanning_is_disabled():
+    value = node(periodic_replanning_enabled=False, goal=goal_message())
+    value._goal_plan_pending = True
+
+    AstarReplanner._timer_callback(value)
+
+    assert value.calls == ["PENDING_GOAL_READINESS"]
+
+
 # -- Test 3: Stage 6 enabled + dirty grid -> still no timer-triggered replan ---
 
 def test_3_periodic_disabled_dirty_grid_without_path_event_never_calls_plan():
