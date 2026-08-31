@@ -148,6 +148,75 @@ class MovingCandidateTracker:
         return tuple(detected)
 
 
+def group_leg_candidates(
+    candidates: Iterable[tuple[float, float]],
+    maximum_pair_distance_m: float = 0.70,
+) -> tuple[tuple[float, float], ...]:
+    """Deterministically merge nearest small-cluster pairs into body centres."""
+    radius = float(maximum_pair_distance_m)
+    if not math.isfinite(radius) or radius <= 0.0:
+        raise ValueError("maximum_pair_distance_m must be finite and positive")
+    points = set()
+    for candidate in candidates:
+        try:
+            point = tuple(float(value) for value in candidate)
+        except (TypeError, ValueError):
+            continue
+        if len(point) == 2 and all(math.isfinite(value) for value in point):
+            points.add(point)
+    ordered = sorted(points)
+    edges = sorted(
+        (math.dist(first, second), first, second)
+        for index, first in enumerate(ordered)
+        for second in ordered[index + 1:]
+        if math.dist(first, second) <= radius
+    )
+    used = set()
+    output = []
+    for _, first, second in edges:
+        if first in used or second in used:
+            continue
+        used.update((first, second))
+        output.append(((first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0))
+    output.extend(point for point in ordered if point not in used)
+    return tuple(sorted(output))
+
+
+def moving_priority_candidate(
+    moving_candidates,
+    confirmed_candidates,
+    robot_position_world,
+    inspected_positions=(),
+    association_radius_m: float = 0.75,
+    suppression_radius_m: float = 1.0,
+):
+    """Return the nearest red candidate associated with current motion evidence."""
+    association = float(association_radius_m)
+    if not math.isfinite(association) or association <= 0.0:
+        raise ValueError("association_radius_m must be finite and positive")
+    eligible_red = []
+    for red in confirmed_candidates:
+        selected = nearest_uninspected_candidate(
+            [red], robot_position_world, inspected_positions, suppression_radius_m
+        )
+        if selected is not None:
+            eligible_red.append(selected)
+    matches = []
+    robot = tuple(map(float, robot_position_world))
+    for moving in moving_candidates:
+        try:
+            motion = tuple(map(float, moving))
+        except (TypeError, ValueError):
+            continue
+        if len(motion) != 2 or not all(math.isfinite(value) for value in motion):
+            continue
+        for red in eligible_red:
+            separation = math.dist(motion, red)
+            if separation <= association:
+                matches.append((math.dist(robot, red), separation, red))
+    return None if not matches else min(matches)[2]
+
+
 def startup_state(
     hazard_status: str,
     exit_evaluator_status: str,

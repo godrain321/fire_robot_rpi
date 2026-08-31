@@ -321,7 +321,6 @@ class Mode3Inspector(Node):
             # If the live target is farther than the inspection range, issue a
             # visible approach path toward the nominal safe standoff.
             'minimum_approach_goal_distance_m': 0.45,
-            'minimum_safe_standoff_m': 0.60,
             'robot_settle_sec': 2.0,
             'observation_sec': 5.0,
             'distance_tolerance_m': 0.60,
@@ -368,9 +367,6 @@ class Mode3Inspector(Node):
         self.minimum_approach_goal_distance = float(
             self.get_parameter('minimum_approach_goal_distance_m').value
         )
-        self.minimum_safe_standoff = float(
-            self.get_parameter('minimum_safe_standoff_m').value
-        )
         self.robot_settle_sec = float(
             self.get_parameter('robot_settle_sec').value
         )
@@ -400,8 +396,6 @@ class Mode3Inspector(Node):
             or self.target_tracking_radius <= 0.0
             or self.target_stale_timeout <= 0.0
             or self.minimum_approach_goal_distance <= 0.0
-            or self.minimum_safe_standoff <= 0.0
-            or self.minimum_safe_standoff >= self.standoff_distance
             or self.robot_settle_sec < 0.0
             or self.observation_sec <= 0.0
             or self.distance_tolerance < 0.0

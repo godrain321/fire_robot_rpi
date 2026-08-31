@@ -26,6 +26,7 @@ from .grid_utils import (
     world_to_grid,
 )
 from .tf_utils import TfHelper
+from .evacuation_demo import group_leg_candidates
 
 
 def grid_from_message(message: OccupancyGrid) -> MapGrid:
@@ -192,6 +193,8 @@ class DynamicObstacleLayer(Node):
             'wall_exclusion_radius': 0.40,
             'cluster_radius_m': 0.50,
             'minimum_cluster_cells': 3,
+            'motion_minimum_cluster_cells': 1,
+            'motion_leg_pair_max_distance_m': 0.70,
             # Keep long-range candidates for inspection. Avoidance is active in
             # Mode 5 navigation only; Mode 3/4 must approach the selected target
             # without simultaneously treating that same target as a detour.
@@ -225,6 +228,12 @@ class DynamicObstacleLayer(Node):
         )
         self.minimum_cluster_cells = int(
             self.get_parameter('minimum_cluster_cells').value
+        )
+        self.motion_minimum_cluster_cells = int(
+            self.get_parameter('motion_minimum_cluster_cells').value
+        )
+        self.motion_leg_pair_max_distance = float(
+            self.get_parameter('motion_leg_pair_max_distance_m').value
         )
         self.avoidance_enabled_modes = {
             int(value)
@@ -264,6 +273,9 @@ class DynamicObstacleLayer(Node):
             or self.wall_exclusion_radius < 0.0
             or self.cluster_radius < 0.0
             or self.minimum_cluster_cells <= 0
+            or self.motion_minimum_cluster_cells <= 0
+            or not math.isfinite(self.motion_leg_pair_max_distance)
+            or self.motion_leg_pair_max_distance <= 0.0
             or self.avoidance_max_range <= 0.0
             or not 0.0 < self.avoidance_front_half_angle <= math.pi
             or self.person_match_radius <= 0.0
@@ -309,6 +321,9 @@ class DynamicObstacleLayer(Node):
         )
         self.all_candidate_publisher = self.create_publisher(
             PoseArray, '/dynamic_obstacle_all_candidates', grid_qos
+        )
+        self.motion_candidate_publisher = self.create_publisher(
+            PoseArray, '/dynamic_obstacle_motion_candidates', grid_qos
         )
         self.create_subscription(
             PointStamped,
@@ -550,7 +565,7 @@ class DynamicObstacleLayer(Node):
             matched_people.add(person_index)
             matched_clusters.add(cluster_index)
 
-    def _obstacle_clusters(self, indices=None):
+    def _obstacle_clusters(self, indices=None, minimum_cells=None):
         clusters = cluster_obstacle_indices(
             self.confirmed if indices is None else indices,
             self.static_grid.width,
@@ -559,7 +574,11 @@ class DynamicObstacleLayer(Node):
         )
         result = []
         for indices in clusters:
-            if len(indices) < getattr(self, 'minimum_cluster_cells', 1):
+            required = (
+                getattr(self, 'minimum_cluster_cells', 1)
+                if minimum_cells is None else int(minimum_cells)
+            )
+            if len(indices) < required:
                 continue
             points = []
             for index in indices:
@@ -643,6 +662,9 @@ class DynamicObstacleLayer(Node):
         # can leave a grid cell before that same cell reaches confirm_count;
         # the downstream time-axis tracker supplies the multi-frame evidence.
         current_clusters = self._obstacle_clusters(self.current_seen)
+        motion_clusters = self._obstacle_clusters(
+            self.current_seen, self.motion_minimum_cluster_cells
+        )
         self._track_people_from_current_clusters(current_clusters)
         self.detected_publisher.publish(Bool(data=bool(clusters)))
         matched_people = match_people_to_clusters(
@@ -650,7 +672,24 @@ class DynamicObstacleLayer(Node):
         )
         self._publish_candidates(stamp, clusters, matched_people)
         self._publish_all_candidates(stamp, current_clusters)
+        self._publish_motion_candidates(stamp, motion_clusters)
         self._publish_markers(stamp, clusters, matched_people)
+
+    def _publish_motion_candidates(self, stamp, clusters) -> None:
+        message = PoseArray()
+        message.header.frame_id = self.map_frame
+        message.header.stamp = stamp
+        centres = group_leg_candidates(
+            ((x, y) for _, x, y in clusters),
+            self.motion_leg_pair_max_distance,
+        )
+        for center_x, center_y in centres:
+            pose = Pose()
+            pose.position.x = center_x
+            pose.position.y = center_y
+            pose.orientation.w = 1.0
+            message.poses.append(pose)
+        self.motion_candidate_publisher.publish(message)
 
     def _publish_all_candidates(self, stamp, clusters) -> None:
         """Publish current-scan clusters, including already classified people."""

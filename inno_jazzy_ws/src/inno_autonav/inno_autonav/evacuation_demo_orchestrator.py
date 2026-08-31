@@ -19,6 +19,7 @@ from .evacuation_demo import (
     build_next_exploration_decision,
     nearest_exit_obstacle_candidate,
     nearest_uninspected_candidate,
+    moving_priority_candidate,
     parse_activation_response,
     parse_mode3_classification,
     parse_mode4_classification,
@@ -92,6 +93,9 @@ class EvacuationDemoOrchestrator(Node):
             "candidate_suppression_radius_m": 1.0,
             "inspection_after_motion_delay_sec": 2.0,
             "moving_survivor_enabled": False,
+            "moving_priority_enabled": True,
+            "moving_priority_wait_sec": 2.0,
+            "moving_priority_target_timeout_sec": 2.0,
             "moving_association_radius_m": 0.75,
             "moving_minimum_displacement_m": 0.20,
             "moving_minimum_observations": 3,
@@ -123,6 +127,7 @@ class EvacuationDemoOrchestrator(Node):
             "planner_state_topic": "/planner_state",
             "obstacle_candidates_topic": "/dynamic_obstacle_candidates",
             "all_obstacle_candidates_topic": "/dynamic_obstacle_all_candidates",
+            "motion_obstacle_candidates_topic": "/dynamic_obstacle_motion_candidates",
             "inspection_command_topic": "/obstacle_inspection_command",
             "mode3_status_topic": "/mode3_status",
             "mode3_classification_topic": "/mode3_classification",
@@ -154,6 +159,11 @@ class EvacuationDemoOrchestrator(Node):
             value("inspection_after_motion_delay_sec")
         )
         self.moving_survivor_enabled = bool(value("moving_survivor_enabled"))
+        self.moving_priority_enabled = bool(value("moving_priority_enabled"))
+        self.moving_priority_wait = float(value("moving_priority_wait_sec"))
+        self.moving_priority_target_timeout = float(
+            value("moving_priority_target_timeout_sec")
+        )
         self.survivor_ready_wait = float(value("survivor_ready_wait_sec"))
         self.survivor_track_radius = float(value("survivor_track_match_radius_m"))
         self.survivor_track_stale = float(value("survivor_track_stale_sec"))
@@ -169,6 +179,8 @@ class EvacuationDemoOrchestrator(Node):
             self.classification_radius,
             self.candidate_suppression_radius,
             self.inspection_after_motion_delay,
+            self.moving_priority_wait,
+            self.moving_priority_target_timeout,
             self.survivor_ready_wait,
             self.survivor_track_radius,
             self.survivor_track_stale,
@@ -176,7 +188,7 @@ class EvacuationDemoOrchestrator(Node):
             self.follow_resume_distance,
             self.exit_arrival_distance,
         )
-        if any(item <= 0.0 for item in positive):
+        if any(not math.isfinite(item) or item <= 0.0 for item in positive):
             raise ValueError("Mode 5 rates and distances must be positive")
         if self.follow_resume_distance >= self.follow_stop_distance:
             raise ValueError("survivor follow resume distance must be below stop distance")
@@ -187,6 +199,14 @@ class EvacuationDemoOrchestrator(Node):
             window_sec=float(value("moving_window_sec")),
             stale_timeout_sec=float(value("moving_stale_timeout_sec")),
         )
+        self.moving_priority_tracker = MovingCandidateTracker(
+            association_radius_m=float(value("moving_association_radius_m")),
+            minimum_displacement_m=float(value("moving_minimum_displacement_m")),
+            minimum_observations=int(value("moving_minimum_observations")),
+            window_sec=float(value("moving_window_sec")),
+            stale_timeout_sec=float(value("moving_stale_timeout_sec")),
+        )
+        self.moving_association_radius = float(value("moving_association_radius_m"))
 
         transient = QoSProfile(depth=1)
         transient.reliability = ReliabilityPolicy.RELIABLE
@@ -255,6 +275,10 @@ class EvacuationDemoOrchestrator(Node):
             self._on_all_candidates, transient,
         )
         self.create_subscription(
+            PoseArray, str(value("motion_obstacle_candidates_topic")),
+            self._on_motion_candidates, transient,
+        )
+        self.create_subscription(
             String, str(value("follower_state_topic")), self._on_follower_state, 10
         )
         self.create_subscription(
@@ -298,6 +322,8 @@ class EvacuationDemoOrchestrator(Node):
         self.mode4_status = ""
         self.candidates = []
         self.all_candidates = []
+        self.moving_priority_targets = []
+        self._candidate_wait_started_at = None
         self.checked_exit_ids = set()
         self.blocked_exit_ids = set()
         self.current_exit_id = None
@@ -414,6 +440,9 @@ class EvacuationDemoOrchestrator(Node):
         self._resume_phase_after_inspection = "STARTING"
         self._robot_at_exit = False
         self.moving_tracker.reset()
+        self.moving_priority_tracker.reset()
+        self.moving_priority_targets.clear()
+        self._candidate_wait_started_at = None
         self._publish_follow_hold(False)
         self._publish_blocked_exits()
 
@@ -633,6 +662,22 @@ class EvacuationDemoOrchestrator(Node):
         self.candidates = candidates
         self._maybe_start_nearest_inspection()
 
+    def _on_motion_candidates(self, message: PoseArray) -> None:
+        candidates = self._valid_pose_array(message)
+        if candidates is None or not getattr(self, "moving_priority_enabled", False):
+            return
+        now = time.monotonic()
+        moving = self.moving_priority_tracker.update(candidates, now)
+        if moving:
+            self.moving_priority_targets.extend(
+                (item.position, now) for item in moving
+            )
+        self.moving_priority_targets = [
+            item for item in self.moving_priority_targets
+            if now - item[1] <= self.moving_priority_target_timeout
+        ]
+        self._maybe_start_nearest_inspection()
+
     def _on_all_candidates(self, message: PoseArray) -> None:
         candidates = self._valid_pose_array(message)
         if candidates is None:
@@ -699,14 +744,39 @@ class EvacuationDemoOrchestrator(Node):
         robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
         if robot is None:
             return
-        target = nearest_uninspected_candidate(
+        now = time.monotonic()
+        ordinary_target = nearest_uninspected_candidate(
             self.candidates,
             (robot[0], robot[1]),
             self.inspected_dynamic_positions,
             self.candidate_suppression_radius,
         )
-        if target is None:
+        if ordinary_target is None:
+            self._candidate_wait_started_at = None
             return
+        target = None
+        moving_selected = False
+        if getattr(self, "moving_priority_enabled", False):
+            self.moving_priority_targets = [
+                item for item in self.moving_priority_targets
+                if now - item[1] <= self.moving_priority_target_timeout
+            ]
+            target = moving_priority_candidate(
+                (item[0] for item in self.moving_priority_targets),
+                self.candidates,
+                (robot[0], robot[1]),
+                self.inspected_dynamic_positions,
+                self.moving_association_radius,
+                self.candidate_suppression_radius,
+            )
+            moving_selected = target is not None
+            if target is None:
+                if getattr(self, "_candidate_wait_started_at", None) is None:
+                    self._candidate_wait_started_at = now
+                if now - self._candidate_wait_started_at < self.moving_priority_wait:
+                    return
+        target = target or ordinary_target
+        self._candidate_wait_started_at = None
         previous_phase = self._phase
         exit_match = None
         if previous_phase == "NAVIGATING_EXIT" and self.current_exit_id is not None:
@@ -728,16 +798,15 @@ class EvacuationDemoOrchestrator(Node):
         self.mode3_status = ""
         self._inspection_command_sent = False
         self._phase = "SELECTING_MODE3"
-        self._set_status(
-            f"SEARCH_EXITS:CLOSEST_RED_CANDIDATE:{target[0]:.2f},{target[1]:.2f}"
-        )
+        prefix = "MOVING_PRIORITY" if moving_selected else "CLOSEST_RED_CANDIDATE"
+        self._set_status(f"SEARCH_EXITS:{prefix}:{target[0]:.2f},{target[1]:.2f}")
         context = (
             f"{self.current_exit_id} 앞 출구 차단 후보"
             if self.inspection_blocks_current_exit
             else "주행 경로의 동적장애물 후보"
         )
         self._log(
-            f"[후보 감지] 가장 가까운 {context} "
+            f"[후보 감지] {'움직임 우선 ' if moving_selected else '가장 가까운 '}{context} "
             f"({target[0]:.2f}, {target[1]:.2f})를 선택했습니다. "
             "기존 출구 주행과 장애물 회피를 잠시 중단하고 이 후보만 검사합니다."
         )

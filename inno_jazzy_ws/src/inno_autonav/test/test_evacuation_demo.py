@@ -1,8 +1,11 @@
 import json
+import math
 
 import pytest
 
 from inno_autonav.evacuation_demo import (
+    group_leg_candidates,
+    moving_priority_candidate,
     MovingCandidateTracker,
     build_next_exploration_decision,
     nearest_exit_obstacle_candidate,
@@ -12,6 +15,35 @@ from inno_autonav.evacuation_demo import (
     parse_mode4_classification,
     startup_state,
 )
+
+
+def test_leg_candidates_pair_at_threshold_and_keep_single():
+    assert group_leg_candidates([(0.0, 0.0), (0.70, 0.0), (2.0, 0.0)]) == (
+        (0.35, 0.0), (2.0, 0.0)
+    )
+
+
+def test_leg_candidates_are_deterministic_non_overlapping_and_finite():
+    values = [(0.6, 0.0), (0.0, 0.0), (0.3, 0.0), (math.nan, 1.0)]
+    forward = group_leg_candidates(values)
+    reverse = group_leg_candidates(reversed(values))
+    assert forward == reverse
+    assert len(forward) == 2
+
+
+def test_leg_candidates_over_limit_remain_separate():
+    assert group_leg_candidates([(0.0, 0.0), (0.71, 0.0)]) == (
+        (0.0, 0.0), (0.71, 0.0)
+    )
+
+
+def test_moving_priority_uses_associated_red_and_suppression():
+    assert moving_priority_candidate(
+        [(2.05, 0.0)], [(1.0, 0.0), (2.0, 0.0)], (0.0, 0.0)
+    ) == (2.0, 0.0)
+    assert moving_priority_candidate(
+        [(2.05, 0.0)], [(1.0, 0.0), (2.0, 0.0)], (0.0, 0.0), [(2.1, 0.0)]
+    ) is None
 from inno_autonav.exit_evaluator import ExitEvaluation, ExitEvaluationBatch
 
 

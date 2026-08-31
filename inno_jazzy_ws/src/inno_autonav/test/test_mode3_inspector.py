@@ -241,7 +241,6 @@ def test_mode5_mode3_publishes_only_canonical_plan_with_inspection_yaw():
     inspector.standoff_distance = 2.0
     inspector.standoff_arrival_tolerance = 0.3
     inspector.minimum_approach_goal_distance = 0.45
-    inspector.minimum_safe_standoff = 0.60
     inspector.publish_canonical_plan = True
     inspector.hazard_revision = 7
     inspector.goal_publisher = _Publisher()
@@ -273,7 +272,6 @@ def test_mode3_starts_inspection_immediately_inside_latest_2_5m_range():
     inspector.standoff_distance = 2.0
     inspector.standoff_arrival_tolerance = 0.3
     inspector.minimum_approach_goal_distance = 0.45
-    inspector.minimum_safe_standoff = 0.60
     inspector.robot_settle_sec = 2.0
     inspector.publish_canonical_plan = True
     inspector.hazard_revision = 0

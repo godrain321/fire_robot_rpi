@@ -50,6 +50,7 @@ def nearest_inspection_node(candidates):
     node._route_activated = False
     node.active_survivor_position = None
     node.candidates = candidates
+    node.moving_priority_enabled = False
     node.inspected_dynamic_positions = []
     node.candidate_suppression_radius = 1.0
     node.inspection_after_motion_delay = 2.0
@@ -71,6 +72,36 @@ def nearest_inspection_node(candidates):
     node._log = lambda _message: None
     node._select_drive_mode = lambda mode: setattr(node, 'selected_mode', mode)
     return node
+
+
+def moving_priority_node(candidates):
+    node = nearest_inspection_node(candidates)
+    node.moving_priority_enabled = True
+    node.moving_priority_wait = 2.0
+    node.moving_priority_target_timeout = 2.0
+    node.moving_association_radius = 0.75
+    node.moving_priority_targets = []
+    node._candidate_wait_started_at = None
+    return node
+
+
+def test_moving_red_candidate_beats_nearer_stationary_candidate():
+    node = moving_priority_node([(1.0, 0.0), (2.0, 0.0)])
+    node.moving_priority_targets = [((2.1, 0.0), time.monotonic())]
+    node._maybe_start_nearest_inspection()
+    assert node.inspection_target == (2.0, 0.0)
+    assert node.selected_mode == 3
+
+
+def test_stationary_candidate_wait_deadline_is_not_restarted():
+    node = moving_priority_node([(1.0, 0.0)])
+    node._maybe_start_nearest_inspection()
+    started = node._candidate_wait_started_at
+    node._maybe_start_nearest_inspection()
+    assert node._candidate_wait_started_at == started
+    node._candidate_wait_started_at = time.monotonic() - 2.1
+    node._maybe_start_nearest_inspection()
+    assert node.inspection_target == (1.0, 0.0)
 
 
 def test_mode5_locks_only_closest_red_candidate_and_selects_mode3():
