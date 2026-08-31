@@ -31,7 +31,7 @@ thermal_cost_layer:
     # map cell is observed again, geometry changes, or clear service is called.
     persistent_observations: true
     observation_timeout_sec: 2.0  # fallback only when persistence is false
-    thermal_data_timeout_sec: 1.0
+    thermal_data_timeout_sec: 3.0
     inflation_radius_m: 0.0
     publish_rate_hz: 4.0
     tf_timeout_sec: 0.2

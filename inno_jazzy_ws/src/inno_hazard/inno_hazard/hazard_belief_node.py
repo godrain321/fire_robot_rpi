@@ -8,6 +8,7 @@ import numpy as np
 from nav_msgs.msg import OccupancyGrid
 import rclpy
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
@@ -73,7 +74,7 @@ class HazardBeliefNode(Node):
             "stale_apply_to_temperature": True,
             "stale_apply_to_co": True,
             "fire_localization_enabled": False,
-            "thermal_stream_timeout_s": 1.0,
+            "thermal_stream_timeout_s": 3.0,
             "tf_timeout_s": 0.2,
             "publish_rate_hz": 4.0,
         }
@@ -244,6 +245,7 @@ class HazardBeliefNode(Node):
         # planning_grid_static is already planner-inflated. Treat it as the
         # authoritative static blocked mask and do not inflate again.
         self.belief = HazardBelief(belief_geometry, static_obstacles, self.config)
+        self.last_thermal_ns = None
         self._set_status(
             "WAITING_FOR_THERMAL"
             if self.thermal_enabled else "ACTIVE_STATIC_DYNAMIC_ONLY"
@@ -271,7 +273,6 @@ class HazardBeliefNode(Node):
             self._publish()
 
     def _thermal(self, message):
-        self.last_thermal_ns = self.get_clock().now().nanoseconds
         if self.belief is None:
             self._set_status("WAITING_FOR_STATIC_GRID")
             return
@@ -288,7 +289,8 @@ class HazardBeliefNode(Node):
                     timeout=Duration(seconds=self.tf_timeout),
                 ).transform
             except TransformException:
-                self._set_status("WAITING_FOR_THERMAL_TF")
+                if self.last_thermal_ns is None:
+                    self._set_status("WAITING_FOR_THERMAL_TF")
                 return
             transform_values = (
                 (transform.translation.x, transform.translation.y, transform.translation.z),
@@ -301,10 +303,12 @@ class HazardBeliefNode(Node):
             points, self.grid_geometry, self.belief.static_obstacle_map,
             transform_values,
         )
-        observation_time = self.get_clock().now().nanoseconds / 1e9
+        observation_ns = self.get_clock().now().nanoseconds
+        observation_time = observation_ns / 1e9
         self.belief.update_temperature_observations(
             observations, observation_time
         )
+        self.last_thermal_ns = observation_ns
         self._set_status("ACTIVE_THERMAL_ONLY" if not self.co_enabled else "ACTIVE")
         self._publish()
 
@@ -406,12 +410,20 @@ class HazardBeliefNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = None
+    executor = None
     try:
         node = HazardBeliefNode()
-        rclpy.spin(node)
+        # Thermal callbacks perform a stamped TF lookup. Keep the
+        # TransformListener's reentrant callbacks on another thread so the TF
+        # buffer can advance while a thermal callback is waiting for its stamp.
+        executor = MultiThreadedExecutor(num_threads=2)
+        executor.add_node(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        if executor is not None:
+            executor.shutdown()
         if node is not None:
             node.destroy_node()
         if rclpy.ok():

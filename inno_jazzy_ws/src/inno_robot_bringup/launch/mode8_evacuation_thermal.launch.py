@@ -17,7 +17,11 @@ ESP32 serial) comes from the unchanged Mode 5 tree.
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    GroupAction,
+    IncludeLaunchDescription,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
@@ -78,18 +82,24 @@ def generate_launch_description():
              for n, v in _FORWARD_PATHS.items()]
 
     forwarded = {n: L(n) for n in (*_FORWARD, *_FORWARD_PATHS)}
-    mode5 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            bringup + "/launch/evacuation_demo.launch.py"
-        ),
-        launch_arguments={
-            **forwarded,
-            "use_thermal_sensor": "true",   # Mode 8 = Mode 5 + thermal costmap
-            # Keep legacy soft costs below 50 C, but hard-block at >= 50 C.
-            "temperature_cost_scale_max_c": "60.0",
-            "temperature_blocked_c": "50.0",
-            "use_rviz": "false",            # Mode 8 runs its own RViz below
-        }.items(),
+    # Keep the nested Mode 5 launch arguments local. Without this scope its
+    # use_rviz=false launch configuration leaks back into this wrapper and
+    # disables Mode 8's dedicated thermal RViz action below.
+    mode5 = GroupAction(
+        scoped=True,
+        actions=[IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                bringup + "/launch/evacuation_demo.launch.py"
+            ),
+            launch_arguments={
+                **forwarded,
+                "use_thermal_sensor": "true",  # Mode 8 = Mode 5 + thermal
+                # Keep soft costs below 50 C, but hard-block at >= 50 C.
+                "temperature_cost_scale_max_c": "60.0",
+                "temperature_blocked_c": "50.0",
+                "use_rviz": "false",          # Mode 8 owns RViz below
+            }.items(),
+        )],
     )
 
     rviz = Node(

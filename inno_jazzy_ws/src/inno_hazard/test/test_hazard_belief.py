@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -8,6 +9,22 @@ from inno_hazard.hazard_belief import (
     HazardBeliefConfig,
     HazardGridGeometry,
 )
+
+
+def test_hazard_node_keeps_tf_callbacks_on_a_second_executor_thread():
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "inno_hazard"
+        / "hazard_belief_node.py"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    assert "MultiThreadedExecutor(num_threads=2)" in source
+    assert "executor.add_node(node)" in source
+    assert "rclpy.spin(node)" not in source
+    assert '"thermal_stream_timeout_s": 3.0' in source
+    assert "if self.last_thermal_ns is None:" in source
+    assert "self.last_thermal_ns = observation_ns" in source
+    assert "self.last_thermal_ns = self.get_clock().now().nanoseconds" not in source
 
 
 def belief(*, resolution=1.0, width=7, height=7, static=None, **changes):

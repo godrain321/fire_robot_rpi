@@ -104,6 +104,13 @@ def test_mode5_orchestrator_tree_not_included():
     assert "field_waypoint_test.launch.py" in _MODE7_SRC
 
 
+def test_shared_launch_rviz_disable_is_scoped_from_mode7_rviz_argument():
+    assert "GroupAction" in _MODE7_SRC
+    assert "field_bringup = GroupAction(" in _MODE7_SRC
+    assert "scoped=True" in _MODE7_SRC
+    assert 'condition=IfCondition(L("use_rviz"))' in _MODE7_SRC
+
+
 def test_autonav_mission_commander_mutually_exclusive_with_evac_manager():
     autonav = AUTONAV.read_text(encoding="utf-8")
     assert "UnlessCondition(evacuation_manager_enabled)" in autonav

@@ -62,7 +62,9 @@ stdbuf -oL -eL ros2 launch inno_robot_bringup mode8_evacuation_thermal.launch.py
 launch_status=${PIPESTATUS[0]}
 set -e
 
-if (( launch_status != 0 && launch_status != 130 )); then
+# ros2 launch can report Python SIGINT (-2) as shell status 254, especially
+# when a second Ctrl+C arrives while child nodes are shutting down.
+if (( launch_status != 0 && launch_status != 130 && launch_status != 254 )); then
   printf '[오류] 모드 8 실행이 비정상 종료되었습니다. 상세 내용은 ~/.ros/log에 저장했습니다.\n'
 fi
 exit "${launch_status}"

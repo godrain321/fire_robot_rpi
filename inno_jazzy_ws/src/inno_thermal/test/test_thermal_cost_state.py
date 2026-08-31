@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -103,3 +105,19 @@ def test_thermal_stream_clock_jump_is_fail_safe():
 def test_thermal_stream_timeout_must_be_valid(timeout):
     with pytest.raises(ValueError, match="timeout"):
         thermal_stream_is_stale(0, 0, timeout)
+
+
+def test_thermal_cost_node_keeps_tf_callbacks_on_a_second_executor_thread():
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "inno_thermal"
+        / "thermal_cost_layer.py"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    assert "MultiThreadedExecutor(num_threads=2)" in source
+    assert "executor.add_node(node)" in source
+    assert "rclpy.spin(node)" not in source
+    assert '"thermal_data_timeout_sec": 3.0' in source
+    assert "if not self._has_valid_arc:" in source
+    assert "self._has_valid_arc = True" in source
+    assert "self._last_arc_received_ns = now_ns" in source

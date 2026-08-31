@@ -8,6 +8,7 @@ import math
 from nav_msgs.msg import OccupancyGrid
 import rclpy
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
@@ -57,7 +58,7 @@ class ThermalCostLayer(Node):
             "temperature_power": 1.0,
             "persistent_observations": True,
             "observation_timeout_sec": 2.0,
-            "thermal_data_timeout_sec": 1.0,
+            "thermal_data_timeout_sec": 3.0,
             "inflation_radius_m": 0.0,
             "publish_rate_hz": 4.0,
             "tf_timeout_sec": 0.2,
@@ -106,6 +107,7 @@ class ThermalCostLayer(Node):
         self._static_info = None
         self._static_frame_id = ""
         self._status = None
+        self._has_valid_arc = False
         self._last_arc_received_ns = self.get_clock().now().nanoseconds
 
         transient_qos = QoSProfile(depth=1)
@@ -212,6 +214,8 @@ class ThermalCostLayer(Node):
                 f"grid frame={self._static_frame_id!r}; using the static grid frame"
             )
         if changed:
+            self._has_valid_arc = False
+            self._last_arc_received_ns = self.get_clock().now().nanoseconds
             self.get_logger().warning(
                 "planning_grid_static geometry initialized/changed; all thermal costs cleared: "
                 f"{geometry.width}x{geometry.height}, {geometry.resolution:.6f} m/cell, "
@@ -222,8 +226,6 @@ class ThermalCostLayer(Node):
         self._publish_grid()
 
     def _thermal_arc_callback(self, message: PointCloud2) -> None:
-        # Use receipt time from the ROS clock so use_sim_time remains coherent.
-        self._last_arc_received_ns = self.get_clock().now().nanoseconds
         if self.state.geometry is None:
             self._set_status(WAITING_FOR_STATIC_GRID)
             return
@@ -260,7 +262,8 @@ class ThermalCostLayer(Node):
                 self.get_logger().warning(
                     f"thermal TF unavailable ({target_frame} <- {source_frame}): {exc}"
                 )
-                self._set_status(WAITING_FOR_TF)
+                if not self._has_valid_arc:
+                    self._set_status(WAITING_FOR_TF)
                 return
 
         valid_points = 0
@@ -309,6 +312,8 @@ class ThermalCostLayer(Node):
         frame_costs = aggregate_cell_costs(cell_cost_pairs)
         now_ns = self.get_clock().now().nanoseconds
         self.state.apply_frame(frame_costs, now_ns)
+        self._has_valid_arc = True
+        self._last_arc_received_ns = now_ns
         self._set_status(ACTIVE)
         self._publish_grid()
 
@@ -348,14 +353,23 @@ class ThermalCostLayer(Node):
 def main(args=None) -> None:
     rclpy.init(args=args)
     node = None
+    executor = None
     try:
         node = ThermalCostLayer()
-        rclpy.spin(node)
+        # A stamped TF lookup can wait while a thermal-arc callback is running.
+        # Keep the TransformListener's reentrant callbacks on a second executor
+        # thread so /tf continues to fill the buffer instead of falling behind
+        # the 4 Hz thermal queue under the full Mode 8 workload.
+        executor = MultiThreadedExecutor(num_threads=2)
+        executor.add_node(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     except ValueError as exc:
         print(f"thermal_cost_layer parameter error: {exc}")
     finally:
+        if executor is not None:
+            executor.shutdown()
         if node is not None:
             node.destroy_node()
         if rclpy.ok():

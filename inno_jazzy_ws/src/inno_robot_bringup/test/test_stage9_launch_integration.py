@@ -12,6 +12,7 @@ HAZARD_CONFIG = SOURCE_ROOT / "inno_hazard" / "config" / "hazard_params.yaml"
 HAZARD_SNAPSHOT = (
     SOURCE_ROOT / "inno_hazard" / "inno_hazard" / "hazard_snapshot.py"
 )
+RUN_MODE8 = SOURCE_ROOT.parents[1] / "run_mode8.sh"
 
 
 def source(path):
@@ -92,6 +93,19 @@ def test_mode8_separates_legacy_soft_scale_from_50c_hard_block():
         '"temperature_blocked_c": float(belief.config.temperature_blocked_c)'
         in source(HAZARD_SNAPSHOT)
     )
+
+
+def test_mode8_nested_rviz_disable_is_scoped_from_thermal_rviz():
+    mode8 = source(BRINGUP / "mode8_evacuation_thermal.launch.py")
+    assert "GroupAction" in mode8
+    assert "mode5 = GroupAction(" in mode8
+    assert "scoped=True" in mode8
+    assert 'condition=IfCondition(L("use_rviz"))' in mode8
+
+
+def test_mode8_script_accepts_ros_launch_sigint_exit_code():
+    script = source(RUN_MODE8)
+    assert "launch_status != 254" in script
 
 
 def test_autonav_has_exactly_one_planned_path_owner_per_selector_profile():

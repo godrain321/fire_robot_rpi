@@ -45,6 +45,6 @@ hazard_belief_node:
     stale_apply_to_co: true
     # MLX90640 arc points do not contain depth/full ray_cells.
     fire_localization_enabled: false
-    thermal_stream_timeout_s: 1.0
+    thermal_stream_timeout_s: 3.0
     tf_timeout_s: 0.2
     publish_rate_hz: 4.0

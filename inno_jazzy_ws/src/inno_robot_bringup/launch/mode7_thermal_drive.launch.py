@@ -17,7 +17,11 @@ hazard, evaluator, and manager readiness before calling the existing
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    GroupAction,
+    IncludeLaunchDescription,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration as L
@@ -86,51 +90,58 @@ def generate_launch_description():
         ],
     )
 
-    field_bringup = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            bringup + "/launch/field_waypoint_test.launch.py"
-        ),
-        launch_arguments={
-            "esp32_port": L("esp32_port"),
-            "lidar_port": L("lidar_port"),
-            "use_serial": L("use_serial"),
-            "use_lidar": L("use_lidar"),
-            "use_rviz": "false",           # Mode 7 supplies its own RViz below
-            "auto_localization": L("auto_localization"),
-            "set_initial_pose": L("set_initial_pose"),
-            "initial_pose_x": L("initial_pose_x"),
-            "initial_pose_y": L("initial_pose_y"),
-            "initial_pose_yaw": L("initial_pose_yaw"),
-            "map_yaml": L("map_yaml"),
-            "planning_map_yaml": L("planning_map_yaml"),
-            "waypoint_file": L("waypoint_file"),
-            "drive_speed": L("drive_speed"),
-            "turn_speed": L("turn_speed"),
-            "use_dynamic_obstacles": L("use_dynamic_obstacles"),
-            "person_inspection_enabled": "false",
-            # thermal-only hazard belief: thermal ON, gas/CO OFF
-            "hazard_belief_enabled": "true",
-            "hazard_thermal_enabled": "true",
-            "hazard_co_enabled": "false",
-            "use_thermal_sensor": "true",
-            "require_thermal_grid": "false",
-            "require_thermal_active": "false",
-            "waypoint_planning_enabled": L("waypoint_planning_enabled"),
-            "event_replanning_enabled": L("event_replanning_enabled"),
-            "waypoint_accept_direct_goal": "false",
-            "astar_accept_goal_pose": "true",
-            # mission / exit decision ON (existing Mode 5 nodes, victim-independent)
-            "exit_evaluator_enabled": "true",
-            "evacuation_manager_enabled": "true",
-            "evacuation_activate_selected_route": "true",
-            "exit_switching_enabled": L("exit_switching_enabled"),
-            # person / victim detection OFF; orchestrator not started here
-            "mode5_enabled": "false",
-            "use_mmwave": "false",
-            "use_camera_mode4": "false",
-            "use_mode3_audio": "false",
-            "start_thermal_viewer": "false",
-        }.items(),
+    # Include launch arguments are implemented as launch configurations.  Keep
+    # the shared launch scoped so its internal use_rviz=false cannot overwrite
+    # Mode 7's top-level use_rviz argument before the dedicated RViz action is
+    # evaluated below.
+    field_bringup = GroupAction(
+        scoped=True,
+        actions=[IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                bringup + "/launch/field_waypoint_test.launch.py"
+            ),
+            launch_arguments={
+                "esp32_port": L("esp32_port"),
+                "lidar_port": L("lidar_port"),
+                "use_serial": L("use_serial"),
+                "use_lidar": L("use_lidar"),
+                "use_rviz": "false",       # Mode 7 supplies its own RViz below
+                "auto_localization": L("auto_localization"),
+                "set_initial_pose": L("set_initial_pose"),
+                "initial_pose_x": L("initial_pose_x"),
+                "initial_pose_y": L("initial_pose_y"),
+                "initial_pose_yaw": L("initial_pose_yaw"),
+                "map_yaml": L("map_yaml"),
+                "planning_map_yaml": L("planning_map_yaml"),
+                "waypoint_file": L("waypoint_file"),
+                "drive_speed": L("drive_speed"),
+                "turn_speed": L("turn_speed"),
+                "use_dynamic_obstacles": L("use_dynamic_obstacles"),
+                "person_inspection_enabled": "false",
+                # thermal-only hazard belief: thermal ON, gas/CO OFF
+                "hazard_belief_enabled": "true",
+                "hazard_thermal_enabled": "true",
+                "hazard_co_enabled": "false",
+                "use_thermal_sensor": "true",
+                "require_thermal_grid": "false",
+                "require_thermal_active": "false",
+                "waypoint_planning_enabled": L("waypoint_planning_enabled"),
+                "event_replanning_enabled": L("event_replanning_enabled"),
+                "waypoint_accept_direct_goal": "false",
+                "astar_accept_goal_pose": "true",
+                # Existing Mode 5 exit-decision nodes, victim-independent.
+                "exit_evaluator_enabled": "true",
+                "evacuation_manager_enabled": "true",
+                "evacuation_activate_selected_route": "true",
+                "exit_switching_enabled": L("exit_switching_enabled"),
+                # person / victim detection OFF; orchestrator not started here
+                "mode5_enabled": "false",
+                "use_mmwave": "false",
+                "use_camera_mode4": "false",
+                "use_mode3_audio": "false",
+                "start_thermal_viewer": "false",
+            }.items(),
+        )],
     )
 
     mission_coordinator = Node(
