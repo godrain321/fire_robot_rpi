@@ -42,9 +42,18 @@ mode3_inspector:
     base_frame: base_link
     # Keep standalone Mode 3 and Mode 5 on the same field-test geometry.
     standoff_distance_m: 2.00
-    # Mode 3 must issue a real approach goal before mmWave observation. With
-    # the follower's 0.25 m goal tolerance, 0.45 m guarantees visible travel.
-    standoff_arrival_tolerance_m: 0.30
+    # A* still aims near 2 m when approach is needed; live LiDAR distance below
+    # decides when inspection actually starts.
+    standoff_arrival_tolerance_m: 0.20
+    # Track the selected red LiDAR centroid and permit mmWave inspection as
+    # soon as its latest robot-relative distance is at most 2.5 m.
+    inspection_max_distance_m: 2.50
+    target_tracking_radius_m: 1.00
+    target_stale_timeout_sec: 2.00
+    tracking_candidates_topic: /dynamic_obstacle_all_candidates
+    # Binary reachability layer published from the exact grid used by A*.
+    planning_grid_topic: /planning_grid_active
+    static_grid_topic: /planning_grid_static
     minimum_approach_goal_distance_m: 0.45
     minimum_safe_standoff_m: 0.60
     robot_settle_sec: 2.0
@@ -136,6 +145,7 @@ astar_replanner:
     hazard_belief_enabled: false
     hazard_final_cost_topic: /hazard/final_cost
     hazard_status_topic: /hazard/status
+    active_reachability_grid_topic: /planning_grid_active
 
 exit_evaluator_node:
   ros__parameters:
@@ -239,6 +249,9 @@ skid_path_follower:
     cmd_vel_topic: /cmd_vel_auto
     lookahead_distance: 0.35
     goal_tolerance: 0.25
+    # Keep the final fallback approach precise; normal Mode 3 inspection stops
+    # earlier as soon as the latest LiDAR target enters the 2.5 m range.
+    mode3_goal_tolerance: 0.10
     yaw_tolerance: 0.35
     align_goal_yaw: false
     rotate_in_place_threshold: 0.45

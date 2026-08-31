@@ -30,15 +30,20 @@ def test_modes3_and4_enable_final_yaw_alignment_for_forward_sensors():
     follower = object.__new__(SkidPathFollower)
     follower.default_align_goal_yaw = False
     follower.align_goal_yaw = False
+    follower.goal_tolerance = 0.25
+    follower.mode3_goal_tolerance = 0.10
 
     follower._mode_callback(Int32(data=3))
     assert follower.align_goal_yaw is True
+    assert follower._active_goal_tolerance() == 0.10
 
     follower._mode_callback(Int32(data=4))
     assert follower.align_goal_yaw is True
+    assert follower._active_goal_tolerance() == 0.25
 
     follower._mode_callback(Int32(data=2))
     assert follower.align_goal_yaw is False
+    assert follower._active_goal_tolerance() == 0.25
 
 
 def test_path_projection_never_retargets_a_passed_waypoint():

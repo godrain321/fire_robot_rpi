@@ -134,6 +134,9 @@ class SkidPathFollower(Node):
             'cmd_vel_topic': '/cmd_vel',
             'lookahead_distance': 0.35,
             'goal_tolerance': 0.25,
+            # Keep the fallback Mode 3 approach precise. The inspector itself
+            # normally stops sooner on live LiDAR distance <= 2.5 m.
+            'mode3_goal_tolerance': 0.10,
             'yaw_tolerance': 0.35,
             'align_goal_yaw': False,
             'rotate_in_place_threshold': 0.45,
@@ -164,6 +167,9 @@ class SkidPathFollower(Node):
         )
         self.lookahead = float(self.get_parameter('lookahead_distance').value)
         self.goal_tolerance = float(self.get_parameter('goal_tolerance').value)
+        self.mode3_goal_tolerance = float(
+            self.get_parameter('mode3_goal_tolerance').value
+        )
         self.yaw_tolerance = float(self.get_parameter('yaw_tolerance').value)
         self.rotate_threshold = float(
             self.get_parameter('rotate_in_place_threshold').value
@@ -199,7 +205,8 @@ class SkidPathFollower(Node):
             self.get_parameter('localization_ready_topic').value
         )
         positive = (
-            self.lookahead, self.goal_tolerance, self.yaw_tolerance,
+            self.lookahead, self.goal_tolerance, self.mode3_goal_tolerance,
+            self.yaw_tolerance,
             self.rotate_threshold, self.max_linear, self.max_angular,
             self.k_linear, self.k_angular, self.emergency_distance,
             self.front_angle, control_rate, self.spin_guard_max_rotation,
@@ -216,6 +223,7 @@ class SkidPathFollower(Node):
         qos.reliability = ReliabilityPolicy.RELIABLE
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.tf = TfHelper(self)
+        self.drive_mode = 1
         self.path: Optional[Path] = None
         self.planner_state = 'WAITING_FOR_PATH'
         self.emergency_stop = False
@@ -327,11 +335,17 @@ class SkidPathFollower(Node):
         self.localization_ready = bool(message.data)
 
     def _mode_callback(self, message: Int32) -> None:
+        self.drive_mode = int(message.data)
         # MODE 3/4 must finish facing the inspected obstacle so the forward
         # mmWave sensor or camera observes it at the standoff point.
         self.align_goal_yaw = (
-            self.default_align_goal_yaw or int(message.data) in (3, 4)
+            self.default_align_goal_yaw or self.drive_mode in (3, 4)
         )
+
+    def _active_goal_tolerance(self) -> float:
+        if self.drive_mode == 3:
+            return self.mode3_goal_tolerance
+        return self.goal_tolerance
 
     def _cancel_callback(self, _message: Empty) -> None:
         """Stop immediately and forget the route selected before cancellation."""
@@ -419,7 +433,7 @@ class SkidPathFollower(Node):
         goal_distance = math.hypot(goal.position.x - x, goal.position.y - y)
         if self._spin_guard_triggered(yaw, goal_distance):
             return
-        if goal_distance <= self.goal_tolerance:
+        if goal_distance <= self._active_goal_tolerance():
             goal_yaw = yaw_from_quaternion(goal.orientation)
             if not self.align_goal_yaw:
                 self.path = None

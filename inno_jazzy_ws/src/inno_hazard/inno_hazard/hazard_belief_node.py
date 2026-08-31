@@ -173,6 +173,9 @@ class HazardBeliefNode(Node):
         self.snapshot_publisher = self.create_publisher(
             Float32MultiArray, "/hazard/snapshot", qos
         )
+        self.snapshot_subscription_count = (
+            self.snapshot_publisher.get_subscription_count()
+        )
         self.create_subscription(OccupancyGrid, self.static_topic, self._static, qos)
         self.create_subscription(OccupancyGrid, self.dynamic_topic, self._dynamic, qos)
         if self.thermal_enabled:
@@ -322,8 +325,18 @@ class HazardBeliefNode(Node):
     def _timer(self):
         if self.belief is None:
             return
+        snapshot_subscribers = self.snapshot_publisher.get_subscription_count()
+        replay_snapshot = (
+            snapshot_subscribers > self.snapshot_subscription_count
+        )
+        self.snapshot_subscription_count = snapshot_subscribers
         if not self.thermal_enabled:
             self._set_status("ACTIVE_STATIC_DYNAMIC_ONLY")
+            if replay_snapshot:
+                self._publish()
+                self.get_logger().info(
+                    "hazard snapshot replayed for a newly discovered subscriber"
+                )
             return
         now_ns = self.get_clock().now().nanoseconds
         if self.last_thermal_ns is None:

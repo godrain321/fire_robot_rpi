@@ -147,6 +147,7 @@ def test_hazard_callback_stores_costs_with_cached_static_clearance():
         hazard_grid=None,
         _dirty=False,
         _state=lambda _state: None,
+        _publish_active_grid=lambda _grid, **_kwargs: None,
         get_logger=lambda: SimpleNamespace(error=lambda _message: None),
     )
     message = SimpleNamespace(
