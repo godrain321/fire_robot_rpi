@@ -7,6 +7,11 @@ SOURCE_ROOT = Path(__file__).resolve().parents[2]
 BRINGUP = SOURCE_ROOT / "inno_robot_bringup" / "launch"
 AUTONAV = SOURCE_ROOT / "inno_autonav" / "launch" / "autonav_demo.launch.py"
 THERMAL = SOURCE_ROOT / "inno_thermal" / "launch" / "thermal_sensor.launch.py"
+THERMAL_CONFIG = SOURCE_ROOT / "inno_thermal" / "config" / "thermal_params.yaml"
+HAZARD_CONFIG = SOURCE_ROOT / "inno_hazard" / "config" / "hazard_params.yaml"
+HAZARD_SNAPSHOT = (
+    SOURCE_ROOT / "inno_hazard" / "inno_hazard" / "hazard_snapshot.py"
+)
 
 
 def source(path):
@@ -16,7 +21,7 @@ def source(path):
 def test_integrated_launch_reuses_thermal_and_field_launches_with_static_tf():
     text = source(BRINGUP / "evacuation_demo.launch.py")
     assert 'thermal + "/launch/thermal_sensor.launch.py"' in text
-    assert 'launch_arguments={"enable_cost_layer": "true"}' in text
+    assert '"enable_cost_layer": "true"' in text
     assert 'bringup + "/launch/field_waypoint_test.launch.py"' in text
     assert 'executable="static_transform_publisher"' in text
     assert '"--frame-id", "base_link"' in text
@@ -60,6 +65,33 @@ def test_thermal_launch_starts_sensor_and_cost_layer():
     assert 'executable="thermal_cost_layer"' in text
     assert 'DeclareLaunchArgument(\n                "enable_cost_layer"' in text
     assert "condition=IfCondition(enable_cost_layer)" in text
+
+
+def test_mode8_separates_legacy_soft_scale_from_50c_hard_block():
+    mode8 = source(BRINGUP / "mode8_evacuation_thermal.launch.py")
+    evacuation = source(BRINGUP / "evacuation_demo.launch.py")
+    field = source(BRINGUP / "field_waypoint_test.launch.py")
+    autonav = source(AUTONAV)
+    thermal = source(THERMAL)
+
+    assert '"temperature_cost_scale_max_c": "60.0"' in mode8
+    assert '"temperature_blocked_c": "50.0"' in mode8
+    assert '"temperature_cost_scale_max_c", default_value="60.0"' in evacuation
+    assert '"temperature_blocked_c", default_value="60.0"' in evacuation
+    assert '"blocked_temperature_c": L("temperature_blocked_c")' in evacuation
+    assert "'temperature_cost_scale_max_c': L(" in field
+    assert "'temperature_blocked_c': L('temperature_blocked_c')" in field
+    assert "'temperature_cost_scale_max_c': ParameterValue(" in autonav
+    assert "'temperature_blocked_c': ParameterValue(" in autonav
+    assert '"blocked_temperature_c": ParameterValue(' in thermal
+    assert 'temperature_cost_scale_max_c: 60.0' in source(THERMAL_CONFIG)
+    assert 'blocked_temperature_c: 60.0' in source(THERMAL_CONFIG)
+    assert 'temperature_cost_scale_max_c: 60.0' in source(HAZARD_CONFIG)
+    assert 'temperature_blocked_c: 60.0' in source(HAZARD_CONFIG)
+    assert (
+        '"temperature_blocked_c": float(belief.config.temperature_blocked_c)'
+        in source(HAZARD_SNAPSHOT)
+    )
 
 
 def test_autonav_has_exactly_one_planned_path_owner_per_selector_profile():

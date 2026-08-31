@@ -85,6 +85,9 @@ def generate_launch_description():
         launch_arguments={
             **forwarded,
             "use_thermal_sensor": "true",   # Mode 8 = Mode 5 + thermal costmap
+            # Keep legacy soft costs below 50 C, but hard-block at >= 50 C.
+            "temperature_cost_scale_max_c": "60.0",
+            "temperature_blocked_c": "50.0",
             "use_rviz": "false",            # Mode 8 runs its own RViz below
         }.items(),
     )

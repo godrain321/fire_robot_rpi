@@ -35,6 +35,23 @@ def test_temperature_power_is_applied():
     assert quadratic == 25
 
 
+@pytest.mark.parametrize("temperature", [0.0, 20.0, 30.0, 40.0, 49.0, 49.9])
+def test_mode8_hard_block_preserves_legacy_soft_cost_below_50(temperature):
+    legacy = temperature_to_cost(temperature, 20.0, 60.0, 1.0)
+    mode8 = temperature_to_cost(
+        temperature, 20.0, 60.0, 1.0, blocked_temperature_c=50.0
+    )
+    assert mode8 == legacy
+    assert mode8 < 100
+
+
+@pytest.mark.parametrize("temperature", [50.0, 50.1, 60.0, 80.0])
+def test_mode8_hard_block_is_inclusive_at_50(temperature):
+    assert temperature_to_cost(
+        temperature, 20.0, 60.0, 1.0, blocked_temperature_c=50.0
+    ) == 100
+
+
 def test_duplicate_cells_keep_maximum_cost():
     assert aggregate_cell_costs([((2, 3), 10), ((2, 3), 70), ((2, 3), 20)]) == {
         (2, 3): 70

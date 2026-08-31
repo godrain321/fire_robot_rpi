@@ -18,6 +18,8 @@ hazard_belief_node:
     gas_input_mode: legacy_ppm
     base_cost: 1.0
     temperature_safe_c: 40.0
+    # Preserve the original 40-60 C soft-cost normalization.
+    temperature_cost_scale_max_c: 60.0
     temperature_blocked_c: 60.0
     temperature_weight: 24.0
     temperature_power: 1.5

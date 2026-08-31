@@ -119,16 +119,23 @@ def world_to_grid(
 def temperature_to_cost(
     temperature_c: float,
     safe_temperature_c: float,
-    blocked_temperature_c: float,
+    temperature_cost_scale_max_c: float,
     temperature_power: float,
+    blocked_temperature_c: float | None = None,
 ) -> int:
-    """Map a finite Celsius value to OccupancyGrid thermal cost 0..100."""
+    """Map Celsius to cost, keeping soft scaling separate from hard blocking."""
+    if blocked_temperature_c is None:
+        blocked_temperature_c = temperature_cost_scale_max_c
     values = (
-        temperature_c, safe_temperature_c, blocked_temperature_c,
-        temperature_power,
+        temperature_c, safe_temperature_c, temperature_cost_scale_max_c,
+        temperature_power, blocked_temperature_c,
     )
     if not all(math.isfinite(value) for value in values):
         raise ValueError("temperature cost inputs must be finite")
+    if temperature_cost_scale_max_c <= safe_temperature_c:
+        raise ValueError(
+            "temperature_cost_scale_max_c must exceed safe_temperature_c"
+        )
     if blocked_temperature_c <= safe_temperature_c:
         raise ValueError("blocked_temperature_c must exceed safe_temperature_c")
     if temperature_power <= 0.0:
@@ -138,7 +145,7 @@ def temperature_to_cost(
     if temperature_c >= blocked_temperature_c:
         return 100
     ratio = (temperature_c - safe_temperature_c) / (
-        blocked_temperature_c - safe_temperature_c
+        temperature_cost_scale_max_c - safe_temperature_c
     )
     risk = min(1.0, max(0.0, ratio)) ** temperature_power
     return max(1, min(99, round(99.0 * risk)))

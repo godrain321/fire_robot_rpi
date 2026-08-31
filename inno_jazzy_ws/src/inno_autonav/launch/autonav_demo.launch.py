@@ -33,6 +33,10 @@ def generate_launch_description() -> LaunchDescription:
     waypoint_file = LaunchConfiguration('waypoint_file')
     hazard_belief_enabled = LaunchConfiguration('hazard_belief_enabled')
     hazard_thermal_enabled = LaunchConfiguration('hazard_thermal_enabled')
+    temperature_cost_scale_max_c = LaunchConfiguration(
+        'temperature_cost_scale_max_c'
+    )
+    temperature_blocked_c = LaunchConfiguration('temperature_blocked_c')
     hazard_co_enabled = LaunchConfiguration('hazard_co_enabled')
     gas_input_mode = LaunchConfiguration('gas_input_mode')
     gas_safe_adc = LaunchConfiguration('gas_safe_adc')
@@ -96,6 +100,12 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument(
                 'hazard_thermal_enabled', default_value='true'
+            ),
+            DeclareLaunchArgument(
+                'temperature_cost_scale_max_c', default_value='60.0'
+            ),
+            DeclareLaunchArgument(
+                'temperature_blocked_c', default_value='60.0'
             ),
             DeclareLaunchArgument(
                 'hazard_co_enabled', default_value='false'
@@ -192,6 +202,12 @@ def generate_launch_description() -> LaunchDescription:
                 parameters=[hazard_config, {
                     'thermal_enabled': ParameterValue(
                         hazard_thermal_enabled, value_type=bool
+                    ),
+                    'temperature_cost_scale_max_c': ParameterValue(
+                        temperature_cost_scale_max_c, value_type=float
+                    ),
+                    'temperature_blocked_c': ParameterValue(
+                        temperature_blocked_c, value_type=float
                     ),
                     'co_enabled': ParameterValue(
                         hazard_co_enabled, value_type=bool

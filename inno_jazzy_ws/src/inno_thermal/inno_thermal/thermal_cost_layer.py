@@ -50,6 +50,7 @@ class ThermalCostLayer(Node):
             "status_topic": "/thermal_cost_status",
             "target_frame": "map",
             "safe_temperature_c": 20.0,
+            "temperature_cost_scale_max_c": 60.0,
             "blocked_temperature_c": 60.0,
             # Store the linear normalized ratio. The factory_v5 exponent is
             # applied exactly once by inno_autonav's weighted planner.
@@ -78,6 +79,9 @@ class ThermalCostLayer(Node):
         )
         self.blocked_temperature_c = float(
             self.get_parameter("blocked_temperature_c").value
+        )
+        self.temperature_cost_scale_max_c = float(
+            self.get_parameter("temperature_cost_scale_max_c").value
         )
         self.temperature_power = float(self.get_parameter("temperature_power").value)
         self.persistent_observations = bool(
@@ -143,8 +147,9 @@ class ThermalCostLayer(Node):
         temperature_to_cost(
             self.safe_temperature_c,
             self.safe_temperature_c,
-            self.blocked_temperature_c,
+            self.temperature_cost_scale_max_c,
             self.temperature_power,
+            self.blocked_temperature_c,
         )
         if not math.isfinite(observation_timeout_sec) or observation_timeout_sec < 0.0:
             raise ValueError("observation_timeout_sec must be finite and non-negative")
@@ -286,8 +291,9 @@ class ThermalCostLayer(Node):
                 cost = temperature_to_cost(
                     intensity,
                     self.safe_temperature_c,
-                    self.blocked_temperature_c,
+                    self.temperature_cost_scale_max_c,
                     self.temperature_power,
+                    self.blocked_temperature_c,
                 )
                 cell_cost_pairs.append((cell, cost))
         except (TypeError, ValueError, IndexError) as exc:

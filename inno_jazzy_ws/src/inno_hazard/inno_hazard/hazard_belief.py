@@ -53,6 +53,7 @@ class HazardGridGeometry:
 class HazardBeliefConfig:
     base_cost: float = 1.0
     temperature_safe_c: float = 40.0
+    temperature_cost_scale_max_c: float = 60.0
     temperature_blocked_c: float = 60.0
     temperature_weight: float = 24.0
     temperature_power: float = 1.5
@@ -94,6 +95,8 @@ class HazardBeliefConfig:
     def __post_init__(self):
         if self.base_cost <= 0.0:
             raise ValueError("base_cost must be positive")
+        if self.temperature_cost_scale_max_c <= self.temperature_safe_c:
+            raise ValueError("temperature cost scale maximum must exceed safe")
         if self.temperature_blocked_c <= self.temperature_safe_c:
             raise ValueError("temperature blocked threshold must exceed safe")
         if self.gas_input_mode not in ("legacy_ppm", "adc"):
@@ -294,7 +297,7 @@ class HazardBelief:
         temp = np.zeros(self.shape)
         temp[self.temperature_observed_mask] = np.clip(
             (self.temperature_belief_map[self.temperature_observed_mask] - cfg.temperature_safe_c)
-            / (cfg.temperature_blocked_c - cfg.temperature_safe_c), 0.0, 1.0,
+            / (cfg.temperature_cost_scale_max_c - cfg.temperature_safe_c), 0.0, 1.0,
         )
         self.temperature_cost_map = cfg.temperature_weight * temp ** cfg.temperature_power
         gas_safe = cfg.gas_safe_threshold

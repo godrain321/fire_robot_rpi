@@ -76,6 +76,10 @@ def generate_launch_description():
         DeclareLaunchArgument('require_thermal_active', default_value='false'),
         DeclareLaunchArgument('hazard_belief_enabled', default_value='false'),
         DeclareLaunchArgument('hazard_thermal_enabled', default_value='true'),
+        DeclareLaunchArgument(
+            'temperature_cost_scale_max_c', default_value='60.0'
+        ),
+        DeclareLaunchArgument('temperature_blocked_c', default_value='60.0'),
         DeclareLaunchArgument('hazard_co_enabled', default_value='false'),
         DeclareLaunchArgument('gas_input_mode', default_value='legacy_ppm'),
         DeclareLaunchArgument('gas_safe_adc', default_value='0.0'),
@@ -255,6 +259,10 @@ def generate_launch_description():
                 'waypoint_file': L('planner_waypoint_file'),
                 'hazard_belief_enabled': L('hazard_belief_enabled'),
                 'hazard_thermal_enabled': L('hazard_thermal_enabled'),
+                'temperature_cost_scale_max_c': L(
+                    'temperature_cost_scale_max_c'
+                ),
+                'temperature_blocked_c': L('temperature_blocked_c'),
                 'hazard_co_enabled': L('hazard_co_enabled'),
                 'gas_input_mode': L('gas_input_mode'),
                 'gas_safe_adc': L('gas_safe_adc'),

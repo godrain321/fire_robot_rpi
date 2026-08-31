@@ -52,6 +52,32 @@ def test_temperature_threshold_and_soft_cost_formula():
     assert np.isinf(item.final_cost_map[1, 6])
 
 
+def test_mode8_temperature_hard_block_preserves_legacy_soft_scale():
+    temperatures = (0.0, 20.0, 30.0, 40.0, 49.0, 49.9, 50.0, 50.1, 60.0)
+    observations = [((index, 0), value) for index, value in enumerate(temperatures)]
+    legacy = belief(width=len(temperatures), height=1)
+    mode8 = belief(
+        width=len(temperatures), height=1,
+        temperature_cost_scale_max_c=60.0,
+        temperature_blocked_c=50.0,
+    )
+    legacy.update_temperature_observations(observations, 1.0)
+    mode8.update_temperature_observations(observations, 1.0)
+
+    below = np.asarray(temperatures) < 50.0
+    np.testing.assert_allclose(
+        mode8.temperature_cost_map[0, below],
+        legacy.temperature_cost_map[0, below],
+    )
+    assert not mode8.blocked_mask[0, below].any()
+    assert np.isfinite(mode8.final_cost_map[0, below]).all()
+    assert mode8.blocked_mask[0, ~below].all()
+    assert np.isinf(mode8.final_cost_map[0, ~below]).all()
+    assert mode8.temperature_cost_map[0, 4] == pytest.approx(
+        24.0 * ((49.0 - 40.0) / (60.0 - 40.0)) ** 1.5
+    )
+
+
 def test_co_disabled_does_not_invent_measurements():
     item = belief(co_enabled=False)
     update = item.update_co_observation(2.5, 2.5, 800, 1.0)

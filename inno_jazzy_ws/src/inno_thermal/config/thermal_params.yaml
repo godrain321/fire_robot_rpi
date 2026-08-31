@@ -21,6 +21,8 @@ thermal_cost_layer:
     status_topic: /thermal_cost_status
     target_frame: map
     safe_temperature_c: 20.0
+    # Preserve the original 20-60 C soft-cost normalization.
+    temperature_cost_scale_max_c: 60.0
     blocked_temperature_c: 60.0
     # Encode the linear 20-60 C ratio as 0-99. The factory_v5 exponent is
     # applied once by inno_autonav's weighted planner, not duplicated here.

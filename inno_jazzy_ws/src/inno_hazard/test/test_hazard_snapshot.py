@@ -36,3 +36,22 @@ def test_snapshot_keeps_all_layers_and_revision_coherent():
         layers["observed"].astype(bool), belief.observed_mask
     )
     assert layers["fire_probability"][1, 2] == np.float32(0.6)
+
+
+def test_snapshot_exposes_mode8_50c_block_threshold_and_blocked_layer():
+    geometry = HazardGridGeometry(1, 1, 0.05)
+    belief = HazardBelief(
+        geometry, np.zeros((1, 1), dtype=bool),
+        HazardBeliefConfig(
+            temperature_cost_scale_max_c=60.0,
+            temperature_blocked_c=50.0,
+        ),
+    )
+    belief.update_temperature_observations([((0, 0), 50.0)], 1.0)
+    message = hazard_snapshot_message(
+        belief, np.zeros((1, 1)), status="ACTIVE_THERMAL_ONLY"
+    )
+    metadata, layers = decode_hazard_snapshot_message(message)
+    assert metadata["temperature_blocked_c"] == 50.0
+    assert bool(layers["blocked"][0, 0]) is True
+    assert np.isinf(layers["final_cost"][0, 0])

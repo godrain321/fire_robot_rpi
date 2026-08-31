@@ -62,6 +62,12 @@ def generate_launch_description():
         DeclareLaunchArgument("turn_speed", default_value="0.35"),
         DeclareLaunchArgument("use_serial", default_value="true"),
         DeclareLaunchArgument("use_thermal_sensor", default_value="false"),
+        DeclareLaunchArgument(
+            "temperature_cost_scale_max_c", default_value="60.0"
+        ),
+        DeclareLaunchArgument(
+            "temperature_blocked_c", default_value="60.0"
+        ),
         # MQ-135 gas belief input (/mq135/filtered_adc). Off by default until ADC
         # safe/blocked thresholds are calibrated; run with use_gas_sensor:=true.
         DeclareLaunchArgument("use_gas_sensor", default_value="false"),
@@ -102,7 +108,11 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             thermal + "/launch/thermal_sensor.launch.py"
         ),
-        launch_arguments={"enable_cost_layer": "true"}.items(),
+        launch_arguments={
+            "enable_cost_layer": "true",
+            "temperature_cost_scale_max_c": L("temperature_cost_scale_max_c"),
+            "blocked_temperature_c": L("temperature_blocked_c"),
+        }.items(),
         condition=IfCondition(L("use_thermal_sensor")),
     )
     thermal_transform = Node(
@@ -154,6 +164,10 @@ def generate_launch_description():
             "use_dynamic_obstacles": "true",
             "hazard_belief_enabled": "true",
             "hazard_thermal_enabled": L("use_thermal_sensor"),
+            "temperature_cost_scale_max_c": L(
+                "temperature_cost_scale_max_c"
+            ),
+            "temperature_blocked_c": L("temperature_blocked_c"),
             "hazard_co_enabled": L("use_gas_sensor"),
             "gas_input_mode": L("gas_input_mode"),
             "gas_safe_adc": L("gas_safe_adc"),

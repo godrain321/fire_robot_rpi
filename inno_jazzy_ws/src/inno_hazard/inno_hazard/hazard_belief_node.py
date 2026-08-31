@@ -51,6 +51,7 @@ class HazardBeliefNode(Node):
             "gas_input_mode": "legacy_ppm",
             "base_cost": 1.0,
             "temperature_safe_c": 40.0,
+            "temperature_cost_scale_max_c": 60.0,
             "temperature_blocked_c": 60.0,
             "temperature_weight": 24.0,
             "temperature_power": 1.5,
@@ -98,6 +99,9 @@ class HazardBeliefNode(Node):
         self.config = HazardBeliefConfig(
             base_cost=float(self.get_parameter("base_cost").value),
             temperature_safe_c=float(self.get_parameter("temperature_safe_c").value),
+            temperature_cost_scale_max_c=float(
+                self.get_parameter("temperature_cost_scale_max_c").value
+            ),
             temperature_blocked_c=float(self.get_parameter("temperature_blocked_c").value),
             temperature_weight=float(self.get_parameter("temperature_weight").value),
             temperature_power=float(self.get_parameter("temperature_power").value),
