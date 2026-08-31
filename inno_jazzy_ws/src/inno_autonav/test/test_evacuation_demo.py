@@ -4,8 +4,10 @@ import math
 import pytest
 
 from inno_autonav.evacuation_demo import (
+    exit_visualization_records,
     group_leg_candidates,
     moving_priority_candidate,
+    stationary_observation_displacement,
     MovingCandidateTracker,
     build_next_exploration_decision,
     nearest_exit_obstacle_candidate,
@@ -15,6 +17,31 @@ from inno_autonav.evacuation_demo import (
     parse_mode4_classification,
     startup_state,
 )
+
+
+def test_exit_visualization_maps_existing_states_without_new_decisions():
+    payload = json.dumps({
+        'frame_id': 'map',
+        'evaluations': [
+            {'exit_id': 'exit1', 'exit_status': 'usable', 'accepted': True, 'exit_position_world': [1, 2]},
+            {'exit_id': 'exit2', 'exit_status': 'dangerous', 'accepted': False, 'exit_position_world': [3, 4]},
+            {'exit_id': 'exit3', 'exit_status': 'unknown', 'accepted': True, 'exit_position_world': [5, 6]},
+        ],
+    })
+    assert exit_visualization_records(payload) == (
+        ('EXIT1', (1.0, 2.0), 'USABLE'),
+        ('EXIT2', (3.0, 4.0), 'BLOCKED'),
+        ('EXIT3', (5.0, 6.0), 'UNKNOWN'),
+    )
+
+
+def test_stationary_observation_uses_maximum_map_displacement():
+    assert stationary_observation_displacement(
+        (3.0, -7.0), [(3.1, -7.0), (3.2, -7.0)]
+    ) == pytest.approx(0.2)
+    assert stationary_observation_displacement(
+        (3.0, -7.0), [(3.201, -7.0)]
+    ) > 0.2
 
 
 def test_leg_candidates_pair_at_threshold_and_keep_single():

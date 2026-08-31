@@ -26,6 +26,7 @@ from .grid_utils import (
     world_to_grid,
 )
 from .tf_utils import TfHelper
+from .evacuation_demo import stationary_observation_displacement
 
 
 Point2D = Tuple[float, float]
@@ -430,6 +431,8 @@ class Mode3Inspector(Node):
         self.evidence = PresenceEvidence(
             self.standoff_distance, self.distance_tolerance
         )
+        self.observation_target_start = None
+        self.observation_target_samples = []
         self.planning_grid: Optional[MapGrid] = None
         self.static_grid: Optional[MapGrid] = None
         self._grid_wait_reported = False
@@ -442,6 +445,9 @@ class Mode3Inspector(Node):
         )
         self.person_publisher = self.create_publisher(
             PointStamped, '/dynamic_obstacle_person', 10
+        )
+        self.assistance_publisher = self.create_publisher(
+            PointStamped, '/dynamic_obstacle_assistance', latched_qos
         )
         self.status_publisher = self.create_publisher(
             String, '/mode3_status', latched_qos
@@ -626,6 +632,8 @@ class Mode3Inspector(Node):
             if tracked is not None:
                 self.target = tracked
                 self.target_last_seen = now
+                if self.phase == 'OBSERVING':
+                    self.observation_target_samples.append(tracked)
         self._try_start_inspection()
 
     def _target_is_fresh(self) -> bool:
@@ -890,6 +898,10 @@ class Mode3Inspector(Node):
         self.evidence = PresenceEvidence(
             expected_distance, self.distance_tolerance
         )
+        self.observation_target_start = self.target
+        self.observation_target_samples = (
+            [] if self.target is None else [self.target]
+        )
         self._state('MODE3_MMWAVE_OBSERVING')
         self.get_logger().info(
             f'MODE 3 mmWave expected distance: {expected_distance:.2f}m'
@@ -923,6 +935,15 @@ class Mode3Inspector(Node):
             point.point.y = self.target[1]
             point.point.z = 0.10
             self.person_publisher.publish(point)
+            displacement = stationary_observation_displacement(
+                getattr(self, 'observation_target_start', None),
+                getattr(self, 'observation_target_samples', ()),
+            )
+            if displacement <= 0.20 + 1e-9:
+                assistance = PointStamped()
+                assistance.header = point.header
+                assistance.point = point.point
+                self.assistance_publisher.publish(assistance)
             self.classification_publisher.publish(
                 String(data=f'PERSON:{self.target[0]:.3f},{self.target[1]:.3f}')
             )

@@ -217,6 +217,51 @@ def moving_priority_candidate(
     return None if not matches else min(matches)[2]
 
 
+def exit_visualization_records(payload: str, expected_frame: str = "map"):
+    """Extract stable RViz labels from the existing exit-evaluation result."""
+    try:
+        value = json.loads(str(payload))
+        if str(value["frame_id"]).lstrip("/") != str(expected_frame).lstrip("/"):
+            return ()
+        output = []
+        for item in value["evaluations"]:
+            exit_id = str(item["exit_id"]).upper()
+            point = tuple(map(float, item["exit_position_world"]))
+            if len(point) != 2 or not all(math.isfinite(number) for number in point):
+                continue
+            state = str(item.get("exit_status", "unknown")).casefold()
+            display = (
+                "USABLE" if state == "usable"
+                else "BLOCKED" if (
+                    state in {"blocked", "dangerous", "danger_expected"}
+                    or item.get("accepted") is False
+                )
+                else "UNKNOWN"
+            )
+            output.append((exit_id, point, display))
+        return tuple(sorted(output))
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return ()
+
+
+def stationary_observation_displacement(start, samples) -> float:
+    """Return maximum map-frame displacement from an observation start."""
+    if start is None:
+        return math.inf
+    origin = tuple(map(float, start))
+    if len(origin) != 2 or not all(math.isfinite(value) for value in origin):
+        return math.inf
+    distances = [0.0]
+    for sample in samples:
+        try:
+            point = tuple(map(float, sample))
+        except (TypeError, ValueError):
+            continue
+        if len(point) == 2 and all(math.isfinite(value) for value in point):
+            distances.append(math.dist(origin, point))
+    return max(distances)
+
+
 def startup_state(
     hazard_status: str,
     exit_evaluator_status: str,

@@ -427,3 +427,62 @@ def test_settling_survives_temporary_current_scan_dropout():
 
     assert inspector.phase == 'OBSERVING'
     assert restarts == []
+
+
+def test_confirmed_stationary_person_publishes_assistance_location():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.map_frame = 'map'
+    inspector.target = (3.42, -7.18)
+    inspector.observation_target_start = (3.40, -7.20)
+    inspector.observation_target_samples = [(3.42, -7.18), (3.45, -7.16)]
+    inspector.sensor_online = True
+    inspector.last_sensor_update = 10.0
+    inspector.sensor_stale_timeout = 2.0
+    inspector.minimum_samples = 3
+    inspector.positive_samples = 3
+    inspector.evidence = type(
+        'Evidence', (), {'classify': lambda self, *_args: 'PERSON'}
+    )()
+    inspector._now = lambda: 10.0
+    inspector.get_clock = lambda: _Clock()
+    inspector.person_publisher = _Publisher()
+    inspector.assistance_publisher = _Publisher()
+    inspector.classification_publisher = _Publisher()
+    inspector._state = lambda _state: None
+    inspector.get_logger = lambda: _Logger()
+
+    inspector._finish_observation()
+
+    assert len(inspector.person_publisher.messages) == 1
+    assert len(inspector.assistance_publisher.messages) == 1
+    point = inspector.assistance_publisher.messages[0]
+    assert point.header.frame_id == 'map'
+    assert (point.point.x, point.point.y) == (3.42, -7.18)
+
+
+def test_confirmed_person_moving_over_threshold_is_not_assistance_case():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.map_frame = 'map'
+    inspector.target = (3.30, -7.00)
+    inspector.observation_target_start = (3.00, -7.00)
+    inspector.observation_target_samples = [(3.30, -7.00)]
+    inspector.sensor_online = True
+    inspector.last_sensor_update = 10.0
+    inspector.sensor_stale_timeout = 2.0
+    inspector.minimum_samples = 3
+    inspector.positive_samples = 3
+    inspector.evidence = type(
+        'Evidence', (), {'classify': lambda self, *_args: 'PERSON'}
+    )()
+    inspector._now = lambda: 10.0
+    inspector.get_clock = lambda: _Clock()
+    inspector.person_publisher = _Publisher()
+    inspector.assistance_publisher = _Publisher()
+    inspector.classification_publisher = _Publisher()
+    inspector._state = lambda _state: None
+    inspector.get_logger = lambda: _Logger()
+
+    inspector._finish_observation()
+
+    assert len(inspector.person_publisher.messages) == 1
+    assert inspector.assistance_publisher.messages == []

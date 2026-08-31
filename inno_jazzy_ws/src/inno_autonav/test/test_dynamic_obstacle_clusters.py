@@ -157,3 +157,47 @@ def test_mode3_blue_track_follows_current_lidar_cluster():
     assert layer.person_track_ids == [7]
     assert layer.classified_people[0][0] == 2.25
     assert layer.classified_people[0][1] == 3.0
+
+
+def test_stationary_assistance_location_is_deduplicated_and_logged_once():
+    layer = object.__new__(DynamicObstacleLayer)
+    layer.map_frame = 'map'
+    layer.person_match_radius = 0.75
+    layer.assistance_people = []
+    warnings = []
+    layer.get_logger = lambda: type(
+        'Logger', (), {'warning': lambda self, message: warnings.append(message)}
+    )()
+    point = PointStamped()
+    point.header.frame_id = 'map'
+    point.point.x = 3.42
+    point.point.y = -7.18
+
+    layer._assistance_callback(point)
+    layer._assistance_callback(point)
+
+    assert layer.assistance_people == [(3.42, -7.18)]
+    assert len(warnings) == 1
+    assert 'state=ASSIST_CHECK' in warnings[0]
+
+
+def test_exit_labels_and_stationary_person_share_existing_marker_array():
+    layer = object.__new__(DynamicObstacleLayer)
+    layer.map_frame = 'map'
+    layer.inflation_radius = 0.30
+    layer.person_match_radius = 0.75
+    layer.classified_people = []
+    layer.assistance_people = [(3.42, -7.18)]
+    layer.exit_visualizations = [('EXIT1', (4.0, 2.0), 'USABLE')]
+    published = []
+    layer.marker_publisher = type(
+        'Publisher', (), {'publish': lambda self, message: published.append(message)}
+    )()
+
+    layer._publish_markers(Time(), [])
+
+    markers = published[-1].markers
+    yellow = next(item for item in markers if item.ns == 'stationary_assistance_people')
+    label = next(item for item in markers if item.ns == 'exit_status_labels')
+    assert len(yellow.points) == 1
+    assert label.text == 'EXIT1: USABLE'

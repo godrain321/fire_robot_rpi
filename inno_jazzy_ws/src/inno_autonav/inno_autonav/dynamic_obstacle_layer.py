@@ -11,7 +11,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Bool, Int32
+from std_msgs.msg import Bool, Int32, String
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -26,7 +26,7 @@ from .grid_utils import (
     world_to_grid,
 )
 from .tf_utils import TfHelper
-from .evacuation_demo import group_leg_candidates
+from .evacuation_demo import exit_visualization_records, group_leg_candidates
 
 
 def grid_from_message(message: OccupancyGrid) -> MapGrid:
@@ -294,6 +294,8 @@ class DynamicObstacleLayer(Node):
         self.confirmed: Dict[int, float] = {}
         self.current_seen: Set[int] = set()
         self.classified_people: List[Tuple[float, float, float]] = []
+        self.assistance_people: List[Tuple[float, float]] = []
+        self.exit_visualizations = []
         self.person_track_ids: List[int] = []
         self.person_track_velocities: List[Tuple[float, float]] = []
         self.next_person_track_id = 1
@@ -336,6 +338,13 @@ class DynamicObstacleLayer(Node):
             '/dynamic_obstacle_person_track',
             self._person_track_callback,
             10,
+        )
+        self.create_subscription(
+            PointStamped, '/dynamic_obstacle_assistance',
+            self._assistance_callback, grid_qos,
+        )
+        self.create_subscription(
+            String, '/exit_evaluations', self._exit_evaluations_callback, grid_qos
         )
         self.create_service(
             Trigger, '/clear_dynamic_obstacles', self._clear_callback
@@ -460,6 +469,36 @@ class DynamicObstacleLayer(Node):
         # already confirmed survivor.  A wider gate moves the existing blue
         # marker instead of leaving a trail of blue points behind the person.
         self._update_person(message, self.person_track_match_radius)
+
+    def _assistance_callback(self, message: PointStamped) -> None:
+        if message.header.frame_id.lstrip('/') != self.map_frame.lstrip('/'):
+            self.get_logger().warning(
+                '정지 요구조자 좌표의 map TF 변환을 확인할 수 없어 무시합니다: '
+                f'frame={message.header.frame_id!r}'
+            )
+            return
+        point = float(message.point.x), float(message.point.y)
+        if not all(math.isfinite(value) for value in point):
+            self.get_logger().warning('정지 요구조자의 유효한 map 좌표가 없어 무시합니다.')
+            return
+        if any(
+            math.dist(point, old) <= self.person_match_radius
+            for old in self.assistance_people
+        ):
+            return
+        self.assistance_people.append(point)
+        self.get_logger().warning(
+            '[구조 요청] 움직임이 확인되지 않는 요구조자 위치를 보고합니다. '
+            f'frame=map, x={point[0]:.2f}, y={point[1]:.2f}, '
+            'source=mmWave, state=ASSIST_CHECK'
+        )
+
+    def _exit_evaluations_callback(self, message: String) -> None:
+        records = exit_visualization_records(message.data, self.map_frame)
+        if not records:
+            self.get_logger().warning('출구 평가 결과를 RViz 표시용으로 해석하지 못했습니다.')
+            return
+        self.exit_visualizations = list(records)
 
     def _update_person(self, message: PointStamped, match_radius: float) -> None:
         if message.header.frame_id and message.header.frame_id != self.map_frame:
@@ -757,13 +796,50 @@ class DynamicObstacleLayer(Node):
         blue.color.b = 1.0
         blue.color.a = 0.90
         blue.pose.orientation.w = 1.0
+        assistance = Marker()
+        assistance.header = clear.header
+        assistance.ns = 'stationary_assistance_people'
+        assistance.id = 3
+        assistance.type = Marker.SPHERE_LIST
+        assistance.action = Marker.ADD
+        assistance.scale.x = diameter
+        assistance.scale.y = diameter
+        assistance.scale.z = 0.25
+        assistance.color.r = 1.0
+        assistance.color.g = 1.0
+        assistance.color.b = 0.0
+        assistance.color.a = 0.95
+        assistance.pose.orientation.w = 1.0
         for cluster_index, (_, center_x, center_y) in enumerate(clusters):
             point = Point(x=center_x, y=center_y, z=0.10)
             if cluster_index not in matched_people:
                 red.points.append(point)
         for person_x, person_y, _ in self.classified_people:
             blue.points.append(Point(x=person_x, y=person_y, z=0.10))
-        self.marker_publisher.publish(MarkerArray(markers=[clear, red, blue]))
+        for person_x, person_y in getattr(self, 'assistance_people', ()):
+            assistance.points.append(Point(x=person_x, y=person_y, z=0.15))
+        markers = [clear, red, blue, assistance]
+        for marker_id, (exit_id, position, state) in enumerate(
+            getattr(self, 'exit_visualizations', ()), start=100
+        ):
+            label = Marker()
+            label.header = clear.header
+            label.ns = 'exit_status_labels'
+            label.id = marker_id
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position.x = position[0]
+            label.pose.position.y = position[1]
+            label.pose.position.z = 0.65
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.35
+            label.color.r = 1.0
+            label.color.g = 1.0
+            label.color.b = 1.0
+            label.color.a = 1.0
+            label.text = f'{exit_id}: {state}'
+            markers.append(label)
+        self.marker_publisher.publish(MarkerArray(markers=markers))
 
     def _clear_callback(self, request, response):
         del request
@@ -772,6 +848,7 @@ class DynamicObstacleLayer(Node):
         self.confirmed.clear()
         self.current_seen.clear()
         self.classified_people.clear()
+        self.assistance_people.clear()
         self.person_track_ids.clear()
         self.person_track_velocities.clear()
         response.success = True
