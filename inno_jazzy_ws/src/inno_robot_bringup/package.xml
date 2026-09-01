@@ -12,6 +12,7 @@
   <exec_depend>inno_camera_tools</exec_depend>
   <exec_depend>inno_autonav</exec_depend>
   <exec_depend>inno_drive_bridge</exec_depend>
+  <exec_depend>inno_evacuation_voice</exec_depend>
   <exec_depend>inno_mmwave</exec_depend>
   <exec_depend>inno_thermal</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
