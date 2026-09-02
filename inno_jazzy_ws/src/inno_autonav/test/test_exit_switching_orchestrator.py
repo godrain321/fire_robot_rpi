@@ -10,6 +10,7 @@ from inno_autonav.exit_evaluator import ExitHazardSnapshot
 from inno_autonav.exit_switching import ExitSwitchingConfig
 from inno_autonav.exit_switching_orchestrator import (
     ExitSwitchingCore,
+    ForcedProximitySwitch,
     PeekResult,
     SwitchAck,
 )
@@ -229,6 +230,178 @@ def test_soft_h_cooldown_does_not_block_a_hard_trigger():
     out = c.on_supervisor_status("REPLAN_EXHAUSTED")  # a fresh hard failure on EXIT1
     assert out.switch_request is not None
     assert out.switch_request.excluded_exit_ids == ("EXIT1",)
+
+
+def test_live_40c_on_route_for_three_seconds_marks_exit_danger_expected():
+    c = ExitSwitchingCore(
+        ExitSwitchingConfig(
+            danger_expected_min_temperature_c=40.0,
+            danger_expected_confirmation_sec=3.0,
+            danger_expected_max_observation_gap_sec=1.0,
+            danger_expected_path_radius_m=0.30,
+        ),
+        dict(EXIT_POSITIONS),
+    )
+    c.on_active_goal(GOAL_EXIT2)
+    c.on_planned_path(DENSE_PATH_WORLD)
+    c.on_hazard_snapshot(snapshot())
+    c.tick((0.5, 0.5), 0.0)
+
+    for observed_at in (10.0, 10.5, 11.0, 11.5, 12.0, 12.5):
+        out = c.on_live_temperature_observations(
+            ((4, 0, 40.0),), observed_at,
+        )
+        assert out.switch_request is None
+    out = c.on_live_temperature_observations(((4, 0, 40.0),), 13.0)
+
+    assert out.switch_request is not None
+    assert out.switch_request.reason.endswith("DANGER_EXPECTED")
+    assert out.switch_request.excluded_exit_ids == ("EXIT2",)
+    assert out.switch_request.risk_first is True
+    assert out.status["danger_expected_exit_ids"] == ["EXIT2"]
+
+
+def test_live_route_heat_streak_resets_on_cold_frame_or_long_gap():
+    c = core(ExitSwitchingConfig(
+        danger_expected_confirmation_sec=3.0,
+        danger_expected_max_observation_gap_sec=1.0,
+        danger_expected_path_radius_m=0.30,
+    ))
+    c.on_active_goal(GOAL_EXIT2)
+    c.on_planned_path(DENSE_PATH_WORLD)
+    c.on_hazard_snapshot(snapshot())
+    c.tick((0.5, 0.5), 0.0)
+
+    c.on_live_temperature_observations(((4, 0, 41.0),), 1.0)
+    c.on_live_temperature_observations(((4, 0, 41.0),), 2.0)
+    c.on_live_temperature_observations(((4, 0, 39.9),), 2.5)
+    assert c.on_live_temperature_observations(
+        ((4, 0, 41.0),), 5.5,
+    ).switch_request is None
+    assert c.on_live_temperature_observations(
+        ((4, 0, 41.0),), 8.0,
+    ).switch_request is None
+    assert c.current_output().status["route_heat_duration_sec"] == 0.0
+
+
+def test_live_heat_outside_route_corridor_never_marks_exit_danger_expected():
+    c = core(ExitSwitchingConfig(
+        danger_expected_confirmation_sec=3.0,
+        danger_expected_path_radius_m=0.30,
+    ))
+    c.on_active_goal(GOAL_EXIT2)
+    c.on_planned_path(DENSE_PATH_WORLD)
+    c.on_hazard_snapshot(snapshot())
+    c.tick((0.5, 0.5), 0.0)
+
+    for observed_at in (1.0, 2.0, 3.0, 4.0):
+        out = c.on_live_temperature_observations(
+            ((4, 8, 80.0),), observed_at,
+        )
+    assert out.switch_request is None
+    assert out.status["danger_expected_exit_ids"] == []
+
+
+def _forced_proximity_core():
+    return ExitSwitchingCore(
+        ExitSwitchingConfig(),
+        dict(EXIT_POSITIONS),
+        ForcedProximitySwitch(
+            source_exit_id="EXIT2",
+            target_exit_id="EXIT3",
+            trigger_positions_world=((11.580, -6.349), (12.017, -7.694), (12.471, -6.803)),
+            radius_m=1.0,
+        ),
+    )
+
+
+def test_w79_w75_or_w78_one_metre_trigger_forces_exit2_to_exit3():
+    for trigger, outward_x in (
+        ((11.580, -6.349), -1.0),
+        ((12.017, -7.694), 1.0),
+        ((12.471, -6.803), 1.0),
+    ):
+        c = _forced_proximity_core()
+        c.on_active_goal(GOAL_EXIT2)
+
+        outside = c.tick((trigger[0] + outward_x * 1.01, trigger[1]), 1.0)
+        assert outside.switch_request is None
+        out = c.tick((trigger[0] + outward_x, trigger[1]), 2.0)
+
+        assert out.switch_request is not None
+        assert out.switch_request.reason == (
+            "waypoint_proximity:DANGER_EXPECTED"
+        )
+        assert out.switch_request.current_exit_id == "EXIT2"
+        assert out.switch_request.excluded_exit_ids == ("EXIT2",)
+        assert out.switch_request.candidate_exit_ids == ("EXIT3",)
+        assert out.switch_request.to_payload()["direct_target_activation"] is True
+        assert out.status["danger_expected_exit_ids"] == ["EXIT2"]
+        assert out.status["forced_proximity_triggered"] is True
+        assert c.tick(trigger, 3.0).switch_request is None
+
+
+def test_w79_w75_w78_trigger_does_not_fire_unless_exit2_is_active():
+    c = _forced_proximity_core()
+    c.on_active_goal(ActiveGoal("EXIT1", (-19.0, 0.5), 1))
+
+    out = c.tick((11.580, -6.349), 1.0)
+
+    assert out.switch_request is None
+    assert out.status["danger_expected_exit_ids"] == []
+
+
+def test_w79_w75_w78_switch_retries_while_evaluator_is_temporarily_not_ready():
+    c = _forced_proximity_core()
+    c.on_active_goal(GOAL_EXIT2)
+    trigger = (11.580, -6.349)
+
+    first = c.tick(trigger, 10.0).switch_request
+    assert first is not None
+    failed = c.on_switch_result(SwitchAck(
+        first.request_id,
+        False,
+        "EXIT_EVALUATOR_NOT_READY:HAZARD_NOT_READY:THERMAL_STREAM_STALE",
+        None,
+    ))
+    assert failed.status["forced_switch_retry_pending"] is True
+    assert c.tick(trigger, 10.99).switch_request is None
+
+    retry = c.tick(trigger, 11.0).switch_request
+    assert retry is not None
+    assert retry.request_id != first.request_id
+    assert retry.current_exit_id == "EXIT2"
+    assert retry.excluded_exit_ids == ("EXIT2",)
+    assert retry.candidate_exit_ids == ("EXIT3",)
+
+
+def test_w79_w75_w78_switch_does_not_retry_permanent_no_safe_exit_failure():
+    c = _forced_proximity_core()
+    c.on_active_goal(GOAL_EXIT2)
+    trigger = (11.580, -6.349)
+
+    request = c.tick(trigger, 10.0).switch_request
+    failed = c.on_switch_result(SwitchAck(
+        request.request_id, False, "NO_SAFE_ALTERNATIVE_EXIT", None,
+    ))
+
+    assert failed.status["forced_switch_retry_pending"] is False
+    assert c.tick(trigger, 100.0).switch_request is None
+
+
+def test_final2_field_config_enables_w79_w75_w78_exit2_to_exit3_trigger():
+    config = (
+        FsPath(__file__).parents[1] / "config" / "autonav_params.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "demo_force_proximity_switch_enabled: true" in config
+    assert (
+        "demo_force_trigger_waypoint_positions: "
+        "[11.580, -6.349, 12.017, -7.694, 12.471, -6.803]"
+    ) in config
+    assert "demo_force_trigger_radius_m: 1.0" in config
+    assert "demo_force_danger_exit_id: EXIT2" in config
+    assert "demo_force_target_exit_id: EXIT3" in config
 
 
 # -- Stage 7 boundary: source scan -----------------------------------------

@@ -1,4 +1,5 @@
 from collections import Counter
+import json
 import math
 import time
 from types import SimpleNamespace
@@ -53,6 +54,7 @@ def nearest_inspection_node(candidates):
     node.moving_priority_enabled = False
     node.inspected_dynamic_positions = []
     node.candidate_suppression_radius = 1.0
+    node.survivor_exit_id = None
     node.inspection_after_motion_delay = 2.0
     node.waiting_for_departure = False
     node._inspection_allowed_after = 0.0
@@ -69,6 +71,12 @@ def nearest_inspection_node(candidates):
     node._inspection_command_sent = True
     node.cancel_publisher = Publisher()
     node.blocked_exits_publisher = Publisher()
+    node.plan_publisher = Publisher()
+    node.selected_exit_publisher = Publisher()
+    node.published_goals = []
+    node._publish_goal = lambda position: node.published_goals.append(
+        tuple(position)
+    )
     node._set_status = lambda _message: None
     node._log = lambda _message: None
     node._select_drive_mode = lambda mode: setattr(node, 'selected_mode', mode)
@@ -195,6 +203,83 @@ def test_first_motor_motion_releases_initial_thermal_bypass():
     node._on_follower_state(String(data='FOLLOWING_PATH'))
     assert node._initial_hazard_bypass_active is False
     assert node.initial_hazard_bypass_publisher.messages[-1].data is False
+
+
+def test_mode5_logs_danger_expected_and_syncs_replacement_exit_plan():
+    node = nearest_inspection_node([])
+    node._requested = True
+    node.checked_exit_ids = set()
+    node.danger_expected_exit_ids = set()
+    statuses = []
+    logs = []
+    node._set_status = statuses.append
+    node._log = logs.append
+
+    node._on_danger_expected_exits(String(data='["exit1"]'))
+    assert node.checked_exit_ids == {"exit1"}
+    assert len(node.cancel_publisher.messages) == 1
+    assert statuses[-1] == "SEARCH_EXITS:DANGER_EXPECTED:exit1"
+    assert "위험 예상 상태로 판정했습니다" in logs[-1]
+    assert "36°C" not in logs[-1]
+    assert "3초 연속" not in logs[-1]
+    assert "근접 조건" not in logs[-1]
+
+    node._on_canonical_evacuation_plan(String(data=json.dumps({
+        "success": True,
+        "activated": True,
+        "manager_status": "ROUTE_ACTIVATED",
+        "selected_exit_id": "exit2",
+        "selected_exit_position_world": [8.0, 1.0],
+        "selected_approach_position_world": [7.5, 1.0],
+    })))
+    assert node.current_exit_id == "exit2"
+    assert node.current_exit_position == (8.0, 1.0)
+    assert node.current_approach_position == (7.5, 1.0)
+    assert node.waiting_for_departure is True
+    assert statuses[-1] == "SEARCH_EXITS:NAVIGATING:exit2"
+    assert "이용 가능한 출구 exit2" in logs[-1]
+
+
+def test_danger_expected_switches_survivor_escort_from_exit2_to_exit3():
+    node = nearest_inspection_node([])
+    node._requested = True
+    node._phase = "ESCORTING_SURVIVOR"
+    node.current_exit_id = None
+    node.survivor_exit_id = "EXIT2"
+    node._route_activated = True
+    node.checked_exit_ids = set()
+    node.danger_expected_exit_ids = set()
+    statuses = []
+    logs = []
+    node._set_status = statuses.append
+    node._log = logs.append
+
+    node._on_danger_expected_exits(String(data='["EXIT2"]'))
+    assert len(node.cancel_publisher.messages) == 1
+    assert node.checked_exit_ids == {"EXIT2"}
+    assert statuses[-1] == "SEARCH_EXITS:DANGER_EXPECTED:EXIT2"
+
+    payload = json.dumps({
+        "success": True,
+        "activated": True,
+        "manager_status": "ROUTE_ACTIVATED",
+        "selected_exit_id": "EXIT3",
+        "selected_exit_position_world": [-0.295, 0.048],
+        "selected_approach_position_world": [-0.003, -0.447],
+        "hazard_revision": 9,
+    })
+    node._on_canonical_evacuation_plan(String(data=payload))
+
+    assert node.survivor_exit_id == "EXIT3"
+    assert node.current_exit_id == "EXIT3"
+    assert node._phase == "ESCORTING_SURVIVOR"
+    assert node._route_activated is True
+    assert node.waiting_for_departure is True
+    assert node.plan_publisher.messages[-1].data == payload
+    assert node.selected_exit_publisher.messages[-1].data == "EXIT3"
+    assert node.published_goals[-1] == (-0.003, -0.447)
+    assert statuses[-1] == "ESCORTING_SURVIVOR:EXIT3"
+    assert "이용 가능한 출구 EXIT3" in logs[-1]
 
 
 def test_mode5_operator_logs_name_inspection_and_exit_change_phases():

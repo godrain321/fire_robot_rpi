@@ -38,7 +38,10 @@ class ExitSwitchingConfig:
     minimum_direction_difference_deg: float = 90.0
     switch_cooldown_sec: float = 10.0
     additional_travel_before_switch_m: float = 0.0
-    danger_expected_min_temperature_c: float = 40.0
+    danger_expected_min_temperature_c: float = 36.0
+    danger_expected_confirmation_sec: float = 3.0
+    danger_expected_max_observation_gap_sec: float = 1.0
+    danger_expected_path_radius_m: float = 0.30
 
     def __post_init__(self) -> None:
         if not isinstance(self.enabled, bool):
@@ -55,6 +58,9 @@ class ExitSwitchingConfig:
             "minimum_increase_ratio", "minimum_absolute_increase",
             "switch_cooldown_sec", "additional_travel_before_switch_m",
             "danger_expected_min_temperature_c",
+            "danger_expected_confirmation_sec",
+            "danger_expected_max_observation_gap_sec",
+            "danger_expected_path_radius_m",
         ):
             value = getattr(self, name)
             if isinstance(value, bool) or not math.isfinite(float(value)) or value < 0:

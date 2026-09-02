@@ -307,6 +307,7 @@ def generate_launch_description() -> LaunchDescription:
                         'enabled': ParameterValue(
                             evacuation_manager_enabled, value_type=bool
                         ),
+                        'exit_registry_file': semantic_yaml,
                         'activate_selected_route': ParameterValue(
                             evacuation_activate_route, value_type=bool
                         ),

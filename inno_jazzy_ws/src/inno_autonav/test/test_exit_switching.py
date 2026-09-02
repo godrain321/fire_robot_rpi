@@ -6,6 +6,7 @@ import numpy as np
 
 from inno_autonav.exit_switching import (
     DelayedCostSwitch,
+    ExitSwitchingConfig,
     RouteTemperatureTrendMonitor,
     current_direction_world,
     evaluate_path_cost,
@@ -14,6 +15,10 @@ from inno_autonav.exit_switching import (
 
 
 PATH = ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0))
+
+
+def test_field_default_danger_expected_temperature_is_36c():
+    assert ExitSwitchingConfig().danger_expected_min_temperature_c == 36.0
 
 
 def _temp_grid(size, value):

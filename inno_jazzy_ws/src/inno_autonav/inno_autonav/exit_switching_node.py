@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
+
 from nav_msgs.msg import Path
 import rclpy
 from rclpy.node import Node
@@ -30,10 +32,36 @@ from .evacuation_planner import (
 from .exit_evaluator import ExitHazardSnapshot, load_exit_registry
 from .exit_switching import ExitSwitchingConfig, evaluate_path_cost
 from .exit_switching_orchestrator import (
-    ExitSwitchingCore, PeekResult, parse_switch_result_payload,
+    ExitSwitchingCore, ForcedProximitySwitch, PeekResult,
+    parse_switch_result_payload,
 )
 from .replan_supervisor import parse_active_goal_payload
 from .tf_utils import TfHelper
+
+
+def decode_live_temperature_observations(message):
+    """Decode volatile ``col,row,celsius`` observations from one frame."""
+    values = np.asarray(message.data, dtype=float)
+    if values.size % 3 != 0:
+        raise ValueError("live temperature payload length must be divisible by 3")
+    if len(message.layout.dim) == 2:
+        rows = int(message.layout.dim[0].size)
+        fields = int(message.layout.dim[1].size)
+        if fields != 3 or rows * fields != values.size:
+            raise ValueError("live temperature dimensions are invalid")
+    return tuple(
+        (int(col), int(row), float(temperature))
+        for col, row, temperature in values.reshape(-1, 3)
+        if all(np.isfinite((col, row, temperature)))
+    )
+
+
+def decode_xy_pairs(values):
+    """Decode a flat ROS numeric array as finite map-frame x,y pairs."""
+    numbers = tuple(float(value) for value in values)
+    if not numbers or len(numbers) % 2 != 0 or not all(np.isfinite(numbers)):
+        raise ValueError("trigger waypoint positions must be finite x,y pairs")
+    return tuple(zip(numbers[0::2], numbers[1::2]))
 
 
 class ExitSwitchingNode(Node):
@@ -49,13 +77,22 @@ class ExitSwitchingNode(Node):
             "switch_request_topic": "/evacuation/switch_request",
             "switch_result_topic": "/evacuation/switch_result",
             "hazard_snapshot_topic": "/hazard/snapshot",
+            "live_temperature_observations_topic": (
+                "/hazard/live_temperature_observations"
+            ),
             "planned_path_topic": "/planned_path",
             "status_topic": "/exit_switching/status",
+            "danger_expected_exits_topic": (
+                "/evacuation/danger_expected_exits"
+            ),
             "exit_evaluation_service": "/evaluate_exits",
             "evaluation_service_timeout_s": 10.0,
             "status_rate_hz": 2.0,
             "evaluation_window": 6,
-            "danger_expected_min_temperature_c": 40.0,
+            "danger_expected_min_temperature_c": 36.0,
+            "danger_expected_confirmation_sec": 3.0,
+            "danger_expected_max_observation_gap_sec": 1.0,
+            "danger_expected_path_radius_m": 0.30,
             "minimum_direction_difference_deg": 90.0,
             "switch_cooldown_sec": 10.0,
             "additional_travel_before_switch_m": 1.0,
@@ -67,6 +104,17 @@ class ExitSwitchingNode(Node):
             "float_tolerance": 1e-6,
             "drive_mode_topic": "/drive_mode",
             "pause_drive_modes": [3, 4],
+            # final2 demonstration: while navigating EXIT2, entering the 1 m
+            # neighbourhood of w79, w75, or w78 marks EXIT2 DANGER_EXPECTED and
+            # requests EXIT3 as the only replacement candidate.
+            "demo_force_proximity_switch_enabled": False,
+            # A non-empty float default makes rclpy declare DOUBLE_ARRAY.
+            # The field profile overrides these inert coordinates whenever
+            # the trigger is enabled.
+            "demo_force_trigger_waypoint_positions": [0.0, 0.0],
+            "demo_force_trigger_radius_m": 1.0,
+            "demo_force_danger_exit_id": "EXIT2",
+            "demo_force_target_exit_id": "EXIT3",
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -78,6 +126,7 @@ class ExitSwitchingNode(Node):
             raise ValueError("exit_registry_file is required")
         exits = load_exit_registry(exit_file, self.map_frame)
         exit_positions_world = {item.exit_id: item.position_world for item in exits}
+        self._exit_ids = frozenset(exit_positions_world)
         self.evaluation_timeout = float(value("evaluation_service_timeout_s"))
         status_rate = float(value("status_rate_hz"))
         if self.evaluation_timeout <= 0.0 or status_rate <= 0.0:
@@ -86,11 +135,32 @@ class ExitSwitchingNode(Node):
         config = ExitSwitchingConfig(
             evaluation_window=int(value("evaluation_window")),
             danger_expected_min_temperature_c=float(value("danger_expected_min_temperature_c")),
+            danger_expected_confirmation_sec=float(
+                value("danger_expected_confirmation_sec")
+            ),
+            danger_expected_max_observation_gap_sec=float(
+                value("danger_expected_max_observation_gap_sec")
+            ),
+            danger_expected_path_radius_m=float(
+                value("danger_expected_path_radius_m")
+            ),
             minimum_direction_difference_deg=float(value("minimum_direction_difference_deg")),
             switch_cooldown_sec=float(value("switch_cooldown_sec")),
             additional_travel_before_switch_m=float(value("additional_travel_before_switch_m")),
         )
-        self.core = ExitSwitchingCore(config, exit_positions_world)
+        forced_proximity_switch = None
+        if bool(value("demo_force_proximity_switch_enabled")):
+            forced_proximity_switch = ForcedProximitySwitch(
+                source_exit_id=str(value("demo_force_danger_exit_id")),
+                target_exit_id=str(value("demo_force_target_exit_id")),
+                trigger_positions_world=decode_xy_pairs(
+                    value("demo_force_trigger_waypoint_positions")
+                ),
+                radius_m=float(value("demo_force_trigger_radius_m")),
+            )
+        self.core = ExitSwitchingCore(
+            config, exit_positions_world, forced_proximity_switch,
+        )
         self._configured_enabled = bool(value("enabled"))
         self._pause_drive_modes = {
             int(mode) for mode in value("pause_drive_modes")
@@ -127,6 +197,11 @@ class ExitSwitchingNode(Node):
             Float32MultiArray, str(value("hazard_snapshot_topic")), self._on_snapshot, transient,
         )
         self.create_subscription(
+            Float32MultiArray,
+            str(value("live_temperature_observations_topic")),
+            self._on_live_temperature_observations, 10,
+        )
+        self.create_subscription(
             Path, str(value("planned_path_topic")), self._on_path, transient,
         )
         self.create_subscription(
@@ -138,6 +213,10 @@ class ExitSwitchingNode(Node):
         self.status_publisher = self.create_publisher(
             String, str(value("status_topic")), transient,
         )
+        self.danger_expected_exits_publisher = self.create_publisher(
+            String, str(value("danger_expected_exits_topic")), transient,
+        )
+        self._last_danger_expected_exit_ids = ()
         self.create_timer(1.0 / status_rate, self._on_timer)
         self._apply(self.core.current_output())
 
@@ -180,10 +259,32 @@ class ExitSwitchingNode(Node):
         return PeekResult(True, plan.selected_exit_id, None if cost is None else cost[1], used_fallback)
 
     def _apply(self, output) -> None:
+        danger_ids = tuple(output.status.get("danger_expected_exit_ids", ()))
+        if danger_ids != self._last_danger_expected_exit_ids:
+            added = sorted(
+                set(danger_ids) - set(self._last_danger_expected_exit_ids)
+            )
+            self._last_danger_expected_exit_ids = danger_ids
+            self.danger_expected_exits_publisher.publish(String(data=json.dumps(
+                list(danger_ids), separators=(",", ":"),
+            )))
+            for exit_id in added:
+                self.get_logger().warning(
+                    f"{exit_id} -> DANGER_EXPECTED"
+                )
         if output.peek_request is not None:
             self._apply(self.core.on_peek_result(self._perform_peek(output.peek_request)))
             return
         if output.switch_request is not None:
+            if output.switch_request.reason.startswith(
+                "waypoint_proximity:"
+            ):
+                target = output.switch_request.candidate_exit_ids[0]
+                self.get_logger().warning(
+                    "[출구 전환] w79/w75/w78 1m 이내 진입: "
+                    f"{output.switch_request.current_exit_id}를 "
+                    f"DANGER_EXPECTED로 변경하고 {target} 경로를 요청합니다."
+                )
             self.switch_request_publisher.publish(String(data=json.dumps(
                 output.switch_request.to_payload(), sort_keys=True, separators=(",", ":"),
             )))
@@ -201,14 +302,21 @@ class ExitSwitchingNode(Node):
             self._apply(self.core.on_supervisor_status(state))
 
     def _on_plan(self, message: String) -> None:
-        self._apply(self.core.on_active_goal(parse_active_goal_payload(message.data)))
+        goal = parse_active_goal_payload(message.data)
+        # /evacuation/plan is also reused by Mode 3 inspection.  Such a plan
+        # has an id such as MODE3_INSPECTION and must not replace the real
+        # evacuation exit retained across the short inspection pause.
+        if goal is None or goal.exit_id not in self._exit_ids:
+            return
+        self._apply(self.core.on_active_goal(goal))
 
     def _on_drive_mode(self, message: Int32) -> None:
         """Prevent exit-switch requests while the inspector exclusively drives."""
         paused = int(message.data) in self._pause_drive_modes
         if paused:
             self.core.set_enabled(False)
-            self.core.on_active_goal(None)
+            # Keep the active evacuation exit. Mode 5 resumes the same route
+            # after Mode 3/4, and it may not republish the canonical plan.
         self._apply(self.core.set_enabled(
             self._configured_enabled and not paused
         ))
@@ -246,6 +354,21 @@ class ExitSwitchingNode(Node):
             return
         self.snapshot = snapshot
         self._apply(self.core.on_hazard_snapshot(snapshot))
+
+    def _on_live_temperature_observations(
+        self, message: Float32MultiArray,
+    ) -> None:
+        try:
+            observations = decode_live_temperature_observations(message)
+        except (TypeError, ValueError) as exc:
+            self.get_logger().error(
+                f"invalid live temperature observations: {exc}"
+            )
+            return
+        now = self.get_clock().now().nanoseconds / 1e9
+        self._apply(self.core.on_live_temperature_observations(
+            observations, now,
+        ))
 
     def _on_path(self, message: Path) -> None:
         coords = tuple(

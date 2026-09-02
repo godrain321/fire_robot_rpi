@@ -132,6 +132,9 @@ class EvacuationDemoOrchestrator(Node):
             "evacuation_plan_topic": "/evacuation/plan",
             "selected_exit_topic": "/evacuation/selected_exit",
             "blocked_exits_topic": "/evacuation/blocked_exits",
+            "danger_expected_exits_topic": (
+                "/evacuation/danger_expected_exits"
+            ),
             "goal_topic": "/goal_pose",
             "follower_state_topic": "/follower_state",
             "planner_state_topic": "/planner_state",
@@ -340,6 +343,14 @@ class EvacuationDemoOrchestrator(Node):
             String, str(value("replanning_status_topic")),
             self._on_replanning_status, transient,
         )
+        self.create_subscription(
+            String, str(value("danger_expected_exits_topic")),
+            self._on_danger_expected_exits, transient,
+        )
+        self.create_subscription(
+            String, str(value("evacuation_plan_topic")),
+            self._on_canonical_evacuation_plan, transient,
+        )
         self.evaluation_client = self.create_client(
             Trigger, str(value("evaluate_service"))
         )
@@ -361,6 +372,7 @@ class EvacuationDemoOrchestrator(Node):
         self._candidate_wait_started_at = None
         self.checked_exit_ids = set()
         self.blocked_exit_ids = set()
+        self.danger_expected_exit_ids = set()
         self.current_exit_id = None
         self.current_exit_position = None
         self.current_approach_position = None
@@ -511,6 +523,104 @@ class EvacuationDemoOrchestrator(Node):
         self.blocked_exits_publisher.publish(String(data=json.dumps(
             sorted(self.blocked_exit_ids), separators=(",", ":")
         )))
+
+    def _on_danger_expected_exits(self, message: String) -> None:
+        try:
+            values = json.loads(message.data)
+            if not isinstance(values, list):
+                return
+            current = {str(item) for item in values if str(item)}
+        except (TypeError, ValueError):
+            return
+        added = current - getattr(self, "danger_expected_exit_ids", set())
+        self.danger_expected_exit_ids = current
+        active_exit_id = (
+            self.survivor_exit_id if self._phase in {
+                "ESCORTING_SURVIVOR", "WAITING_SURVIVOR_AT_EXIT"
+            } else self.current_exit_id
+        )
+        if active_exit_id in added:
+            self.checked_exit_ids.add(active_exit_id)
+            # Stop the old route immediately while EvacuationManager evaluates
+            # and activates the replacement exit. The new goal/path restarts
+            # the follower through the normal planning pipeline.
+            self.cancel_publisher.publish(Empty())
+            self.waiting_for_departure = True
+            self._inspection_allowed_after = float("inf")
+            self._set_status(
+                f"SEARCH_EXITS:DANGER_EXPECTED:{active_exit_id}"
+            )
+            self._log(
+                f"[DANGER_EXPECTED] {active_exit_id} 경로를 위험 예상 "
+                "상태로 판정했습니다. 이 출구를 제외하고 지정된 다른 이용 가능한 "
+                "출구로 변경합니다."
+            )
+
+    def _on_canonical_evacuation_plan(self, message: String) -> None:
+        """Synchronize Mode 5 after ExitSwitching activates a new exit."""
+        if self._phase not in {
+            "NAVIGATING_EXIT", "EVACUATING", "ESCORTING_SURVIVOR",
+            "WAITING_SURVIVOR_AT_EXIT",
+        } or not self._requested:
+            return
+        try:
+            payload = json.loads(message.data)
+            if (
+                not isinstance(payload, dict)
+                or not payload.get("success")
+                or not payload.get("activated")
+                or payload.get("manager_status") != "ROUTE_ACTIVATED"
+            ):
+                return
+            selected = str(payload["selected_exit_id"])
+            exit_position = tuple(map(
+                float, payload["selected_exit_position_world"]
+            ))
+            approach = tuple(map(
+                float, payload["selected_approach_position_world"]
+            ))
+            if (
+                not selected or len(exit_position) != 2 or len(approach) != 2
+                or not all(math.isfinite(value) for value in (*exit_position, *approach))
+            ):
+                return
+        except (KeyError, TypeError, ValueError):
+            return
+        survivor_escort = self._phase in {
+            "ESCORTING_SURVIVOR", "WAITING_SURVIVOR_AT_EXIT"
+        }
+        previous = (
+            self.survivor_exit_id if survivor_escort else self.current_exit_id
+        )
+        if selected == previous:
+            return
+        if previous is not None:
+            self.checked_exit_ids.add(previous)
+        self.current_exit_id = selected
+        self.current_exit_position = exit_position
+        self.current_approach_position = approach
+        self.current_plan_payload = message.data
+        self.waiting_for_departure = True
+        self._inspection_allowed_after = float("inf")
+        if survivor_escort:
+            self.survivor_exit_id = selected
+            self._phase = "ESCORTING_SURVIVOR"
+            self._route_activated = True
+            self._robot_at_exit = False
+            self._set_status(f"ESCORTING_SURVIVOR:{selected}")
+        elif self._phase == "NAVIGATING_EXIT":
+            self._set_status(f"SEARCH_EXITS:NAVIGATING:{selected}")
+        else:
+            self._set_status(f"EVACUATING:{selected}")
+        # Re-publish after synchronizing Mode 5 so an old-route cancel cannot
+        # invalidate the replacement plan because of cross-topic callback order.
+        self.plan_publisher.publish(String(data=message.data))
+        self.selected_exit_publisher.publish(String(data=selected))
+        self._publish_goal(approach)
+        self._log(
+            f"[출구 변경] {previous or '기존 출구'}는 DANGER_EXPECTED로 "
+            f"제외하고, 이용 가능한 출구 {selected}의 새 경로로 이동합니다."
+        )
 
     def _cancel_pending_request(self) -> None:
         """Detach a stale service response before Mode 5 can be restarted."""

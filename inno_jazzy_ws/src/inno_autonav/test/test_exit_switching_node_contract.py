@@ -4,15 +4,67 @@ the other *_contract.py test files -- no live rclpy context.
 """
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+from std_msgs.msg import Int32, String
 
 from inno_autonav.evacuation_planner import EvacuationPlanner, ExitSelectionConfig
 from inno_autonav.exit_evaluator import ExitEvaluation, ExitEvaluationBatch, ExitHazardSnapshot
+from inno_autonav.exit_switching import ExitSwitchingConfig
 from inno_autonav.exit_switching_node import ExitSwitchingNode
-from inno_autonav.exit_switching_orchestrator import PeekRequest
+from inno_autonav.exit_switching_orchestrator import (
+    ExitSwitchingCore, ForcedProximitySwitch, PeekRequest,
+)
+from inno_autonav.replan_supervisor import ActiveGoal
 from inno_hazard.hazard_belief import HazardGridGeometry
+
+
+def test_proximity_trigger_ros_default_is_declared_as_double_array():
+    source = (
+        Path(__file__).parents[1] / "inno_autonav" / "exit_switching_node.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"demo_force_trigger_waypoint_positions": [0.0, 0.0]' in source
+
+
+def test_mode3_pause_preserves_exit2_and_ignores_inspection_plan():
+    core = ExitSwitchingCore(
+        ExitSwitchingConfig(),
+        {"EXIT2": (14.0, -7.0), "EXIT3": (1.0, -12.0)},
+        ForcedProximitySwitch(
+            "EXIT2", "EXIT3", ((12.471, -6.803),), 1.0,
+        ),
+    )
+    core.on_active_goal(ActiveGoal("EXIT2", (14.0, -7.0), 1))
+    value = SimpleNamespace(
+        core=core,
+        _pause_drive_modes={3, 4},
+        _configured_enabled=True,
+        _exit_ids=frozenset({"EXIT2", "EXIT3"}),
+        _apply=lambda _output: None,
+    )
+
+    ExitSwitchingNode._on_drive_mode(value, Int32(data=3))
+    assert core.enabled is False
+    assert core.active_goal.exit_id == "EXIT2"
+
+    inspection_plan = json.dumps({
+        "success": True,
+        "activated": True,
+        "selected_exit_id": "MODE3_INSPECTION",
+        "selected_approach_position_world": [5.0, -10.0],
+        "hazard_revision": 2,
+    })
+    ExitSwitchingNode._on_plan(value, String(data=inspection_plan))
+    assert core.active_goal.exit_id == "EXIT2"
+
+    ExitSwitchingNode._on_drive_mode(value, Int32(data=5))
+    assert core.enabled is True
+    out = core.tick((12.471, -6.803), 10.0)
+    assert out.switch_request is not None
+    assert out.switch_request.candidate_exit_ids == ("EXIT3",)
 
 
 class EvaluationClient:

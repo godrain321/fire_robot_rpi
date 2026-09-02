@@ -305,7 +305,17 @@ class Mode3Inspector(Node):
             'inspection_max_distance_m': 2.50,
             'target_tracking_radius_m': 1.00,
             'target_stale_timeout_sec': 2.00,
-            'tracking_candidates_topic': '/dynamic_obstacle_all_candidates',
+            # Once a live target has actually entered the <=2.5 m inspection
+            # range, retain that lock long enough for robot settling (2 s) and
+            # mmWave observation (3 s). Near-field LiDAR occlusion must not
+            # cancel the inspection exactly as settling completes.
+            'settled_target_hold_timeout_sec': 6.00,
+            # The inspection target was selected from confirmed obstacle
+            # history, but its live position must also survive sparse LiDAR
+            # returns. This topic contains current-scan clusters down to one
+            # occupied cell; matching is still gated around the already
+            # selected target by target_tracking_radius_m.
+            'tracking_candidates_topic': '/dynamic_obstacle_motion_candidates',
             'planning_grid_topic': '/planning_grid_active',
             'static_grid_topic': '/planning_grid_static',
             'unknown_is_occupied': True,
@@ -352,6 +362,9 @@ class Mode3Inspector(Node):
         self.target_stale_timeout = float(
             self.get_parameter('target_stale_timeout_sec').value
         )
+        self.settled_target_hold_timeout = float(
+            self.get_parameter('settled_target_hold_timeout_sec').value
+        )
         self.tracking_candidates_topic = str(
             self.get_parameter('tracking_candidates_topic').value
         )
@@ -383,6 +396,7 @@ class Mode3Inspector(Node):
             or self.inspection_max_distance <= 0.0
             or self.target_tracking_radius <= 0.0
             or self.target_stale_timeout <= 0.0
+            or self.settled_target_hold_timeout <= 0.0
             or self.minimum_approach_goal_distance <= 0.0
             or self.robot_settle_sec < 0.0
             or self.observation_sec <= 0.0
@@ -407,6 +421,7 @@ class Mode3Inspector(Node):
         self.last_candidates_update = float('-inf')
         self.target_last_seen = float('-inf')
         self.target_tracking_started_at = float('-inf')
+        self.inspection_lock_started_at = float('-inf')
         self.active_standoff_distance = self.standoff_distance
         self.hazard_revision = 0
         self.waiting_for_departure = False
@@ -542,6 +557,7 @@ class Mode3Inspector(Node):
             self.requested_target = None
             self.target_last_seen = float('-inf')
             self.target_tracking_started_at = float('-inf')
+            self.inspection_lock_started_at = float('-inf')
             self.waiting_for_departure = False
             self.approach_started = False
             self._grid_wait_reported = False
@@ -553,6 +569,7 @@ class Mode3Inspector(Node):
             self.requested_target = None
             self.target_last_seen = float('-inf')
             self.target_tracking_started_at = float('-inf')
+            self.inspection_lock_started_at = float('-inf')
             self.waiting_for_departure = False
             self.approach_started = False
             self._state('MODE3_CANCELLED')
@@ -578,6 +595,7 @@ class Mode3Inspector(Node):
         # target position live/fresh.
         self.target_last_seen = float('-inf')
         self.target_tracking_started_at = self._now()
+        self.inspection_lock_started_at = float('-inf')
         self.waiting_for_departure = False
         self.approach_started = False
         self._grid_wait_reported = False
@@ -633,13 +651,23 @@ class Mode3Inspector(Node):
     def _target_tracking_expired(self) -> bool:
         """Return true after a selected target has been absent for the grace period."""
         reference = self.target_last_seen
+        timeout = self.target_stale_timeout
+        if self.phase in ('SETTLING', 'OBSERVING'):
+            timeout = getattr(
+                self, 'settled_target_hold_timeout', timeout
+            )
+            lock_started = getattr(
+                self, 'inspection_lock_started_at', float('-inf')
+            )
+            if math.isfinite(lock_started):
+                reference = max(reference, lock_started)
         if not math.isfinite(reference):
             reference = getattr(
                 self, 'target_tracking_started_at', float('-inf')
             )
         return (
             math.isfinite(reference)
-            and self._now() - reference > self.target_stale_timeout
+            and self._now() - reference > timeout
         )
 
     def _latest_target_distance(
@@ -659,7 +687,9 @@ class Mode3Inspector(Node):
     def _enter_inspection_range(self, actual_distance: float) -> None:
         self.cancel_publisher.publish(Empty())
         self.phase = 'SETTLING'
-        self.phase_deadline = self._now() + self.robot_settle_sec
+        now = self._now()
+        self.inspection_lock_started_at = now
+        self.phase_deadline = now + self.robot_settle_sec
         self._state('MODE3_AT_STANDOFF:ROBOT_SETTLING')
         self.get_logger().info(
             'MODE 3 latest LiDAR target entered inspection range: '
@@ -673,6 +703,7 @@ class Mode3Inspector(Node):
         self.phase = 'WAITING_FOR_OBSTACLE'
         self.waiting_for_departure = False
         self.approach_started = False
+        self.inspection_lock_started_at = float('-inf')
         self._grid_wait_reported = False
         self._state(
             f'MODE3_TARGET_MOVED:REPLANNING:DISTANCE:{actual_distance:.2f}M'

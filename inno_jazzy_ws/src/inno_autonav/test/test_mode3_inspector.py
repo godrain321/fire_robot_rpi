@@ -80,6 +80,8 @@ def _set_free_planning_grids(inspector):
     inspector.inspection_max_distance = 2.5
     inspector.target_tracking_radius = 1.0
     inspector.target_stale_timeout = 2.0
+    inspector.settled_target_hold_timeout = 6.0
+    inspector.inspection_lock_started_at = float('-inf')
     inspector.tracking_candidates = list(inspector.candidates)
     inspector.last_candidates_update = 10.0
     inspector.target_last_seen = float('-inf')
@@ -217,6 +219,14 @@ def test_mode3_uses_three_second_presence_only_field_profile():
 
     assert "'observation_sec': 3.0" in source
     assert 'observation_sec: 3.0' in config
+    assert 'settled_target_hold_timeout_sec: 6.00' in config
+    assert (
+        "'tracking_candidates_topic': "
+        "'/dynamic_obstacle_motion_candidates'"
+    ) in source
+    assert (
+        'tracking_candidates_topic: /dynamic_obstacle_motion_candidates'
+    ) in config
     assert 'distance_tolerance_m' not in source
     assert 'distance_tolerance_m' not in config
 
@@ -445,13 +455,15 @@ def test_settling_survives_current_scan_dropout_within_grace_period():
     assert restarts == []
 
 
-def test_settling_cancels_when_lidar_target_disappears_past_timeout():
+def test_settling_uses_confirmed_lock_through_near_field_lidar_dropout():
     inspector = object.__new__(Mode3Inspector)
     inspector.drive_mode = 3
     inspector.phase = 'SETTLING'
     inspector.target = (2.2, 0.0)
     inspector.target_last_seen = 10.0
     inspector.target_stale_timeout = 2.0
+    inspector.settled_target_hold_timeout = 6.0
+    inspector.inspection_lock_started_at = 10.0
     inspector.phase_deadline = 13.0
     inspector.cancel_publisher = _Publisher()
     inspector._now = lambda: 13.0
@@ -463,10 +475,33 @@ def test_settling_cancels_when_lidar_target_disappears_past_timeout():
 
     inspector._timer_callback()
 
+    assert inspector.phase == 'SETTLING'
+    assert states == []
+    assert inspector.cancel_publisher.messages == []
+    assert started == [True]
+
+
+def test_settling_still_cancels_when_confirmed_target_is_gone_over_six_seconds():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.drive_mode = 3
+    inspector.phase = 'SETTLING'
+    inspector.target = (2.2, 0.0)
+    inspector.target_last_seen = 10.0
+    inspector.target_stale_timeout = 2.0
+    inspector.settled_target_hold_timeout = 6.0
+    inspector.inspection_lock_started_at = 10.0
+    inspector.phase_deadline = 18.0
+    inspector.cancel_publisher = _Publisher()
+    inspector._now = lambda: 16.1
+    states = []
+    inspector._state = states.append
+    inspector.get_logger = lambda: _Logger()
+
+    inspector._timer_callback()
+
     assert inspector.phase == 'TARGET_LOST'
     assert states[-1] == 'MODE3_TARGET_TRACK_LOST'
     assert len(inspector.cancel_publisher.messages) == 1
-    assert started == []
 
 
 def test_confirmed_stationary_person_publishes_assistance_location():

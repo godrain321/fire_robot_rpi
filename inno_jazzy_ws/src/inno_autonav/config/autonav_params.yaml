@@ -58,7 +58,14 @@ mode3_inspector:
     inspection_max_distance_m: 2.50
     target_tracking_radius_m: 1.00
     target_stale_timeout_sec: 2.00
-    tracking_candidates_topic: /dynamic_obstacle_all_candidates
+    # After <=2.5 m entry is confirmed, tolerate near-field LiDAR occlusion
+    # through 2 s settling + 3 s mmWave observation (+1 s margin).
+    settled_target_hold_timeout_sec: 6.00
+    # Use the sparse current-scan stream for the already selected target.
+    # /dynamic_obstacle_all_candidates requires 3 cells in one scan and can
+    # therefore drop a real distant/thin obstacle even though Mode 5's
+    # confirmed candidate still exists.
+    tracking_candidates_topic: /dynamic_obstacle_motion_candidates
     # Binary reachability layer published from the exact grid used by A*.
     planning_grid_topic: /planning_grid_active
     static_grid_topic: /planning_grid_static
@@ -192,6 +199,7 @@ evacuation_manager_node:
     activate_selected_route: false
     risk_first: false
     map_frame: map
+    exit_registry_file: ''  # Supplied from the existing semantic_yaml argument.
     exit_evaluation_service: /evaluate_exits
     plan_service: /plan_evacuation
     planner_goal_topic: /goal_pose
@@ -212,6 +220,7 @@ evacuation_manager_node:
     switch_request_topic: /evacuation/switch_request
     switch_result_topic: /evacuation/switch_result
     blocked_exits_topic: /evacuation/blocked_exits
+    danger_expected_exits_topic: /evacuation/danger_expected_exits
 
 exit_switching_node:
   ros__parameters:
@@ -224,15 +233,30 @@ exit_switching_node:
     switch_request_topic: /evacuation/switch_request
     switch_result_topic: /evacuation/switch_result
     hazard_snapshot_topic: /hazard/snapshot
+    live_temperature_observations_topic: /hazard/live_temperature_observations
     planned_path_topic: /planned_path
     status_topic: /exit_switching/status
+    danger_expected_exits_topic: /evacuation/danger_expected_exits
     exit_evaluation_service: /evaluate_exits
     evaluation_service_timeout_s: 10.0
     status_rate_hz: 2.0
-    # Matches final_simulator factory_v5: after an observed 60 C route cell,
-    # five evaluations must contain four consecutive cost increases.
+    # Demonstration rule: a current-route cell observed at >= 36 C in live
+    # thermal frames for 3 continuous seconds makes that exit DANGER_EXPECTED.
     evaluation_window: 5
-    danger_expected_min_temperature_c: 60.0
+    danger_expected_min_temperature_c: 36.0
+    danger_expected_confirmation_sec: 3.0
+    danger_expected_max_observation_gap_sec: 1.0
+    # Treat heat within the robot's 0.30 m route corridor as on-path.
+    danger_expected_path_radius_m: 0.30
+    # final2 trigger: w79=(11.580,-6.349), w75=(12.017,-7.694),
+    # w78=(12.471,-6.803) in docs/full_map_waypoints_1m_numbered.yaml.
+    # Entering either 1 m circle while EXIT2 is active permanently marks
+    # EXIT2 DANGER_EXPECTED and restricts the replacement request to EXIT3.
+    demo_force_proximity_switch_enabled: true
+    demo_force_trigger_waypoint_positions: [11.580, -6.349, 12.017, -7.694, 12.471, -6.803]
+    demo_force_trigger_radius_m: 1.0
+    demo_force_danger_exit_id: EXIT2
+    demo_force_target_exit_id: EXIT3
     minimum_direction_difference_deg: 90.0
     switch_cooldown_sec: 10.0
     additional_travel_before_switch_m: 1.0

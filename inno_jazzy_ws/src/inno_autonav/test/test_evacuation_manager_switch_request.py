@@ -28,6 +28,7 @@ class Publisher:
 class EvaluationClient:
     def __init__(self, response):
         self.response = response
+        self.calls = 0
 
     def wait_for_service(self, timeout_sec):
         del timeout_sec
@@ -35,6 +36,7 @@ class EvaluationClient:
 
     def call(self, request, timeout_sec):
         del request, timeout_sec
+        self.calls += 1
         return self.response
 
 
@@ -65,6 +67,13 @@ def manager(payload):
     response.success = True
     response.message = payload
     value = SimpleNamespace(
+        registered_exits={
+            "EXIT3": SimpleNamespace(
+                exit_id="EXIT3",
+                position_world=(-0.295, 0.048),
+                approach_position_world=(-0.003, -0.447),
+            ),
+        },
         enabled=True,
         evaluation_client=EvaluationClient(response),
         timeout=1.0,
@@ -73,6 +82,8 @@ def manager(payload):
         risk_first=False,
         activate=False,  # /plan_evacuation's own gate -- switch requests force past it
         current_hazard_revision=4,
+        externally_blocked_exit_ids=set(),
+        danger_expected_exit_ids=set(),
         plan_publisher=Publisher(),
         selected_publisher=Publisher(),
         goal_publisher=Publisher(),
@@ -80,12 +91,16 @@ def manager(payload):
         statuses=[],
         get_clock=lambda: Clock(),
         get_logger=lambda: SimpleNamespace(
-            error=lambda *a, **k: None, info=lambda *a, **k: None
+            error=lambda *a, **k: None, info=lambda *a, **k: None,
+            warning=lambda *a, **k: None,
         ),
     )
     value._status = lambda status: value.statuses.append(status)
     value._select_and_activate = MethodType(
         EvacuationManagerNode._select_and_activate, value
+    )
+    value._activate_registered_exit = MethodType(
+        EvacuationManagerNode._activate_registered_exit, value
     )
     value._on_switch_request = MethodType(EvacuationManagerNode._on_switch_request, value)
     return value
@@ -132,6 +147,31 @@ def test_failed_switch_does_not_overwrite_canonical_state():
     assert ack["success"] is False
     assert ack["selected_exit_id"] is None
     assert ack["request_id"] == 3
+
+
+def test_forced_exit3_activation_bypasses_evaluator_and_publishes_goal_immediately():
+    value = manager(_payload())
+    EvacuationManagerNode._on_switch_request(value, SimpleNamespace(data=json.dumps({
+        "request_id": 12,
+        "current_exit_id": "EXIT2",
+        "excluded_exit_ids": ["EXIT2"],
+        "candidate_exit_ids": ["EXIT3"],
+        "direct_target_activation": True,
+    })))
+
+    assert value.evaluation_client.calls == 0
+    assert len(value.plan_publisher.messages) == 1
+    plan = json.loads(value.plan_publisher.messages[0].data)
+    assert plan["selected_exit_id"] == "EXIT3"
+    assert plan["selected_approach_position_world"] == [-0.003, -0.447]
+    assert value.selected_publisher.messages[0].data == "EXIT3"
+    goal = value.goal_publisher.messages[0]
+    assert (goal.pose.position.x, goal.pose.position.y) == (-0.003, -0.447)
+    ack = json.loads(value.switch_result_publisher.messages[0].data)
+    assert ack == {
+        "request_id": 12, "success": True, "activated": True,
+        "status": "ROUTE_ACTIVATED", "selected_exit_id": "EXIT3",
+    }
 
 
 def test_disabled_manager_ignores_switch_requests():
@@ -184,3 +224,25 @@ def test_blocked_exit_registry_replaces_previous_snapshot_atomically():
     assert value.externally_blocked_exit_ids == {"EXIT1", "EXIT2"}
     value._on_blocked_exits(SimpleNamespace(data='[]'))
     assert value.externally_blocked_exit_ids == set()
+
+
+def test_danger_expected_exit_is_excluded_from_all_later_plans():
+    value = manager(_payload())
+    value.danger_expected_exit_ids = {"EXIT1"}
+    value._plan = MethodType(EvacuationManagerNode._plan, value)
+
+    response = value._plan(Trigger.Request(), Trigger.Response())
+
+    assert response.success
+    assert value.selected_publisher.messages[0].data == "EXIT2"
+
+
+def test_danger_expected_registry_replaces_snapshot_atomically():
+    value = manager(_payload())
+    value._on_danger_expected_exits = MethodType(
+        EvacuationManagerNode._on_danger_expected_exits, value
+    )
+    value._on_danger_expected_exits(SimpleNamespace(data='["EXIT1"]'))
+    assert value.danger_expected_exit_ids == {"EXIT1"}
+    value._on_danger_expected_exits(SimpleNamespace(data='[]'))
+    assert value.danger_expected_exit_ids == set()

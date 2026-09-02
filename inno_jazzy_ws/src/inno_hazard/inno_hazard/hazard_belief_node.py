@@ -44,6 +44,23 @@ def float_grid_message(values):
     return message
 
 
+def live_temperature_observations_message(observations):
+    """Encode only this thermal frame's localized ``col,row,celsius`` cells."""
+    values = np.asarray(
+        [(cell[0], cell[1], temperature) for cell, temperature in observations],
+        dtype=np.float32,
+    ).reshape(-1, 3)
+    message = Float32MultiArray()
+    message.layout.dim = [
+        MultiArrayDimension(
+            label="observations", size=values.shape[0], stride=values.size,
+        ),
+        MultiArrayDimension(label="col,row,celsius", size=3, stride=3),
+    ]
+    message.data = values.reshape(-1).tolist()
+    return message
+
+
 class HazardBeliefNode(Node):
     def __init__(self):
         super().__init__("hazard_belief_node")
@@ -51,6 +68,9 @@ class HazardBeliefNode(Node):
             "static_grid_topic": "/planning_grid_static",
             "dynamic_grid_topic": "/dynamic_obstacle_grid",
             "thermal_arc_topic": "/thermal/arc_points",
+            "live_temperature_observations_topic": (
+                "/hazard/live_temperature_observations"
+            ),
             "thermal_enabled": True,
             "co_topic": "/hazard/co_ppm",
             "base_frame": "base_link",
@@ -94,6 +114,9 @@ class HazardBeliefNode(Node):
         self.static_topic = str(self.get_parameter("static_grid_topic").value)
         self.dynamic_topic = str(self.get_parameter("dynamic_grid_topic").value)
         self.thermal_topic = str(self.get_parameter("thermal_arc_topic").value)
+        self.live_temperature_observations_topic = str(
+            self.get_parameter("live_temperature_observations_topic").value
+        )
         self.thermal_enabled = bool(
             self.get_parameter("thermal_enabled").value
         )
@@ -214,6 +237,11 @@ class HazardBeliefNode(Node):
         self.status_publisher = self.create_publisher(String, "/hazard/status", qos)
         self.snapshot_publisher = self.create_publisher(
             Float32MultiArray, "/hazard/snapshot", qos
+        )
+        # Volatile by design: a newly started consumer must never receive an
+        # old hot frame and mistake it for a current observation.
+        self.live_temperature_observations_publisher = self.create_publisher(
+            Float32MultiArray, self.live_temperature_observations_topic, 10
         )
         self.snapshot_subscription_count = (
             self.snapshot_publisher.get_subscription_count()
@@ -403,6 +431,9 @@ class HazardBeliefNode(Node):
         observations = localized_temperature_cells(
             points, self.grid_geometry, self.belief.static_obstacle_map,
             transform_values,
+        )
+        self.live_temperature_observations_publisher.publish(
+            live_temperature_observations_message(observations)
         )
         observation_ns = self.get_clock().now().nanoseconds
         observation_time = observation_ns / 1e9

@@ -3,6 +3,9 @@ hazard_belief_node:
     static_grid_topic: /planning_grid_static
     dynamic_grid_topic: /dynamic_obstacle_grid
     thermal_arc_topic: /thermal/arc_points
+    # Lightweight latest-frame cells used for the 3 s route-heat demonstration
+    # condition. This is not a full grid and is intentionally non-latched.
+    live_temperature_observations_topic: /hazard/live_temperature_observations
     # MQ-135 (Stage 2/3): filtered ESP32 ADC scalar, NOT ppm. The co_* thresholds
     # below are still the thermal-era ppm placeholders; real ADC safe/blocked
     # calibration is a later stage. Enable per-profile via the hazard_co_enabled

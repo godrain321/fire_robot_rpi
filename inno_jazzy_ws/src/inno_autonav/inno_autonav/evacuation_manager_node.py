@@ -13,6 +13,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String, UInt64
 from std_srvs.srv import Trigger
 
+from .exit_evaluator import load_exit_registry
 from .evacuation_planner import (
     EvacuationPlanner, ExitSelectionConfig, build_evacuation_decision,
 )
@@ -23,6 +24,7 @@ class EvacuationManagerNode(Node):
         super().__init__("evacuation_manager_node")
         defaults = {
             "enabled": False,
+            "exit_registry_file": "",
             "activate_selected_route": False,
             "risk_first": False,
             "map_frame": "map",
@@ -43,6 +45,9 @@ class EvacuationManagerNode(Node):
             "switch_request_topic": "/evacuation/switch_request",
             "switch_result_topic": "/evacuation/switch_result",
             "blocked_exits_topic": "/evacuation/blocked_exits",
+            "danger_expected_exits_topic": (
+                "/evacuation/danger_expected_exits"
+            ),
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -51,6 +56,11 @@ class EvacuationManagerNode(Node):
         self.activate = bool(value("activate_selected_route"))
         self.risk_first = bool(value("risk_first"))
         self.map_frame = str(value("map_frame"))
+        exit_file = str(value("exit_registry_file")).strip()
+        self.registered_exits = (
+            {item.exit_id: item for item in load_exit_registry(exit_file, self.map_frame)}
+            if exit_file else {}
+        )
         self.timeout = float(value("evaluation_service_timeout_s"))
         if self.timeout <= 0.0:
             raise ValueError("evaluation_service_timeout_s must be positive")
@@ -64,6 +74,7 @@ class EvacuationManagerNode(Node):
         ))
         self.current_hazard_revision = None
         self.externally_blocked_exit_ids = set()
+        self.danger_expected_exit_ids = set()
         service_group = MutuallyExclusiveCallbackGroup()
         client_group = MutuallyExclusiveCallbackGroup()
         self.evaluation_client = self.create_client(
@@ -104,6 +115,10 @@ class EvacuationManagerNode(Node):
         )
         self.create_subscription(
             String, str(value("blocked_exits_topic")), self._on_blocked_exits, qos,
+        )
+        self.create_subscription(
+            String, str(value("danger_expected_exits_topic")),
+            self._on_danger_expected_exits, qos,
         )
         self._status("READY" if self.enabled else "DISABLED")
 
@@ -183,13 +198,55 @@ class EvacuationManagerNode(Node):
         self._status(status)
         return plan, status, activated, serialized
 
+    def _activate_registered_exit(self, exit_id):
+        """Activate one registered exit without waiting for a fresh evaluation."""
+        item = getattr(self, "registered_exits", {}).get(str(exit_id))
+        if item is None:
+            return False, "DIRECT_TARGET_NOT_REGISTERED"
+        approach = item.approach_position_world or item.position_world
+        revision_value = getattr(self, "current_hazard_revision", None)
+        revision = 0 if revision_value is None else int(revision_value)
+        now = self.get_clock().now()
+        payload = {
+            "success": True,
+            "start_position_world": list(approach),
+            "selected_exit_id": item.exit_id,
+            "selected_exit_position_world": list(item.position_world),
+            "selected_approach_position_world": list(approach),
+            "path_world": [],
+            "path_grid": [],
+            "selected_evaluation": None,
+            "all_evaluations": [],
+            "failure_reason": None,
+            "selection_reason": "direct_registered_exit_activation",
+            "created_at": now.nanoseconds / 1e9,
+            "hazard_revision": revision,
+            "activated": True,
+            "manager_status": "ROUTE_ACTIVATED",
+        }
+        serialized = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+        self.plan_publisher.publish(String(data=serialized))
+        self.selected_publisher.publish(String(data=item.exit_id))
+        goal = PoseStamped()
+        goal.header.stamp = now.to_msg()
+        goal.header.frame_id = self.map_frame
+        goal.pose.position.x = approach[0]
+        goal.pose.position.y = approach[1]
+        goal.pose.orientation.w = 1.0
+        self.goal_publisher.publish(goal)
+        self._status("ROUTE_ACTIVATED")
+        return True, "ROUTE_ACTIVATED"
+
     def _plan(self, request, response):
         del request
         if not self.enabled:
             return self._failure(response, "DISABLED")
         plan, status, _activated, serialized = self._select_and_activate(
             excluded_exit_ids=tuple(sorted(
-                getattr(self, "externally_blocked_exit_ids", ())
+                set(getattr(self, "externally_blocked_exit_ids", ()))
+                | set(getattr(self, "danger_expected_exit_ids", ()))
             ))
         )
         if plan is None:
@@ -216,6 +273,25 @@ class EvacuationManagerNode(Node):
             + (", ".join(sorted(blocked)) if blocked else "none")
         )
 
+    def _on_danger_expected_exits(self, message):
+        try:
+            values = json.loads(message.data)
+            if not isinstance(values, list):
+                raise ValueError("danger-expected exits must be a JSON list")
+            dangerous = {
+                str(item).strip() for item in values if str(item).strip()
+            }
+        except (TypeError, ValueError) as exc:
+            self.get_logger().error(
+                f"invalid danger-expected exit registry: {exc}"
+            )
+            return
+        self.danger_expected_exit_ids = dangerous
+        self.get_logger().warning(
+            "DANGER_EXPECTED exits: "
+            + (", ".join(sorted(dangerous)) if dangerous else "none")
+        )
+
     def _on_switch_request(self, message):
         if not self.enabled:
             return
@@ -234,9 +310,28 @@ class EvacuationManagerNode(Node):
         )
         excluded = tuple(sorted(
             set(excluded) | set(getattr(self, "externally_blocked_exit_ids", ()))
+            | set(getattr(self, "danger_expected_exit_ids", ()))
         ))
         candidate = request.get("candidate_exit_ids")
         candidate = None if candidate is None else tuple(str(item) for item in candidate)
+        if bool(request.get("direct_target_activation", False)):
+            target = (
+                candidate[0]
+                if candidate is not None and len(candidate) == 1
+                else None
+            )
+            if target is None:
+                success, status = False, "DIRECT_TARGET_INVALID"
+            else:
+                success, status = self._activate_registered_exit(target)
+            self.switch_result_publisher.publish(String(data=json.dumps({
+                "request_id": request.get("request_id"),
+                "success": success,
+                "activated": success,
+                "status": status,
+                "selected_exit_id": target if success else None,
+            }, sort_keys=True, separators=(",", ":"), allow_nan=False)))
+            return
         plan, status, activated, _serialized = self._select_and_activate(
             excluded_exit_ids=excluded, candidate_exit_ids=candidate,
             risk_first=bool(request.get("risk_first", False)),
