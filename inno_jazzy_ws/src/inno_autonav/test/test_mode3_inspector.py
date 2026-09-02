@@ -1,5 +1,6 @@
 import json
 import math
+from pathlib import Path
 
 from builtin_interfaces.msg import Time
 import numpy as np
@@ -176,33 +177,48 @@ def test_inspection_goal_rejects_a_nominal_goal_too_close_to_robot():
     assert 1.8 <= math.dist(selected[:2], (5.0, 5.0)) <= 2.2
 
 
-def test_presence_requires_online_samples_at_expected_distance():
-    evidence = PresenceEvidence(1.5, 0.4)
-    evidence.add(False, True, 1.5)
-    evidence.add(True, True, 3.0)
-    evidence.add(True, True, 1.4)
-    evidence.add(True, True, 1.6)
+def test_presence_counts_online_samples_without_a_distance_gate():
+    evidence = PresenceEvidence()
+    evidence.add(False, True)
+    evidence.add(True, True)
+    evidence.add(True, True)
+    evidence.add(True, True)
     assert evidence.total_samples == 3
-    assert evidence.positive_samples == 2
-    assert evidence.classify(True, minimum_samples=3, positive_samples=2) == (
+    assert evidence.positive_samples == 3
+    assert evidence.classify(True, minimum_samples=3, positive_samples=3) == (
         'PERSON'
     )
 
 
 def test_online_samples_without_presence_are_dynamic_obstacle():
-    evidence = PresenceEvidence(1.5, 0.4)
+    evidence = PresenceEvidence()
     for _ in range(3):
-        evidence.add(True, False, 0.0)
+        evidence.add(True, False)
     assert evidence.classify(True, minimum_samples=3, positive_samples=2) == (
         'DYNAMIC_OBSTACLE'
     )
 
 
 def test_offline_sensor_never_labels_obstacle():
-    evidence = PresenceEvidence(1.5, 0.4)
+    evidence = PresenceEvidence()
     for _ in range(3):
-        evidence.add(True, False, 0.0)
+        evidence.add(True, False)
     assert evidence.classify(False, minimum_samples=3, positive_samples=2) is None
+
+
+def test_mode3_uses_three_second_presence_only_field_profile():
+    package = Path(__file__).resolve().parents[1]
+    source = (package / 'inno_autonav' / 'mode3_inspector.py').read_text(
+        encoding='utf-8'
+    )
+    config = (package / 'config' / 'autonav_params.yaml').read_text(
+        encoding='utf-8'
+    )
+
+    assert "'observation_sec': 3.0" in source
+    assert 'observation_sec: 3.0' in config
+    assert 'distance_tolerance_m' not in source
+    assert 'distance_tolerance_m' not in config
 
 
 def test_mode3_waits_for_space_before_trying_nearest_obstacle():
@@ -404,7 +420,7 @@ def test_goal_reached_waits_for_current_scan_when_target_is_stale():
     assert len(inspector.cancel_publisher.messages) == 1
 
 
-def test_settling_survives_temporary_current_scan_dropout():
+def test_settling_survives_current_scan_dropout_within_grace_period():
     inspector = object.__new__(Mode3Inspector)
     inspector.drive_mode = 3
     inspector.phase = 'SETTLING'
@@ -414,9 +430,9 @@ def test_settling_survives_temporary_current_scan_dropout():
     inspector.target_last_seen = 10.0
     inspector.target_stale_timeout = 2.0
     inspector.inspection_max_distance = 2.5
-    inspector.phase_deadline = 13.0
+    inspector.phase_deadline = 11.5
     inspector.tf = _Tf()
-    inspector._now = lambda: 13.0
+    inspector._now = lambda: 11.5
     restarts = []
     inspector._restart_for_latest_target = restarts.append
     inspector._start_observation = lambda: setattr(
@@ -427,6 +443,30 @@ def test_settling_survives_temporary_current_scan_dropout():
 
     assert inspector.phase == 'OBSERVING'
     assert restarts == []
+
+
+def test_settling_cancels_when_lidar_target_disappears_past_timeout():
+    inspector = object.__new__(Mode3Inspector)
+    inspector.drive_mode = 3
+    inspector.phase = 'SETTLING'
+    inspector.target = (2.2, 0.0)
+    inspector.target_last_seen = 10.0
+    inspector.target_stale_timeout = 2.0
+    inspector.phase_deadline = 13.0
+    inspector.cancel_publisher = _Publisher()
+    inspector._now = lambda: 13.0
+    states = []
+    inspector._state = states.append
+    inspector.get_logger = lambda: _Logger()
+    started = []
+    inspector._start_observation = lambda: started.append(True)
+
+    inspector._timer_callback()
+
+    assert inspector.phase == 'TARGET_LOST'
+    assert states[-1] == 'MODE3_TARGET_TRACK_LOST'
+    assert len(inspector.cancel_publisher.messages) == 1
+    assert started == []
 
 
 def test_confirmed_stationary_person_publishes_assistance_location():

@@ -47,4 +47,14 @@ hazard_belief_node:
     fire_localization_enabled: false
     thermal_stream_timeout_s: 3.0
     tf_timeout_s: 0.2
+    # Use the latest map-to-thermal TF only when an exact stamped lookup fails
+    # and the fallback is still close enough to the thermal sensor frame.
+    latest_tf_fallback_tolerance_sec: 1.0
     publish_rate_hz: 4.0
+    # The planner consumes /hazard/final_cost and the compact snapshot. Large
+    # per-sensor debug grids are disabled unless explicitly requested.
+    publish_diagnostic_grids: false
+    # Keep the RViz aggregate hazard view, but cap its serialization to 1 Hz.
+    publish_visualization_grid: true
+    visualization_publish_rate_hz: 1.0
+    initial_route_bypass_topic: /hazard/initial_route_bypass

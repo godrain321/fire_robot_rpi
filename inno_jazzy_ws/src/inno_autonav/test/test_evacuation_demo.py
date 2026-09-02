@@ -9,6 +9,7 @@ from inno_autonav.evacuation_demo import (
     moving_priority_candidate,
     stationary_observation_displacement,
     MovingCandidateTracker,
+    StationaryCandidateTracker,
     build_next_exploration_decision,
     nearest_exit_obstacle_candidate,
     nearest_uninspected_candidate,
@@ -203,6 +204,43 @@ def test_stationary_lidar_jitter_is_not_a_moving_person_candidate():
     assert tracker.update([(1.00, 2.00)], 0.0) == ()
     assert tracker.update([(1.04, 2.01)], 0.2) == ()
     assert tracker.update([(0.98, 1.97)], 0.4) == ()
+
+
+def test_stationary_tracker_requires_full_lidar_confirmation_window():
+    tracker = StationaryCandidateTracker(
+        maximum_displacement_m=0.15,
+        minimum_observations=5,
+        confirmation_duration_sec=2.0,
+    )
+
+    assert tracker.update([(1.00, 2.00)], 0.0) == ()
+    assert tracker.update([(1.04, 2.01)], 0.5) == ()
+    assert tracker.update([(0.98, 1.97)], 1.0) == ()
+    assert tracker.update([(1.03, 1.99)], 1.5) == ()
+    detected = tracker.update([(1.01, 2.02)], 2.0)
+
+    assert len(detected) == 1
+    assert detected[0].position == (1.01, 2.02)
+    assert detected[0].observations == 5
+    assert detected[0].stationary_duration_sec == pytest.approx(2.0)
+
+
+def test_stationary_tracker_restarts_confirmation_after_lidar_motion():
+    tracker = StationaryCandidateTracker(
+        association_radius_m=0.75,
+        maximum_displacement_m=0.15,
+        minimum_observations=3,
+        confirmation_duration_sec=1.0,
+    )
+
+    tracker.update([(1.0, 2.0)], 0.0)
+    tracker.update([(1.1, 2.0)], 0.5)
+    assert tracker.update([(1.3, 2.0)], 1.0) == ()
+    assert tracker.update([(1.32, 2.0)], 1.5) == ()
+    detected = tracker.update([(1.31, 2.01)], 2.0)
+
+    assert len(detected) == 1
+    assert detected[0].stationary_duration_sec == pytest.approx(1.0)
 
 
 def test_three_temporally_associated_moving_points_create_one_candidate():

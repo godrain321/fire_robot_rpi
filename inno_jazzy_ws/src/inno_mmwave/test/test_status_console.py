@@ -12,6 +12,7 @@ from inno_mmwave.status_console import (  # noqa: E402
     FILTERED_PRESENCE_TOPIC,
     mode3_log_text,
     mode4_log_text,
+    mode5_status_log_text,
     MODE_TITLES,
     StatusConsole,
     waypoint_log_text,
@@ -69,3 +70,13 @@ def test_mode4_states_are_translated_without_raw_english_codes() -> None:
     assert mode4_log_text('MODE4_SURVIVOR_CONFIRMED:MARKER_BLUE') == (
         '[결과] 요구조자 감지! — 해당 점을 파란색으로 변경'
     )
+
+
+def test_mode5_startup_wait_reports_the_actual_prerequisite() -> None:
+    assert mode5_status_log_text('SEARCH_EXITS:WAITING_FOR_HAZARD') == (
+        '[준비 대기] 열화상 코스트맵이 안정화되기를 기다립니다.'
+    )
+    assert mode5_status_log_text(
+        'SEARCH_EXITS:WAITING_FOR_EXIT_EVALUATOR'
+    ) == '[준비 대기] 출구 평가기가 최신 안전 코스트맵을 반영하는 중입니다.'
+    assert mode5_status_log_text('SEARCH_EXITS:EVALUATING_UNCHECKED_EXITS') is None

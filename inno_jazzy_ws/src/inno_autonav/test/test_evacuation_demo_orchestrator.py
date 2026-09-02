@@ -63,6 +63,7 @@ def nearest_inspection_node(candidates):
     node.current_plan_payload = '{"selected_exit_id":"exit1"}'
     node.exit_obstacle_radius = 0.6
     node.inspection_target = None
+    node.inspection_start_position = None
     node.inspection_blocks_current_exit = False
     node.mode3_status = ''
     node._inspection_command_sent = True
@@ -116,6 +117,47 @@ def test_mode5_locks_only_closest_red_candidate_and_selects_mode3():
     assert len(node.cancel_publisher.messages) == 1
 
 
+def test_mode9_selects_only_lidar_confirmed_stationary_red_candidate():
+    node = nearest_inspection_node([(1.0, 0.0), (2.0, 0.0)])
+    node.stationary_combined_inspection_enabled = True
+    node.stationary_target_timeout = 1.0
+    node.stationary_targets = [((2.05, 0.0), time.monotonic())]
+    node.moving_association_radius = 0.75
+
+    node._maybe_start_nearest_inspection()
+
+    assert node.inspection_target == (2.0, 0.0)
+    assert node.combined_inspection_active is True
+    assert node._phase == 'SELECTING_MODE3'
+    assert node.selected_mode == 3
+
+
+def test_mode9_stationary_candidate_waits_for_mmwave_and_yolo_results():
+    node = nearest_inspection_node([(1.5, 0.0)])
+    node._phase = 'INSPECTING_CANDIDATE'
+    node.inspection_target = (1.5, 0.0)
+    node.inspection_blocks_current_exit = True
+    node.combined_inspection_active = True
+    node.combined_mmwave_person = None
+    node.mode4_status = ''
+    node.checked_exit_ids = set()
+    node.blocked_exit_ids = set()
+
+    node._on_mode3_classification(String(data='DYNAMIC_OBSTACLE:1.5,0.0'))
+
+    assert node._phase == 'SELECTING_MODE4'
+    assert node.combined_mmwave_person is False
+    assert node.selected_mode == 4
+
+    node._phase = 'INSPECTING_MOVING_CANDIDATE'
+    node._on_mode4_classification(String(data='NO_SURVIVOR'))
+
+    assert node._phase == 'RETURNING_MODE5'
+    assert node.blocked_exit_ids == {'exit1'}
+    assert node.combined_inspection_active is False
+    assert node.selected_mode == 5
+
+
 def test_mode5_waits_for_real_route_motion_before_candidate_preemption():
     node = nearest_inspection_node([(1.5, 0.0)])
     node.waiting_for_departure = True
@@ -138,6 +180,21 @@ def test_mode5_waits_for_real_route_motion_before_candidate_preemption():
     node._maybe_start_nearest_inspection()
     assert node._phase == 'SELECTING_MODE3'
     assert len(node.cancel_publisher.messages) == 1
+
+
+def test_first_motor_motion_releases_initial_thermal_bypass():
+    node = nearest_inspection_node([])
+    node.initial_route_ignore_thermal = True
+    node._initial_hazard_bypass_active = True
+    node.initial_hazard_bypass_publisher = Publisher()
+
+    node._on_follower_state(String(data='PATH_ACCEPTED'))
+    assert node._initial_hazard_bypass_active is True
+    assert node.initial_hazard_bypass_publisher.messages == []
+
+    node._on_follower_state(String(data='FOLLOWING_PATH'))
+    assert node._initial_hazard_bypass_active is False
+    assert node.initial_hazard_bypass_publisher.messages[-1].data is False
 
 
 def test_mode5_operator_logs_name_inspection_and_exit_change_phases():
@@ -168,6 +225,39 @@ def test_mode5_updates_active_inspection_target_from_latest_lidar_candidate():
     node._on_all_candidates(pose_array(1.9, 0.1))
 
     assert node.inspection_target == (1.9, 0.1)
+
+
+def test_disappeared_lidar_target_cancels_inspection_and_resumes_route():
+    node = nearest_inspection_node([(0.5, 2.0), (4.0, 0.0)])
+    node._maybe_start_nearest_inspection()
+    node._phase = 'INSPECTING_CANDIDATE'
+    node.all_candidates = [(0.55, 2.05), (4.0, 0.0)]
+    node.moving_priority_targets = [((0.55, 2.05), time.monotonic())]
+    node.stationary_targets = [((0.55, 2.05), time.monotonic())]
+    node.combined_inspection_active = False
+    node.combined_mmwave_person = None
+    node.inspected_dynamic_positions = []
+    statuses = []
+    logs = []
+    node._set_status = statuses.append
+    node._log = logs.append
+
+    node._on_mode3_status(String(data='MODE3_TARGET_TRACK_LOST'))
+
+    assert node._phase == 'RETURNING_MODE5'
+    assert node.selected_mode == 5
+    assert node.current_exit_id == 'exit1'
+    assert node._resume_phase_after_inspection == 'RESUME_EXIT_ROUTE'
+    assert node.inspection_target is None
+    assert node.inspection_start_position is None
+    assert node.inspection_blocks_current_exit is False
+    assert node.inspected_dynamic_positions == []
+    assert node.candidates == [(4.0, 0.0)]
+    assert node.all_candidates == [(4.0, 0.0)]
+    assert node.moving_priority_targets == []
+    assert node.stationary_targets == []
+    assert statuses[-1] == 'SEARCH_EXITS:INSPECTION_TARGET_DISAPPEARED'
+    assert any('기존 대피 경로로 복귀' in value for value in logs)
 
 
 def test_external_mode5_command_starts_idle_orchestrator():
@@ -225,6 +315,46 @@ def test_mmwave_nonperson_away_from_exit_resumes_same_route():
     assert node.blocked_exit_ids == set()
     assert node.current_exit_id == 'exit1'
     assert node._resume_phase_after_inspection == 'RESUME_EXIT_ROUTE'
+    assert node._phase == 'RETURNING_MODE5'
+
+
+def test_completed_inspection_suppresses_initial_and_latest_map_positions():
+    node = nearest_inspection_node([(0.5, 2.0)])
+    node._maybe_start_nearest_inspection()
+    assert node.inspection_start_position == (0.5, 2.0)
+    node._phase = 'INSPECTING_CANDIDATE'
+    node.checked_exit_ids = set()
+    node.blocked_exit_ids = set()
+
+    # The same LiDAR cluster moves while Mode 3 approaches it.
+    node._on_all_candidates(pose_array(1.1, 2.0))
+    node._on_mode3_classification(String(data='DYNAMIC_OBSTACLE:1.1,2.0'))
+
+    assert (0.5, 2.0) in node.inspected_dynamic_positions
+    assert (1.1, 2.0) in node.inspected_dynamic_positions
+
+    # Both the stale original marker and a jittered latest marker are ignored;
+    # only a genuinely separate map location may start another inspection.
+    node._phase = 'NAVIGATING_EXIT'
+    node.waiting_for_departure = False
+    node._inspection_allowed_after = 0.0
+    node.candidates = [(0.4, 2.1), (1.8, 2.0), (3.5, 0.0)]
+    node._maybe_start_nearest_inspection()
+
+    assert node.inspection_target == (3.5, 0.0)
+
+
+def test_camera_non_survivor_records_map_position_before_returning_mode5():
+    node = nearest_inspection_node([(0.5, 2.0)])
+    node._maybe_start_nearest_inspection()
+    node._phase = 'INSPECTING_MOVING_CANDIDATE'
+    node.checked_exit_ids = set()
+    node.blocked_exit_ids = set()
+
+    node._on_mode4_classification(String(data='NO_SURVIVOR'))
+
+    assert (0.5, 2.0) in node.inspected_dynamic_positions
+    assert node.inspection_start_position is None
     assert node._phase == 'RETURNING_MODE5'
 
 

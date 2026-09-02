@@ -22,6 +22,7 @@ from inno_thermal.thermal_cost_geometry import (
     GridGeometry,
     ThermalCostState,
     aggregate_cell_costs,
+    latest_transform_is_fresh,
     temperature_to_cost,
     thermal_stream_is_stale,
     transform_point,
@@ -62,6 +63,7 @@ class ThermalCostLayer(Node):
             "inflation_radius_m": 0.0,
             "publish_rate_hz": 4.0,
             "tf_timeout_sec": 0.2,
+            "latest_tf_fallback_tolerance_sec": 1.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -97,6 +99,9 @@ class ThermalCostLayer(Node):
         inflation_radius_m = float(self.get_parameter("inflation_radius_m").value)
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.tf_timeout_sec = float(self.get_parameter("tf_timeout_sec").value)
+        self.latest_tf_fallback_tolerance_sec = float(
+            self.get_parameter("latest_tf_fallback_tolerance_sec").value
+        )
         self._validate_parameters(observation_timeout_sec, inflation_radius_m)
 
         self.state = ThermalCostState(
@@ -164,6 +169,9 @@ class ThermalCostLayer(Node):
             raise ValueError("publish_rate_hz must be finite and positive")
         if not math.isfinite(self.tf_timeout_sec) or self.tf_timeout_sec < 0.0:
             raise ValueError("tf_timeout_sec must be finite and non-negative")
+        latest_transform_is_fresh(
+            0, 0, self.latest_tf_fallback_tolerance_sec
+        )
 
     def _set_status(self, status: str) -> None:
         if status == self._status:
@@ -251,20 +259,51 @@ class ThermalCostLayer(Node):
 
         transform = None
         if source_frame != target_frame:
+            message_time = Time.from_msg(message.header.stamp)
             try:
                 transform = self.tf_buffer.lookup_transform(
                     target_frame,
                     source_frame,
-                    Time.from_msg(message.header.stamp),
+                    message_time,
                     timeout=Duration(seconds=self.tf_timeout_sec),
                 )
-            except TransformException as exc:
-                self.get_logger().warning(
-                    f"thermal TF unavailable ({target_frame} <- {source_frame}): {exc}"
+            except TransformException as stamped_error:
+                try:
+                    latest = self.tf_buffer.lookup_transform(
+                        target_frame,
+                        source_frame,
+                        Time(),
+                        timeout=Duration(seconds=self.tf_timeout_sec),
+                    )
+                except TransformException as latest_error:
+                    self.get_logger().warning(
+                        f"thermal TF unavailable ({target_frame} <- {source_frame}): "
+                        f"stamped={stamped_error}; latest={latest_error}"
+                    )
+                    if not self._has_valid_arc:
+                        self._set_status(WAITING_FOR_TF)
+                    return
+                latest_time = Time.from_msg(latest.header.stamp)
+                if not latest_transform_is_fresh(
+                    message_time.nanoseconds,
+                    latest_time.nanoseconds,
+                    self.latest_tf_fallback_tolerance_sec,
+                ):
+                    skew_sec = abs(
+                        message_time.nanoseconds - latest_time.nanoseconds
+                    ) / 1e9
+                    self.get_logger().warning(
+                        f"latest thermal TF is {skew_sec:.3f}s from the sensor "
+                        f"frame; limit={self.latest_tf_fallback_tolerance_sec:.3f}s"
+                    )
+                    if not self._has_valid_arc:
+                        self._set_status(WAITING_FOR_TF)
+                    return
+                transform = latest
+                self.get_logger().debug(
+                    "using latest thermal TF because the stamped lookup was "
+                    f"temporarily unavailable: {stamped_error}"
                 )
-                if not self._has_valid_arc:
-                    self._set_status(WAITING_FOR_TF)
-                return
 
         valid_points = 0
         cell_cost_pairs = []

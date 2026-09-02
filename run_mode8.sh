@@ -9,8 +9,12 @@ robot_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="${robot_root}/inno_jazzy_ws"
 esp32_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_de2033aed827f0119bb79ad8346f00fe-if00-port0'
 lidar_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_4a5b9018526eef11bff6e0c2c169b110-if00-port0'
-drive_speed='0.06'
-use_camera_mode4='true'
+# Raise straight-line velocity only. The angular speed passed below remains
+# unchanged, and the path follower still sets linear.x=0 while rotating.
+drive_speed='0.15'
+# Mode 8 uses LiDAR/mmWave/thermal sensing by default. Keep the camera and
+# YOLO person detector stopped unless the operator explicitly opts in.
+use_camera_mode4='false'
 launch_args=()
 for argument in "$@"; do
   case "${argument}" in
@@ -53,7 +57,7 @@ stdbuf -oL -eL ros2 launch inno_robot_bringup mode8_evacuation_thermal.launch.py
   "use_camera_mode4:=${use_camera_mode4}" \
   use_rviz:=true \
   "drive_speed:=${drive_speed}" \
-  turn_speed:=0.35 \
+  turn_speed:=0.64 \
   event_replanning_enabled:=true \
   exit_switching_enabled:=true \
   waypoint_planning_enabled:=true \

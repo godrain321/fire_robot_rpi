@@ -41,6 +41,10 @@ _FORWARD = {
     "use_mmwave": "true",
     "use_serial": "true",
     "use_camera_mode4": "false",
+    "yolo_only_during_mode4_observation": "false",
+    "moving_survivor_enabled": "false",
+    "moving_priority_enabled": "true",
+    "stationary_combined_inspection_enabled": "false",
     "use_mode3_audio": "true",
     "discovery_range": "LOCALHOST",
     "assist_check_sec": "10.0",
@@ -94,6 +98,9 @@ def generate_launch_description():
             launch_arguments={
                 **forwarded,
                 "use_thermal_sensor": "true",  # Mode 8 = Mode 5 + thermal
+                # The image is only a display product. Keep the temperature
+                # arc and cost-grid pipeline active without image conversion.
+                "publish_thermal_image": "false",
                 # Keep soft costs below 50 C, but hard-block at >= 50 C.
                 "temperature_cost_scale_max_c": "60.0",
                 "temperature_blocked_c": "50.0",

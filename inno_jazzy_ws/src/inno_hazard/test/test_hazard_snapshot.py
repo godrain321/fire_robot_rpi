@@ -55,3 +55,49 @@ def test_snapshot_exposes_mode8_50c_block_threshold_and_blocked_layer():
     assert metadata["temperature_blocked_c"] == 50.0
     assert bool(layers["blocked"][0, 0]) is True
     assert np.isinf(layers["final_cost"][0, 0])
+
+
+def test_compact_mode8_snapshot_sends_only_five_required_layers():
+    geometry = HazardGridGeometry(3, 2, 0.05)
+    belief = HazardBelief(
+        geometry, np.zeros((2, 3), dtype=bool), HazardBeliefConfig()
+    )
+    message = hazard_snapshot_message(
+        belief, np.zeros((2, 3)), status="ACTIVE_THERMAL_ONLY",
+        include_temperature=True, include_co=False, include_fire=False,
+    )
+    metadata, layers = decode_hazard_snapshot_message(message)
+    assert message.layout.dim[0].size == 5
+    assert metadata["channels"] == [
+        "final_cost", "static_obstacle", "dynamic_obstacle",
+        "temperature_c", "temperature_observed",
+    ]
+    assert set(layers) == {
+        "final_cost", "static_obstacle", "dynamic_obstacle",
+        "temperature_c", "temperature_observed", "co_ppm",
+        "fire_probability", "co_observed", "observed", "blocked",
+    }
+    assert np.isnan(layers["co_ppm"]).all()
+
+
+def test_initial_route_snapshot_is_three_layers_and_uses_override():
+    geometry = HazardGridGeometry(1, 1, 0.05)
+    belief = HazardBelief(
+        geometry, np.zeros((1, 1), dtype=bool),
+        HazardBeliefConfig(temperature_blocked_c=50.0),
+    )
+    belief.update_temperature_observations([((0, 0), 60.0)], 1.0)
+    initial_cost = belief.cost_without_temperature()
+    message = hazard_snapshot_message(
+        belief, np.zeros((1, 1)),
+        status="ACTIVE_INITIAL_STATIC_DYNAMIC_ONLY",
+        final_cost=initial_cost, include_temperature=False,
+        include_co=False, include_fire=False,
+    )
+    metadata, layers = decode_hazard_snapshot_message(message)
+    assert message.layout.dim[0].size == 3
+    assert metadata["channels"] == [
+        "final_cost", "static_obstacle", "dynamic_obstacle",
+    ]
+    assert np.isfinite(layers["final_cost"][0, 0])
+    assert not bool(layers["blocked"][0, 0])

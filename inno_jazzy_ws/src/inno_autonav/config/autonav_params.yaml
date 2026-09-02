@@ -64,8 +64,7 @@ mode3_inspector:
     static_grid_topic: /planning_grid_static
     minimum_approach_goal_distance_m: 0.45
     robot_settle_sec: 2.0
-    observation_sec: 5.0
-    distance_tolerance_m: 0.60
+    observation_sec: 3.0
     minimum_mmwave_samples: 3
     person_positive_samples: 3
     sensor_stale_timeout_sec: 2.0

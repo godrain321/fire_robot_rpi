@@ -12,6 +12,7 @@ from inno_thermal.thermal_cost_geometry import (
     transform_point,
     world_to_grid,
 )
+from inno_thermal.thermal_cost_layer import latest_transform_is_fresh
 
 
 def geometry(**overrides):
@@ -104,3 +105,12 @@ def test_inflation_decreases_with_distance_and_keeps_center():
 def test_invalid_temperature_parameters_are_rejected(arguments, match):
     with pytest.raises(ValueError, match=match):
         temperature_to_cost(*arguments)
+
+
+def test_latest_thermal_tf_fallback_has_a_strict_time_limit():
+    frame = 10_000_000_000
+    assert latest_transform_is_fresh(frame, frame - 900_000_000, 1.0)
+    assert not latest_transform_is_fresh(frame, frame - 1_100_000_000, 1.0)
+    assert latest_transform_is_fresh(frame, 0, 1.0)
+    with pytest.raises(ValueError, match="non-negative"):
+        latest_transform_is_fresh(frame, frame, -0.1)

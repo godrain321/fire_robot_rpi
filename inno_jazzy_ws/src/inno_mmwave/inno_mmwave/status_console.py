@@ -172,6 +172,29 @@ def mode4_log_text(state: str) -> Optional[str]:
     return None
 
 
+def mode5_status_log_text(state: str) -> Optional[str]:
+    """Translate Mode 5 startup prerequisites into operator guidance."""
+    upper = str(state).strip().upper()
+    messages = {
+        'SEARCH_EXITS:SELECTING_MODE_5': (
+            '[준비 대기] 자동대피 주행 모드 전환을 확인하는 중입니다.'
+        ),
+        'SEARCH_EXITS:WAITING_FOR_HAZARD': (
+            '[준비 대기] 열화상 코스트맵이 안정화되기를 기다립니다.'
+        ),
+        'SEARCH_EXITS:WAITING_FOR_EXIT_EVALUATOR': (
+            '[준비 대기] 출구 평가기가 최신 안전 코스트맵을 반영하는 중입니다.'
+        ),
+        'SEARCH_EXITS:WAITING_FOR_MANAGER': (
+            '[준비 대기] 대피 경로 관리자가 준비되기를 기다립니다.'
+        ),
+        'SEARCH_EXITS:WAITING_FOR_EVALUATION_SERVICE': (
+            '[준비 대기] 출구 평가 서비스를 연결하는 중입니다.'
+        ),
+    }
+    return messages.get(upper)
+
+
 class StatusConsole(Node):
     """Print only state changes that matter to the robot operator."""
 
@@ -229,6 +252,7 @@ class StatusConsole(Node):
         self._mode3_state: Optional[str] = None
         self._mode4_state: Optional[str] = None
         self._mode5_log: Optional[str] = None
+        self._mode5_status: Optional[str] = None
         self._manual_command = None
         self._presence: Optional[bool] = None
         self._distance_m: Optional[float] = None
@@ -262,6 +286,9 @@ class StatusConsole(Node):
         )
         self.create_subscription(
             String, '/evacuation_demo/log', self._on_mode5_log, transient
+        )
+        self.create_subscription(
+            String, '/evacuation_demo/status', self._on_mode5_status, transient
         )
         self.create_subscription(
             String, '/mmwave/sensor_state', self._on_sensor_state, transient
@@ -443,6 +470,17 @@ class StatusConsole(Node):
             return
         self._mode5_log = text
         self._write(f'[모드 5] {text}')
+
+    def _on_mode5_status(self, message: String) -> None:
+        state = message.data.strip()
+        if not state or state == self._mode5_status:
+            return
+        self._mode5_status = state
+        if self._mode != 5:
+            return
+        text = mode5_status_log_text(state)
+        if text:
+            self._write(f'[모드 5] {text}')
 
     def _on_sensor_state(self, message: String) -> None:
         state = message.data.strip().upper()

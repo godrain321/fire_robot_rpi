@@ -16,6 +16,7 @@ from std_srvs.srv import Trigger
 
 from .evacuation_demo import (
     MovingCandidateTracker,
+    StationaryCandidateTracker,
     build_next_exploration_decision,
     nearest_exit_obstacle_candidate,
     nearest_uninspected_candidate,
@@ -101,6 +102,13 @@ class EvacuationDemoOrchestrator(Node):
             "moving_minimum_observations": 3,
             "moving_window_sec": 2.0,
             "moving_stale_timeout_sec": 1.0,
+            "stationary_combined_inspection_enabled": False,
+            "stationary_association_radius_m": 0.75,
+            "stationary_maximum_displacement_m": 0.15,
+            "stationary_minimum_observations": 5,
+            "stationary_confirmation_duration_sec": 2.0,
+            "stationary_stale_timeout_sec": 1.0,
+            "stationary_target_timeout_sec": 1.0,
             "survivor_ready_wait_sec": 2.0,
             "survivor_track_match_radius_m": 1.25,
             "survivor_track_stale_sec": 2.0,
@@ -114,6 +122,8 @@ class EvacuationDemoOrchestrator(Node):
             "status_topic": "/evacuation_demo/status",
             "log_topic": "/evacuation_demo/log",
             "hazard_status_topic": "/hazard/status",
+            "initial_hazard_bypass_topic": "/hazard/initial_route_bypass",
+            "initial_route_ignore_thermal": False,
             "exit_evaluator_status_topic": "/exit_evaluator/status",
             "evacuation_manager_status_topic": "/evacuation/status",
             "drive_mode_topic": "/drive_mode",
@@ -164,6 +174,15 @@ class EvacuationDemoOrchestrator(Node):
         self.moving_priority_target_timeout = float(
             value("moving_priority_target_timeout_sec")
         )
+        self.stationary_combined_inspection_enabled = bool(
+            value("stationary_combined_inspection_enabled")
+        )
+        self.stationary_target_timeout = float(
+            value("stationary_target_timeout_sec")
+        )
+        self.initial_route_ignore_thermal = bool(
+            value("initial_route_ignore_thermal")
+        )
         self.survivor_ready_wait = float(value("survivor_ready_wait_sec"))
         self.survivor_track_radius = float(value("survivor_track_match_radius_m"))
         self.survivor_track_stale = float(value("survivor_track_stale_sec"))
@@ -181,6 +200,7 @@ class EvacuationDemoOrchestrator(Node):
             self.inspection_after_motion_delay,
             self.moving_priority_wait,
             self.moving_priority_target_timeout,
+            self.stationary_target_timeout,
             self.survivor_ready_wait,
             self.survivor_track_radius,
             self.survivor_track_stale,
@@ -205,6 +225,17 @@ class EvacuationDemoOrchestrator(Node):
             minimum_observations=int(value("moving_minimum_observations")),
             window_sec=float(value("moving_window_sec")),
             stale_timeout_sec=float(value("moving_stale_timeout_sec")),
+        )
+        self.stationary_tracker = StationaryCandidateTracker(
+            association_radius_m=float(value("stationary_association_radius_m")),
+            maximum_displacement_m=float(
+                value("stationary_maximum_displacement_m")
+            ),
+            minimum_observations=int(value("stationary_minimum_observations")),
+            confirmation_duration_sec=float(
+                value("stationary_confirmation_duration_sec")
+            ),
+            stale_timeout_sec=float(value("stationary_stale_timeout_sec")),
         )
         self.moving_association_radius = float(value("moving_association_radius_m"))
 
@@ -243,6 +274,9 @@ class EvacuationDemoOrchestrator(Node):
         )
         self.survivor_track_publisher = self.create_publisher(
             PointStamped, str(value("survivor_track_topic")), 10
+        )
+        self.initial_hazard_bypass_publisher = self.create_publisher(
+            Bool, str(value("initial_hazard_bypass_topic")), transient
         )
 
         self.create_subscription(
@@ -323,6 +357,7 @@ class EvacuationDemoOrchestrator(Node):
         self.candidates = []
         self.all_candidates = []
         self.moving_priority_targets = []
+        self.stationary_targets = []
         self._candidate_wait_started_at = None
         self.checked_exit_ids = set()
         self.blocked_exit_ids = set()
@@ -331,7 +366,10 @@ class EvacuationDemoOrchestrator(Node):
         self.current_approach_position = None
         self.current_plan_payload = None
         self.inspection_target = None
+        self.inspection_start_position = None
         self.inspection_blocks_current_exit = False
+        self.combined_inspection_active = False
+        self.combined_mmwave_person = None
         self.inspected_dynamic_positions = []
         self.active_survivor_position = None
         self.active_survivor_seen_at = float("-inf")
@@ -352,10 +390,14 @@ class EvacuationDemoOrchestrator(Node):
         self._survivor_hold = False
         self._robot_at_exit = False
         self._last_replanning_signature = None
+        self._initial_hazard_bypass_active = False
         self.create_timer(1.0 / rate, self._tick)
         if not self.enabled:
             self._set_status("DISABLED")
         elif self._requested:
+            self._set_initial_hazard_bypass(
+                self.initial_route_ignore_thermal
+            )
             self._set_status("SEARCH_EXITS:STARTING")
             self._log("모드 5 자동 시작: 등록된 출구의 실제 탐색을 시작합니다.")
             self._publish_blocked_exits()
@@ -389,6 +431,19 @@ class EvacuationDemoOrchestrator(Node):
         self._hold_was_published = True
         self.follow_hold_publisher.publish(Bool(data=hold))
 
+    def _set_initial_hazard_bypass(self, enabled: bool) -> None:
+        enabled = bool(
+            enabled and getattr(self, "initial_route_ignore_thermal", False)
+        )
+        if (
+            enabled == getattr(self, "_initial_hazard_bypass_active", False)
+            and hasattr(self, "_initial_hazard_bypass_was_published")
+        ):
+            return
+        self._initial_hazard_bypass_active = enabled
+        self._initial_hazard_bypass_was_published = True
+        self.initial_hazard_bypass_publisher.publish(Bool(data=enabled))
+
     def _select_drive_mode(self, mode: int) -> None:
         self._expected_drive_mode = int(mode)
         self._internal_mode_commands[int(mode)] += 1
@@ -412,6 +467,7 @@ class EvacuationDemoOrchestrator(Node):
         if self._requested and mode != self._expected_drive_mode:
             self._requested = False
             self._route_activated = False
+            self._set_initial_hazard_bypass(False)
             self._cancel_pending_request()
             self.cancel_publisher.publish(Empty())
             self._publish_follow_hold(False)
@@ -426,6 +482,7 @@ class EvacuationDemoOrchestrator(Node):
         self.current_approach_position = None
         self.current_plan_payload = None
         self.inspection_target = None
+        self.inspection_start_position = None
         self.inspection_blocks_current_exit = False
         self.inspected_dynamic_positions.clear()
         self.active_survivor_position = None
@@ -441,7 +498,11 @@ class EvacuationDemoOrchestrator(Node):
         self._robot_at_exit = False
         self.moving_tracker.reset()
         self.moving_priority_tracker.reset()
+        self.stationary_tracker.reset()
         self.moving_priority_targets.clear()
+        self.stationary_targets.clear()
+        self.combined_inspection_active = False
+        self.combined_mmwave_person = None
         self._candidate_wait_started_at = None
         self._publish_follow_hold(False)
         self._publish_blocked_exits()
@@ -466,6 +527,12 @@ class EvacuationDemoOrchestrator(Node):
         self._requested = True
         self._reset_exploration()
         self.drive_mode_status = ""
+        if getattr(self, "initial_route_ignore_thermal", False):
+            # Clear latched readiness locally until both hazard publishers have
+            # acknowledged the static/dynamic-only first-route view.
+            self.hazard_status = ""
+            self.exit_evaluator_status = ""
+            self._set_initial_hazard_bypass(True)
         self._set_status("SEARCH_EXITS:STARTING")
         self._log(log_message)
         # Re-publish mode 5 so the drive mux confirms the selected source even
@@ -482,6 +549,7 @@ class EvacuationDemoOrchestrator(Node):
     def _stop_service(self, _request, response):
         self._requested = False
         self._route_activated = False
+        self._set_initial_hazard_bypass(False)
         self._phase = "STOPPED"
         self._cancel_pending_request()
         self.cancel_publisher.publish(Empty())
@@ -557,7 +625,12 @@ class EvacuationDemoOrchestrator(Node):
     def _tick_selecting_inspector(self, mode: int) -> None:
         status = self.mode3_status if mode == 3 else self.mode4_status
         if not status.startswith(f"MODE{mode}_READY"):
-            label = self.current_exit_id if mode == 3 else "MOVING_CANDIDATE"
+            if mode == 3:
+                label = self.current_exit_id
+            elif getattr(self, "combined_inspection_active", False):
+                label = "STATIONARY_CANDIDATE"
+            else:
+                label = "MOVING_CANDIDATE"
             self._set_status(f"WAITING_FOR_MODE{mode}_READY:{label}")
             return
         if self._inspection_command_sent:
@@ -580,11 +653,21 @@ class EvacuationDemoOrchestrator(Node):
             )
         else:
             self._phase = "INSPECTING_MOVING_CANDIDATE"
-            self._set_status("MOVING_CANDIDATE:MODE4_INSPECTION:2.00M")
-            self._log(
-                f"움직이는 LiDAR 후보 좌표 ({target_x:.2f}, {target_y:.2f})를 "
-                "모드 4에 전달하고 사람 여부를 확인하러 갑니다."
-            )
+            if getattr(self, "combined_inspection_active", False):
+                self._set_status(
+                    "STATIONARY_CANDIDATE:CAMERA_YOLO_INSPECTION:2.00M"
+                )
+                self._log(
+                    f"[복합 판별] 같은 정지 LiDAR 후보 "
+                    f"({target_x:.2f}, {target_y:.2f})를 카메라에 전달합니다. "
+                    "로봇이 정지하면 YOLO 추론을 시작합니다."
+                )
+            else:
+                self._set_status("MOVING_CANDIDATE:MODE4_INSPECTION:2.00M")
+                self._log(
+                    f"움직이는 LiDAR 후보 좌표 ({target_x:.2f}, {target_y:.2f})를 "
+                    "모드 4에 전달하고 사람 여부를 확인하러 갑니다."
+                )
 
     def _on_evaluation_response(self, future) -> None:
         if future is not self._future:
@@ -703,6 +786,14 @@ class EvacuationDemoOrchestrator(Node):
         if self.active_survivor_position is not None:
             self._update_survivor_track(candidates, now)
             return
+        if getattr(self, "stationary_combined_inspection_enabled", False):
+            stationary = self.stationary_tracker.update(candidates, now)
+            self.stationary_targets = [
+                (item.position, now) for item in stationary
+            ]
+            self._maybe_start_nearest_inspection()
+            if self._phase not in {"NAVIGATING_EXIT", "EVACUATING"}:
+                return
         if not self.moving_survivor_enabled or self._phase not in {
             "NAVIGATING_EXIT", "EVACUATING"
         }:
@@ -717,6 +808,7 @@ class EvacuationDemoOrchestrator(Node):
         self._route_activated = False
         self.cancel_publisher.publish(Empty())
         self.inspection_target = candidate.position
+        self.inspection_start_position = candidate.position
         self.mode4_status = ""
         self._inspection_command_sent = False
         self._phase = "SELECTING_MODE4"
@@ -756,7 +848,24 @@ class EvacuationDemoOrchestrator(Node):
             return
         target = None
         moving_selected = False
-        if getattr(self, "moving_priority_enabled", False):
+        stationary_selected = False
+        if getattr(self, "stationary_combined_inspection_enabled", False):
+            self.stationary_targets = [
+                item for item in self.stationary_targets
+                if now - item[1] <= self.stationary_target_timeout
+            ]
+            target = moving_priority_candidate(
+                (item[0] for item in self.stationary_targets),
+                self.candidates,
+                (robot[0], robot[1]),
+                self.inspected_dynamic_positions,
+                self.moving_association_radius,
+                self.candidate_suppression_radius,
+            )
+            stationary_selected = target is not None
+            if target is None:
+                return
+        elif getattr(self, "moving_priority_enabled", False):
             self.moving_priority_targets = [
                 item for item in self.moving_priority_targets
                 if now - item[1] <= self.moving_priority_target_timeout
@@ -795,21 +904,41 @@ class EvacuationDemoOrchestrator(Node):
         self._route_activated = False
         self.cancel_publisher.publish(Empty())
         self.inspection_target = target
+        # Keep the first map-frame coordinate as well as subsequent live-LiDAR
+        # updates. A moving/jittering cluster can otherwise leave its old red
+        # marker far enough from the final coordinate to be inspected twice.
+        self.inspection_start_position = target
+        self.combined_inspection_active = stationary_selected
+        self.combined_mmwave_person = None
         self.mode3_status = ""
         self._inspection_command_sent = False
         self._phase = "SELECTING_MODE3"
-        prefix = "MOVING_PRIORITY" if moving_selected else "CLOSEST_RED_CANDIDATE"
+        prefix = (
+            "STATIONARY_LIDAR_CANDIDATE"
+            if stationary_selected
+            else "MOVING_PRIORITY" if moving_selected
+            else "CLOSEST_RED_CANDIDATE"
+        )
         self._set_status(f"SEARCH_EXITS:{prefix}:{target[0]:.2f},{target[1]:.2f}")
         context = (
             f"{self.current_exit_id} 앞 출구 차단 후보"
             if self.inspection_blocks_current_exit
             else "주행 경로의 동적장애물 후보"
         )
-        self._log(
-            f"[후보 감지] {'움직임 우선 ' if moving_selected else '가장 가까운 '}{context} "
-            f"({target[0]:.2f}, {target[1]:.2f})를 선택했습니다. "
-            "기존 출구 주행과 장애물 회피를 잠시 중단하고 이 후보만 검사합니다."
-        )
+        if stationary_selected:
+            self._log(
+                f"[정지 후보 감지] LiDAR에서 2초 이상 정지한 {context} "
+                f"({target[0]:.2f}, {target[1]:.2f})를 선택했습니다. "
+                "mmWave와 카메라 YOLO를 차례로 사용해 사람인지 판별합니다."
+            )
+        else:
+            candidate_kind = "움직임 우선" if moving_selected else "가장 가까운"
+            self._log(
+                f"[후보 감지] {candidate_kind} {context} "
+                f"({target[0]:.2f}, {target[1]:.2f})를 선택했습니다. "
+                "기존 출구 주행과 장애물 회피를 잠시 중단하고 "
+                "이 후보만 검사합니다."
+            )
         self._select_drive_mode(3)
 
     # Backward-compatible name used by older tests/log tools.
@@ -844,6 +973,15 @@ class EvacuationDemoOrchestrator(Node):
         if not getattr(self, "_requested", True):
             return
         if self._phase == "NAVIGATING_EXIT":
+            if (
+                message.data in self.MOTION_FOLLOWER_STATES
+                and getattr(self, "_initial_hazard_bypass_active", False)
+            ):
+                self._set_initial_hazard_bypass(False)
+                self._log(
+                    "[열화상 활성화] 첫 경로의 모터 명령을 확인했습니다. "
+                    "이후 경로계획부터 열화상 hazard layer를 반영합니다."
+                )
             if message.data in self.ACTIVE_FOLLOWER_STATES:
                 self.waiting_for_departure = False
             if (
@@ -913,38 +1051,35 @@ class EvacuationDemoOrchestrator(Node):
         kind, position = result
         if self.inspection_target is None or math.dist(position, self.inspection_target) > self.classification_radius:
             return
-        checked = self.current_exit_id
         inspected_position = self.inspection_target or position
-        self.inspected_dynamic_positions.append(tuple(inspected_position))
-        if kind == "DYNAMIC_OBSTACLE":
-            self._log(
-                "[장애물 확정] 생체신호가 감지되지 않았습니다. "
-                "실제 동적장애물로 확정하고 RViz의 빨간색 표시를 유지합니다."
+        if getattr(self, "combined_inspection_active", False):
+            self.combined_mmwave_person = kind == "PERSON"
+            self.inspection_target = position
+            self.mode4_status = ""
+            self._inspection_command_sent = False
+            self._phase = "SELECTING_MODE4"
+            result_text = (
+                "사람 생체신호 감지"
+                if self.combined_mmwave_person
+                else "생체신호 미감지"
             )
-            self.inspection_target = None
-            if self.inspection_blocks_current_exit and checked is not None:
-                self.checked_exit_ids.add(checked)
-                self.blocked_exit_ids.add(checked)
-                self._publish_blocked_exits()
-                self.current_exit_id = None
-                self.current_exit_position = None
-                self.current_approach_position = None
-                self.current_plan_payload = None
-                self._resume_phase_after_inspection = "STARTING"
-                self._set_status(f"SEARCH_EXITS:EXIT_BLOCKED:{checked}")
-                self._log(
-                    f"[출구 폐쇄] {checked} 앞이 동적장애물로 막혔습니다. "
-                    "이 출구를 제외하고 다른 출구를 다시 선택합니다."
-                )
-            else:
-                self._set_status("SEARCH_EXITS:ROUTE_OBSTACLE_CONFIRMED")
-                self._log(
-                    "[경로 판단] 출구를 직접 막는 장애물은 아닙니다. "
-                    "검사 전 출구 경로로 복귀합니다."
-                )
-            self.inspection_blocks_current_exit = False
-            self._phase = "RETURNING_MODE5"
-            self._select_drive_mode(5)
+            self._set_status(
+                f"STATIONARY_CANDIDATE:MMWAVE_COMPLETE:{kind}:SELECTING_CAMERA"
+            )
+            self._log(
+                f"[복합 판별 1/2] mmWave 결과: {result_text}. "
+                "같은 정지 후보에 대해 카메라 YOLO 판정을 "
+                "이어서 수행합니다."
+            )
+            self._select_drive_mode(4)
+            return
+        if kind == "DYNAMIC_OBSTACLE":
+            self._complete_nonperson_inspection(
+                inspected_position,
+                "[장애물 확정] 생체신호가 감지되지 않았습니다. "
+                "실제 동적장애물로 확정하고 RViz의 빨간색 표시를 "
+                "유지합니다.",
+            )
             return
         self._log(
             "[요구조자 발견] 생체신호가 감지됐습니다. 요구조자로 확정하고 "
@@ -961,18 +1096,70 @@ class EvacuationDemoOrchestrator(Node):
         progress_log = mode3_inspection_progress_log(state)
         if changed and progress_log is not None:
             self._log(progress_log)
+        if state.startswith("MODE3_TARGET_TRACK_LOST"):
+            self._cancel_disappeared_inspection_target()
+            return
         if state.startswith((
             "MODE3_SENSOR_UNAVAILABLE",
             "MODE3_NO_PATH_TO_STANDOFF",
             "MODE3_TARGET_TOO_CLOSE",
             "MODE3_ARRIVAL_NOT_CONFIRMED",
-            "MODE3_TARGET_TRACK_LOST",
         )):
             self.cancel_publisher.publish(Empty())
             self._phase = "INSPECTION_FAILED"
             self._set_status(f"SEARCH_EXITS:MMWAVE_INSPECTION_FAILED:{state}")
             self._log(f"[판별 실패] mmWave 장애물 검사 실패: {state}")
             self._select_drive_mode(5)
+
+    def _cancel_disappeared_inspection_target(self) -> None:
+        """Cancel a vanished LiDAR target and resume the interrupted route."""
+        anchors = [
+            point for point in (
+                getattr(self, "inspection_start_position", None),
+                self.inspection_target,
+            )
+            if point is not None
+        ]
+
+        def keep(point) -> bool:
+            return not any(
+                math.dist(point, anchor) <= self.classification_radius
+                for anchor in anchors
+            )
+
+        # Remove latched copies immediately so returning to Mode 5 cannot
+        # select the vanished target again before the next empty LiDAR update.
+        self.candidates = [
+            point for point in getattr(self, "candidates", ()) if keep(point)
+        ]
+        self.all_candidates = [
+            point for point in getattr(self, "all_candidates", ()) if keep(point)
+        ]
+        self.moving_priority_targets = [
+            item for item in getattr(self, "moving_priority_targets", ())
+            if keep(item[0])
+        ]
+        self.stationary_targets = [
+            item for item in getattr(self, "stationary_targets", ())
+            if keep(item[0])
+        ]
+        self.cancel_publisher.publish(Empty())
+        self._route_activated = False
+        self.inspection_target = None
+        self.inspection_start_position = None
+        self.inspection_blocks_current_exit = False
+        self.combined_inspection_active = False
+        self.combined_mmwave_person = None
+        self._inspection_command_sent = False
+        self._candidate_wait_started_at = None
+        self._phase = "RETURNING_MODE5"
+        self._set_status("SEARCH_EXITS:INSPECTION_TARGET_DISAPPEARED")
+        self._log(
+            "[검사 취소] 선택한 동적장애물이 LiDAR에서 일정 시간 동안 "
+            "다시 확인되지 않아 사라진 것으로 판단합니다. 검사를 중단하고 "
+            "기존 대피 경로로 복귀합니다."
+        )
+        self._select_drive_mode(5)
 
     def _on_mode4_status(self, message: String) -> None:
         self.mode4_status = str(message.data)
@@ -981,8 +1168,14 @@ class EvacuationDemoOrchestrator(Node):
         if message.data.startswith(("MODE4_DETECTOR_UNAVAILABLE", "MODE4_NO_PATH_TO_STANDOFF")):
             self.cancel_publisher.publish(Empty())
             self._phase = "INSPECTION_FAILED"
-            self._set_status(f"MOVING_CANDIDATE:INSPECTION_FAILED:{message.data}")
-            self._log(f"움직이는 후보의 카메라 판별 실패: {message.data}")
+            if getattr(self, "combined_inspection_active", False):
+                self._set_status(
+                    f"STATIONARY_CANDIDATE:CAMERA_INSPECTION_FAILED:{message.data}"
+                )
+                self._log(f"정지 후보의 카메라 YOLO 판별 실패: {message.data}")
+            else:
+                self._set_status(f"MOVING_CANDIDATE:INSPECTION_FAILED:{message.data}")
+                self._log(f"움직이는 후보의 카메라 판별 실패: {message.data}")
             self._select_drive_mode(5)
 
     def _on_mode4_classification(self, message: String) -> None:
@@ -992,25 +1185,113 @@ class EvacuationDemoOrchestrator(Node):
         if result is None:
             return
         kind, position = result
-        if kind == "NO_SURVIVOR":
-            self._log("카메라·LiDAR 판별 결과: 요구조자가 아닌 동적장애물입니다.")
-            self.inspection_target = None
-            self._phase = "RETURNING_MODE5"
-            self._select_drive_mode(5)
+        if (
+            kind == "SURVIVOR"
+            and self.inspection_target is not None
+            and math.dist(position, self.inspection_target) > self.classification_radius
+        ):
             return
-        if self.inspection_target is not None and math.dist(position, self.inspection_target) > self.classification_radius:
+        if getattr(self, "combined_inspection_active", False):
+            camera_person = kind == "SURVIVOR"
+            mmwave_person = bool(self.combined_mmwave_person)
+            target = position if camera_person else self.inspection_target
+            if mmwave_person or camera_person:
+                evidence = []
+                if mmwave_person:
+                    evidence.append("mmWave")
+                if camera_person:
+                    evidence.append("YOLO")
+                self._log(
+                    f"[복합 판별 2/2] {'+'.join(evidence)}에서 사람 신호를 "
+                    "확인했습니다. 요구조자로 확정합니다."
+                )
+                self._begin_survivor_evacuation(target, "mmwave_camera_lidar")
+            else:
+                self._complete_nonperson_inspection(
+                    self.inspection_target,
+                    "[복합 판별 2/2] mmWave 생체신호와 YOLO 사람 검출이 "
+                    "모두 음성입니다. 동적장애물로 확정하고 빨간색 표시를 "
+                    "유지합니다.",
+                )
+            return
+        if kind == "NO_SURVIVOR":
+            self._complete_nonperson_inspection(
+                self.inspection_target,
+                "카메라·LiDAR 판별 결과: 요구조자가 아닌 "
+                "동적장애물입니다.",
+            )
             return
         self._log("카메라·LiDAR 판별 결과: 요구조자입니다. RViz 표시를 파란색으로 전환합니다.")
         self._begin_survivor_evacuation(position, "camera_lidar")
+
+    def _complete_nonperson_inspection(self, inspected_position, evidence_log: str) -> None:
+        """Finish a negative inspection and apply the existing exit policy."""
+        checked = self.current_exit_id
+        self._remember_inspected_positions(
+            getattr(self, "inspection_start_position", None),
+            inspected_position,
+        )
+        self._log(evidence_log)
+        self.inspection_target = None
+        self.inspection_start_position = None
+        self.combined_inspection_active = False
+        self.combined_mmwave_person = None
+        if self.inspection_blocks_current_exit and checked is not None:
+            self.checked_exit_ids.add(checked)
+            self.blocked_exit_ids.add(checked)
+            self._publish_blocked_exits()
+            self.current_exit_id = None
+            self.current_exit_position = None
+            self.current_approach_position = None
+            self.current_plan_payload = None
+            self._resume_phase_after_inspection = "STARTING"
+            self._set_status(f"SEARCH_EXITS:EXIT_BLOCKED:{checked}")
+            self._log(
+                f"[출구 폐쇄] {checked} 앞이 동적장애물로 막혔습니다. "
+                "이 출구를 제외하고 다른 출구를 다시 선택합니다."
+            )
+        else:
+            self._set_status("SEARCH_EXITS:ROUTE_OBSTACLE_CONFIRMED")
+            self._log(
+                "[경로 판단] 출구를 직접 막는 장애물은 아닙니다. "
+                "검사 전 출구 경로로 복귀합니다."
+            )
+        self.inspection_blocks_current_exit = False
+        self._phase = "RETURNING_MODE5"
+        self._select_drive_mode(5)
+
+    def _remember_inspected_positions(self, *positions) -> None:
+        """Store all valid map anchors covered by one completed inspection."""
+        for value in positions:
+            if value is None:
+                continue
+            try:
+                point = tuple(float(item) for item in value)
+            except (TypeError, ValueError):
+                continue
+            if len(point) != 2 or not all(math.isfinite(item) for item in point):
+                continue
+            if any(
+                math.dist(point, previous) <= 1e-6
+                for previous in self.inspected_dynamic_positions
+            ):
+                continue
+            self.inspected_dynamic_positions.append(point)
 
     def _begin_survivor_evacuation(self, position, source: str) -> None:
         self.cancel_publisher.publish(Empty())
         self._route_activated = False
         self.active_survivor_position = tuple(map(float, position))
-        if self.inspection_target is not None:
-            self.inspected_dynamic_positions.append(tuple(self.inspection_target))
+        self._remember_inspected_positions(
+            getattr(self, "inspection_start_position", None),
+            self.inspection_target,
+            position,
+        )
         self.inspection_target = None
+        self.inspection_start_position = None
         self.inspection_blocks_current_exit = False
+        self.combined_inspection_active = False
+        self.combined_mmwave_person = None
         self.current_exit_id = None
         self.current_exit_position = None
         self.current_approach_position = None

@@ -25,6 +25,11 @@ def generate_launch_description():
                 description="Start the map-frame thermal cost grid node",
             ),
             DeclareLaunchArgument(
+                "publish_image",
+                default_value="true",
+                description="Publish /thermal/image for display clients",
+            ),
+            DeclareLaunchArgument(
                 "temperature_cost_scale_max_c", default_value="60.0"
             ),
             DeclareLaunchArgument(
@@ -35,7 +40,11 @@ def generate_launch_description():
                 executable="mlx90640_sensor_node",
                 name="mlx90640_sensor_node",
                 output="screen",
-                parameters=[str(parameters)],
+                parameters=[str(parameters), {
+                    "publish_image": ParameterValue(
+                        LaunchConfiguration("publish_image"), value_type=bool
+                    ),
+                }],
             ),
             Node(
                 package="inno_thermal",

@@ -190,21 +190,29 @@ class HazardBelief:
                 continue
             scan[col, row] = max(scan.get((col, row), -math.inf), value)
         old_blocked = self.blocked_mask.copy()
-        changed = set()
+        old_final_cost = self.final_cost_map.copy()
         for (col, row), value in scan.items():
-            if (
-                not self.temperature_observed_mask[row, col]
-                or not math.isclose(
-                    self.temperature_belief_map[row, col], value,
-                    rel_tol=1e-9, abs_tol=1e-12,
-                )
-                or self.last_observed_time_map[row, col] != now
-            ):
-                changed.add((col, row))
             self.temperature_belief_map[row, col] = value
             self.temperature_observed_mask[row, col] = True
             self.last_observed_time_map[row, col] = now
-        return self._finish(changed, old_blocked)
+        self.recalculate()
+        # A new frame timestamp is freshness metadata, not a planning-map
+        # revision. Only an effective traversal-cost/blocking change should
+        # invalidate caches or trigger downstream replanning.
+        differences = ~np.isclose(
+            old_final_cost, self.final_cost_map,
+            rtol=1e-6, atol=1e-6, equal_nan=True,
+        )
+        changed = {
+            (int(col), int(row)) for row, col in np.argwhere(differences)
+        }
+        if changed:
+            self.revision += 1
+        newly_blocked = self.blocked_mask & ~old_blocked
+        newly = {
+            (int(col), int(row)) for row, col in np.argwhere(newly_blocked)
+        }
+        return BeliefUpdate(frozenset(changed), frozenset(newly))
 
     def update_co_observation(self, robot_x, robot_y, measured_ppm, time):
         if not self.config.co_enabled:
@@ -344,3 +352,46 @@ class HazardBelief:
             + self.stale_observation_cost_map
         )
         self.final_cost_map[self.blocked_mask] = math.inf
+
+    def cost_without_temperature(self):
+        """Return the planning view used only for the mission's first route.
+
+        Temperature cost, temperature blocking and temperature freshness are
+        deliberately excluded. Static/dynamic obstacles and every enabled
+        non-temperature hazard remain authoritative.
+        """
+        cfg = self.config
+        cost = (
+            cfg.base_cost + self.co_cost_map + self.estimated_fire_cost_map
+        ).astype(float, copy=True)
+
+        if self.co_observed_mask.any():
+            cost[~self.co_observed_mask] += cfg.unobserved_co_penalty
+        else:
+            cost += cfg.unknown_penalty if cfg.co_enabled else 0.0
+
+        if cfg.stale_enabled and cfg.stale_apply_to_co:
+            valid = self.co_observed_mask & np.isfinite(
+                self.last_observed_time_map
+            )
+            age = np.zeros(self.shape)
+            age[valid] = np.maximum(
+                0.0,
+                self.current_time - self.last_observed_time_map[valid],
+            )
+            stale_age = np.maximum(0.0, age - cfg.stale_grace_period_s)
+            cost[valid] += np.minimum(
+                cfg.stale_maximum_cost,
+                stale_age[valid] * cfg.stale_cost_per_second,
+            )
+
+        co_blocked = self.co_observed_mask & (
+            self.co_belief_map >= cfg.gas_blocked_threshold
+        )
+        blocked = (
+            self.static_obstacle_map
+            | self.dynamic_inflated_obstacle_map
+            | co_blocked
+        )
+        cost[blocked] = math.inf
+        return cost

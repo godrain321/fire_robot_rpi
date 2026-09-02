@@ -15,6 +15,7 @@ from .evacuation_planner import (
 
 ACTIVE_HAZARD_STATES = frozenset({
     "ACTIVE", "ACTIVE_THERMAL_ONLY", "ACTIVE_STATIC_DYNAMIC_ONLY",
+    "ACTIVE_INITIAL_STATIC_DYNAMIC_ONLY",
 })
 
 
@@ -28,11 +29,162 @@ class MovingCandidate:
     observations: int
 
 
+@dataclass(frozen=True)
+class StationaryCandidate:
+    """One LiDAR track that remained inside the stationary tolerance."""
+
+    track_id: int
+    position: tuple[float, float]
+    displacement_m: float
+    observations: int
+    stationary_duration_sec: float
+
+
 @dataclass
 class _CandidateTrack:
     track_id: int
     history: list[tuple[float, float, float]] = field(default_factory=list)
     reported: bool = False
+
+
+@dataclass
+class _StationaryTrack:
+    track_id: int
+    last_seen: float
+    last_position: tuple[float, float]
+    stationary_since: float
+    stationary_origin: tuple[float, float]
+    maximum_displacement_m: float = 0.0
+    observations: int = 1
+
+
+class StationaryCandidateTracker:
+    """Associate LiDAR clusters and expose tracks that have stopped moving.
+
+    A track must remain close to the position where its current stationary
+    interval began for the full confirmation duration.  Movement outside the
+    tolerance resets that interval, so a moving object can become eligible
+    only after it has actually stopped.
+    """
+
+    def __init__(
+        self,
+        *,
+        association_radius_m: float = 0.75,
+        maximum_displacement_m: float = 0.15,
+        minimum_observations: int = 5,
+        confirmation_duration_sec: float = 2.0,
+        stale_timeout_sec: float = 1.0,
+    ) -> None:
+        values = (
+            association_radius_m,
+            maximum_displacement_m,
+            confirmation_duration_sec,
+            stale_timeout_sec,
+        )
+        if (
+            any(not math.isfinite(float(value)) or float(value) <= 0.0 for value in values)
+            or isinstance(minimum_observations, bool)
+            or int(minimum_observations) < 2
+        ):
+            raise ValueError("stationary-candidate tracker parameters are invalid")
+        if float(maximum_displacement_m) >= float(association_radius_m):
+            raise ValueError(
+                "stationary displacement must be below the association radius"
+            )
+        self.association_radius_m = float(association_radius_m)
+        self.maximum_displacement_m = float(maximum_displacement_m)
+        self.minimum_observations = int(minimum_observations)
+        self.confirmation_duration_sec = float(confirmation_duration_sec)
+        self.stale_timeout_sec = float(stale_timeout_sec)
+        self._tracks: dict[int, _StationaryTrack] = {}
+        self._next_track_id = 1
+
+    def reset(self) -> None:
+        self._tracks.clear()
+        self._next_track_id = 1
+
+    def update(
+        self, candidates: Iterable[tuple[float, float]], timestamp: float
+    ) -> tuple[StationaryCandidate, ...]:
+        now = float(timestamp)
+        if not math.isfinite(now):
+            raise ValueError("timestamp must be finite")
+        points = []
+        for candidate in candidates:
+            try:
+                x, y = tuple(candidate)
+                point = (float(x), float(y))
+            except (TypeError, ValueError):
+                continue
+            if all(math.isfinite(value) for value in point):
+                points.append(point)
+
+        stale_before = now - self.stale_timeout_sec
+        self._tracks = {
+            track_id: track
+            for track_id, track in self._tracks.items()
+            if track.last_seen >= stale_before
+        }
+        edges = []
+        for track_id, track in self._tracks.items():
+            for candidate_index, point in enumerate(points):
+                distance = math.dist(track.last_position, point)
+                if distance <= self.association_radius_m:
+                    edges.append((distance, track_id, candidate_index))
+        matched_tracks = set()
+        matched_candidates = set()
+        for _, track_id, candidate_index in sorted(edges):
+            if track_id in matched_tracks or candidate_index in matched_candidates:
+                continue
+            track = self._tracks[track_id]
+            point = points[candidate_index]
+            displacement = math.dist(track.stationary_origin, point)
+            track.last_seen = now
+            track.last_position = point
+            if displacement > self.maximum_displacement_m:
+                track.stationary_since = now
+                track.stationary_origin = point
+                track.maximum_displacement_m = 0.0
+                track.observations = 1
+            else:
+                track.maximum_displacement_m = max(
+                    track.maximum_displacement_m, displacement
+                )
+                track.observations += 1
+            matched_tracks.add(track_id)
+            matched_candidates.add(candidate_index)
+        for candidate_index, point in enumerate(points):
+            if candidate_index in matched_candidates:
+                continue
+            track_id = self._next_track_id
+            self._next_track_id += 1
+            self._tracks[track_id] = _StationaryTrack(
+                track_id=track_id,
+                last_seen=now,
+                last_position=point,
+                stationary_since=now,
+                stationary_origin=point,
+            )
+            matched_tracks.add(track_id)
+
+        stationary = []
+        for track_id in matched_tracks:
+            track = self._tracks[track_id]
+            duration = now - track.stationary_since
+            if (
+                track.observations < self.minimum_observations
+                or duration < self.confirmation_duration_sec
+            ):
+                continue
+            stationary.append(StationaryCandidate(
+                track_id=track.track_id,
+                position=track.last_position,
+                displacement_m=track.maximum_displacement_m,
+                observations=track.observations,
+                stationary_duration_sec=duration,
+            ))
+        return tuple(stationary)
 
 
 class MovingCandidateTracker:

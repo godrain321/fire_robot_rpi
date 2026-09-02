@@ -39,6 +39,7 @@ class ExitEvaluatorNode(Node):
             "exit_registry_file": "",
             "reference_waypoint_file": "",
             "hazard_snapshot_topic": "/hazard/snapshot",
+            "hazard_status_topic": "/hazard/status",
             "static_grid_topic": "/planning_grid_static",
             "result_topic": "/exit_evaluations",
             "status_topic": "/exit_evaluator/status",
@@ -117,6 +118,8 @@ class ExitEvaluatorNode(Node):
         self.tf = TfHelper(self)
         self.raw_snapshot = None
         self.snapshot = None
+        self.snapshot_status = ""
+        self.snapshot_is_initial_route_view = False
         self.static_geometry = None
         self.static_clearance_mask = None
         self.status = "EXIT_EVALUATOR_NOT_READY"
@@ -133,6 +136,10 @@ class ExitEvaluatorNode(Node):
         self.create_subscription(
             Float32MultiArray, str(value("hazard_snapshot_topic")),
             self._snapshot_callback, qos,
+        )
+        self.create_subscription(
+            String, str(value("hazard_status_topic")),
+            self._hazard_status_callback, qos,
         )
         self.create_subscription(
             OccupancyGrid, str(value("static_grid_topic")),
@@ -203,13 +210,29 @@ class ExitEvaluatorNode(Node):
                 float(metadata["temperature_blocked_c"]),
                 float(metadata["co_blocked_ppm"]), float(metadata["base_cost"]),
             )
-            self.snapshot_status = str(metadata["status"])
+            snapshot_channels = tuple(metadata.get("channels", ()))
+            self.snapshot_is_initial_route_view = (
+                bool(snapshot_channels)
+                and "temperature_c" not in snapshot_channels
+                and str(metadata["status"])
+                == "ACTIVE_INITIAL_STATIC_DYNAMIC_ONLY"
+            )
+            # Metadata status remains a compatibility fallback. Live readiness
+            # changes arrive independently on /hazard/status and do not force
+            # this large snapshot to be serialized again.
+            if not self.snapshot_status:
+                self.snapshot_status = str(metadata["status"])
             self._apply_static_clearance()
         except (TypeError, ValueError) as exc:
             self.get_logger().error(f"invalid hazard snapshot: {exc}")
             self.raw_snapshot = None
             self.snapshot = None
+            self.snapshot_is_initial_route_view = False
             self.snapshot_status = "INVALID_HAZARD_SNAPSHOT"
+        self._refresh_readiness()
+
+    def _hazard_status_callback(self, message):
+        self.snapshot_status = str(message.data)
         self._refresh_readiness()
 
     def _apply_static_clearance(self):
@@ -231,6 +254,14 @@ class ExitEvaluatorNode(Node):
             self.snapshot = None
 
     def _refresh_readiness(self):
+        if (
+            self.snapshot_status == "ACTIVE_INITIAL_STATIC_DYNAMIC_ONLY"
+            and not self.snapshot_is_initial_route_view
+        ):
+            self._set_status(
+                "HAZARD_NOT_READY:INITIAL_ROUTE_VIEW_PENDING"
+            )
+            return
         self._set_status(exit_evaluator_readiness(
             self.snapshot, self.static_geometry,
             getattr(self, "snapshot_status", ""), self.map_frame,

@@ -9,6 +9,22 @@ from typing import Mapping
 import numpy as np
 
 
+def latest_transform_is_fresh(
+    message_stamp_ns: int,
+    transform_stamp_ns: int,
+    tolerance_sec: float,
+) -> bool:
+    """Accept a latest-TF fallback only when it is close to the sensor frame."""
+    tolerance = float(tolerance_sec)
+    if not math.isfinite(tolerance) or tolerance < 0.0:
+        raise ValueError("latest TF fallback tolerance must be non-negative")
+    # A zero timestamp denotes a static transform and is valid at all times.
+    if int(transform_stamp_ns) == 0:
+        return True
+    difference_ns = abs(int(message_stamp_ns) - int(transform_stamp_ns))
+    return difference_ns <= int(tolerance * 1e9)
+
+
 def thermal_stream_is_stale(
     last_received_ns: int, now_ns: int, timeout_sec: float
 ) -> bool:

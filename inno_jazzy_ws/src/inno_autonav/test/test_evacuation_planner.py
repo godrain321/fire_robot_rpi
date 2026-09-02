@@ -136,13 +136,16 @@ def test_stage4_json_parser_and_manager_pipeline_select_without_activation():
     assert not activated
 
 
-def test_activation_requires_same_current_hazard_revision_and_approach():
+def test_activation_rejects_older_manager_but_accepts_newer_hazard_revision():
     plan = EvacuationPlanner().plan(batch(evaluation("E1"), revision=8))
     assert route_activation_decision(
         plan, activate=True, current_revision=7
     ) == ("EVALUATION_STALE", False)
     assert route_activation_decision(
         plan, activate=True, current_revision=8
+    ) == ("ROUTE_ACTIVATED", True)
+    assert route_activation_decision(
+        plan, activate=True, current_revision=9
     ) == ("ROUTE_ACTIVATED", True)
 
 

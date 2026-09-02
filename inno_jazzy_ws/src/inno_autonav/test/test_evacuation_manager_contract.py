@@ -114,15 +114,24 @@ def test_activation_publishes_only_selected_approach_to_existing_goal_topic():
     assert (goal.pose.position.x, goal.pose.position.y) == (1.5, 0.5)
 
 
-def test_stale_or_not_ready_evaluation_never_publishes_a_goal():
-    stale = manager(True, revision=4)
-    stale.current_hazard_revision = 5
+def test_newer_revision_activates_but_older_or_not_ready_never_publishes_goal():
+    newer = manager(True, revision=4)
+    newer.current_hazard_revision = 5
     response = EvacuationManagerNode._plan(
-        stale, Trigger.Request(), Trigger.Response()
+        newer, Trigger.Request(), Trigger.Response()
+    )
+    assert response.success
+    assert newer.statuses[-1] == "ROUTE_ACTIVATED"
+    assert len(newer.goal_publisher.messages) == 1
+
+    older = manager(True, revision=4)
+    older.current_hazard_revision = 3
+    response = EvacuationManagerNode._plan(
+        older, Trigger.Request(), Trigger.Response()
     )
     assert not response.success
-    assert stale.statuses[-1] == "EVALUATION_STALE"
-    assert not stale.goal_publisher.messages
+    assert older.statuses[-1] == "EVALUATION_STALE"
+    assert not older.goal_publisher.messages
 
     not_ready = manager(True, evaluation_success=False)
     response = EvacuationManagerNode._plan(

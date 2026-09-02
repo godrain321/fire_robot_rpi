@@ -268,25 +268,16 @@ def select_reachable_inspection_goal(
 
 @dataclass
 class PresenceEvidence:
-    """Count only fresh, online mmWave samples near the inspected target."""
+    """Count fresh, online mmWave presence samples during observation."""
 
-    expected_distance_m: float
-    distance_tolerance_m: float
     total_samples: int = 0
     positive_samples: int = 0
 
-    def add(self, sensor_online: bool, presence: bool, distance_m: float) -> None:
+    def add(self, sensor_online: bool, presence: bool) -> None:
         if not sensor_online:
             return
         self.total_samples += 1
-        distance = float(distance_m)
-        if (
-            presence
-            and math.isfinite(distance)
-            and distance > 0.0
-            and abs(distance - self.expected_distance_m)
-            <= self.distance_tolerance_m
-        ):
+        if presence:
             self.positive_samples += 1
 
     def classify(
@@ -323,8 +314,7 @@ class Mode3Inspector(Node):
             # visible approach path toward the nominal safe standoff.
             'minimum_approach_goal_distance_m': 0.45,
             'robot_settle_sec': 2.0,
-            'observation_sec': 5.0,
-            'distance_tolerance_m': 0.60,
+            'observation_sec': 3.0,
             'minimum_mmwave_samples': 3,
             'person_positive_samples': 3,
             'sensor_stale_timeout_sec': 2.0,
@@ -374,9 +364,6 @@ class Mode3Inspector(Node):
         self.observation_sec = float(
             self.get_parameter('observation_sec').value
         )
-        self.distance_tolerance = float(
-            self.get_parameter('distance_tolerance_m').value
-        )
         self.minimum_samples = int(
             self.get_parameter('minimum_mmwave_samples').value
         )
@@ -399,7 +386,6 @@ class Mode3Inspector(Node):
             or self.minimum_approach_goal_distance <= 0.0
             or self.robot_settle_sec < 0.0
             or self.observation_sec <= 0.0
-            or self.distance_tolerance < 0.0
             or self.minimum_samples <= 0
             or self.positive_samples <= 0
             or self.positive_samples > self.minimum_samples
@@ -420,6 +406,7 @@ class Mode3Inspector(Node):
         self.requested_target: Optional[Point2D] = None
         self.last_candidates_update = float('-inf')
         self.target_last_seen = float('-inf')
+        self.target_tracking_started_at = float('-inf')
         self.active_standoff_distance = self.standoff_distance
         self.hazard_revision = 0
         self.waiting_for_departure = False
@@ -427,10 +414,7 @@ class Mode3Inspector(Node):
         self.phase_deadline = 0.0
         self.sensor_online = False
         self.last_sensor_update = float('-inf')
-        self.latest_distance_m = 0.0
-        self.evidence = PresenceEvidence(
-            self.standoff_distance, self.distance_tolerance
-        )
+        self.evidence = PresenceEvidence()
         self.observation_target_start = None
         self.observation_target_samples = []
         self.planning_grid: Optional[MapGrid] = None
@@ -557,6 +541,7 @@ class Mode3Inspector(Node):
             self.target = None
             self.requested_target = None
             self.target_last_seen = float('-inf')
+            self.target_tracking_started_at = float('-inf')
             self.waiting_for_departure = False
             self.approach_started = False
             self._grid_wait_reported = False
@@ -567,6 +552,7 @@ class Mode3Inspector(Node):
             self.target = None
             self.requested_target = None
             self.target_last_seen = float('-inf')
+            self.target_tracking_started_at = float('-inf')
             self.waiting_for_departure = False
             self.approach_started = False
             self._state('MODE3_CANCELLED')
@@ -591,6 +577,7 @@ class Mode3Inspector(Node):
         # match from tracking_candidates_topic is the only event that makes a
         # target position live/fresh.
         self.target_last_seen = float('-inf')
+        self.target_tracking_started_at = self._now()
         self.waiting_for_departure = False
         self.approach_started = False
         self._grid_wait_reported = False
@@ -641,6 +628,18 @@ class Mode3Inspector(Node):
             self.target is not None
             and self._now() - self.target_last_seen
             <= self.target_stale_timeout
+        )
+
+    def _target_tracking_expired(self) -> bool:
+        """Return true after a selected target has been absent for the grace period."""
+        reference = self.target_last_seen
+        if not math.isfinite(reference):
+            reference = getattr(
+                self, 'target_tracking_started_at', float('-inf')
+            )
+        return (
+            math.isfinite(reference)
+            and self._now() - reference > self.target_stale_timeout
         )
 
     def _latest_target_distance(
@@ -713,7 +712,11 @@ class Mode3Inspector(Node):
             tracked = None
         if tracked is not None:
             target = tracked
-            self.target_last_seen = self.last_candidates_update
+            self.target_last_seen = (
+                self.last_candidates_update
+                if math.isfinite(self.last_candidates_update)
+                else self._now()
+            )
         self.target = target
         target_distance = self._latest_target_distance(robot)
         if (
@@ -875,36 +878,26 @@ class Mode3Inspector(Node):
         self.hazard_revision = int(message.data)
 
     def _distance_callback(self, message: Float32) -> None:
+        del message
         self.last_sensor_update = self._now()
-        self.latest_distance_m = float(message.data)
 
     def _presence_callback(self, message: Bool) -> None:
         self.last_sensor_update = self._now()
         if self.phase != 'OBSERVING':
             return
-        self.evidence.add(
-            self.sensor_online, bool(message.data), self.latest_distance_m
-        )
+        self.evidence.add(self.sensor_online, bool(message.data))
 
     def _start_observation(self) -> None:
         self.phase = 'OBSERVING'
         self.phase_deadline = self._now() + self.observation_sec
-        expected_distance = self.active_standoff_distance
-        robot = self.tf.lookup_pose_2d(self.map_frame, self.base_frame)
-        if robot is not None and self.target is not None:
-            expected_distance = math.hypot(
-                self.target[0] - robot[0], self.target[1] - robot[1]
-            )
-        self.evidence = PresenceEvidence(
-            expected_distance, self.distance_tolerance
-        )
+        self.evidence = PresenceEvidence()
         self.observation_target_start = self.target
         self.observation_target_samples = (
             [] if self.target is None else [self.target]
         )
         self._state('MODE3_MMWAVE_OBSERVING')
         self.get_logger().info(
-            f'MODE 3 mmWave expected distance: {expected_distance:.2f}m'
+            'MODE 3 mmWave presence-only observation: distance gate disabled'
         )
         self.get_logger().warning(
             '[MODE 3] 정지 완료 - mmWave 생체신호 판별 시작'
@@ -965,6 +958,15 @@ class Mode3Inspector(Node):
     def _timer_callback(self) -> None:
         if self.drive_mode != 3:
             return
+        if (
+            self.phase in (
+                'WAITING_FOR_OBSTACLE', 'NAVIGATING',
+                'WAITING_FOR_LIVE_TARGET', 'SETTLING', 'OBSERVING',
+            )
+            and self._target_tracking_expired()
+        ):
+            self._fail_target_tracking()
+            return
         if self.phase == 'WAITING_FOR_OBSTACLE':
             self._try_start_inspection()
         elif self.phase in ('NAVIGATING', 'WAITING_FOR_LIVE_TARGET'):
@@ -980,11 +982,9 @@ class Mode3Inspector(Node):
             ):
                 self._restart_for_latest_target(actual_distance)
         elif self.phase in ('SETTLING', 'OBSERVING'):
-            # Entering SETTLING already proves that a current LiDAR sample put
-            # the target inside 2.5 m.  Preserve that last real observation
-            # across short scan gaps while the robot settles and mmWave samples
-            # are collected.  If LiDAR sees the same target again outside the
-            # allowed range, the fresh distance below still triggers reapproach.
+            # Preserve the latest real observation only for the configured
+            # short LiDAR dropout grace period. The early stale check above
+            # cancels inspection instead of classifying a disappeared target.
             actual_distance = self._latest_target_distance()
             if (
                 actual_distance is not None

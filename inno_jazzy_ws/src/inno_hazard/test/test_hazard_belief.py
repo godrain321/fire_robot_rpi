@@ -22,9 +22,28 @@ def test_hazard_node_keeps_tf_callbacks_on_a_second_executor_thread():
     assert "executor.add_node(node)" in source
     assert "rclpy.spin(node)" not in source
     assert '"thermal_stream_timeout_s": 3.0' in source
+    assert '"latest_tf_fallback_tolerance_sec": 1.0' in source
     assert "if self.last_thermal_ns is None:" in source
     assert "self.last_thermal_ns = observation_ns" in source
     assert "self.last_thermal_ns = self.get_clock().now().nanoseconds" not in source
+
+
+def test_hazard_thermal_tf_uses_bounded_latest_fallback():
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "inno_hazard"
+        / "hazard_belief_node.py"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    body = source.split("def _thermal(", 1)[1].split("\n    def ", 1)[0]
+    stamped_lookup, fallback = body.split(
+        "except TransformException as stamped_error:", 1
+    )
+    assert "Time.from_msg(message.header.stamp)" in stamped_lookup
+    assert "Time()," in fallback
+    assert "latest_transform_is_fresh(" in fallback
+    assert "self.latest_tf_fallback_tolerance_sec" in fallback
+    assert "return" in fallback
 
 
 def belief(*, resolution=1.0, width=7, height=7, static=None, **changes):
@@ -119,7 +138,7 @@ def test_co_belief_confidence_soft_cost_and_hard_block():
 
 def test_stale_cost_grace_growth_cap_and_revision():
     item = belief()
-    update = item.update_temperature_observations([((2, 2), 40)], 1.0)
+    update = item.update_temperature_observations([((2, 2), 45)], 1.0)
     first_revision = item.revision
     assert update.changed_cells == frozenset({(2, 2)})
     item.advance_time(6.0)
@@ -132,12 +151,27 @@ def test_stale_cost_grace_growth_cap_and_revision():
     assert not item.blocked_mask[2, 2]
 
 
-def test_identical_value_and_timestamp_does_not_increment_revision():
+def test_identical_temperature_with_new_timestamp_does_not_increment_revision():
     item = belief()
     item.update_temperature_observations([((2, 2), 45)], 1.0)
     revision = item.revision
-    item.update_temperature_observations([((2, 2), 45)], 1.0)
+    item.update_temperature_observations([((2, 2), 45)], 2.0)
     assert item.revision == revision
+    assert item.last_observed_time_map[2, 2] == 2.0
+
+
+def test_temperature_cost_or_blocking_change_increments_revision():
+    item = belief(temperature_blocked_c=50.0)
+    item.update_temperature_observations([((2, 2), 45.0)], 1.0)
+    first_revision = item.revision
+
+    item.update_temperature_observations([((2, 2), 46.0)], 2.0)
+    assert item.revision == first_revision + 1
+    assert not item.blocked_mask[2, 2]
+
+    item.update_temperature_observations([((2, 2), 50.0)], 3.0)
+    assert item.revision == first_revision + 2
+    assert item.blocked_mask[2, 2]
 
 
 def test_already_inflated_dynamic_grid_is_not_inflated_twice():
@@ -198,3 +232,18 @@ def test_final_cost_is_exact_sum_of_all_soft_layers():
         + item.stale_observation_cost_map[2, 2]
     )
     assert item.final_cost_map[2, 2] == pytest.approx(expected)
+
+
+def test_initial_route_cost_ignores_temperature_but_keeps_obstacles():
+    item = belief(temperature_blocked_c=50.0)
+    item.update_temperature_observations([((2, 2), 60.0)], 1.0)
+    dynamic = np.zeros(item.shape, dtype=bool)
+    dynamic[3, 3] = True
+    item.update_dynamic_obstacles(dynamic, already_inflated=True)
+
+    initial = item.cost_without_temperature()
+
+    assert np.isinf(item.final_cost_map[2, 2])
+    assert initial[2, 2] == pytest.approx(item.config.base_cost)
+    assert np.isinf(initial[3, 3])
+    assert np.isinf(initial[item.static_obstacle_map]).all()

@@ -9,8 +9,8 @@ from launch.substitutions import LaunchConfiguration as L
 from inno_robot_bringup.project_paths import project_path
 
 
-# Public Mode 8 arguments and defaults are mirrored only for forwarding into
-# its launch. Mode 8 remains the sole owner of the evacuation node hierarchy.
+# Public Mode 8 arguments are mirrored for forwarding into its launch.  The
+# five inspection defaults below are the intentional Mode 9 behaviour delta.
 _MODE8_ARGUMENTS = {
     "use_rviz": "true",
     "esp32_port": "/dev/ttyUSB0",
@@ -20,7 +20,11 @@ _MODE8_ARGUMENTS = {
     "use_lidar": "true",
     "use_mmwave": "true",
     "use_serial": "true",
-    "use_camera_mode4": "false",
+    "use_camera_mode4": "true",
+    "yolo_only_during_mode4_observation": "true",
+    "moving_survivor_enabled": "false",
+    "moving_priority_enabled": "false",
+    "stationary_combined_inspection_enabled": "true",
     "use_mode3_audio": "true",
     "discovery_range": "LOCALHOST",
     "assist_check_sec": "10.0",

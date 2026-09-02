@@ -834,6 +834,7 @@ class AstarReplanner(Node):
             if self.hazard_status not in (
                 'ACTIVE', 'ACTIVE_THERMAL_ONLY',
                 'ACTIVE_STATIC_DYNAMIC_ONLY',
+                'ACTIVE_INITIAL_STATIC_DYNAMIC_ONLY',
             ):
                 return 'HAZARD_NOT_READY:' + (self.hazard_status or 'NO_STATUS')
             return None

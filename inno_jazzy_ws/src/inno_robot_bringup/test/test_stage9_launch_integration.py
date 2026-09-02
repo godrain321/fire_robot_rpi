@@ -103,9 +103,32 @@ def test_mode8_nested_rviz_disable_is_scoped_from_thermal_rviz():
     assert 'condition=IfCondition(L("use_rviz"))' in mode8
 
 
+def test_mode8_disables_display_only_thermal_image_pipeline():
+    mode8 = source(BRINGUP / "mode8_evacuation_thermal.launch.py")
+    evacuation = source(BRINGUP / "evacuation_demo.launch.py")
+    thermal = source(THERMAL)
+    rviz = source(BRINGUP.parent / "rviz" / "mode8_evacuation_thermal.rviz")
+
+    assert '"publish_thermal_image": "false"' in mode8
+    assert '"publish_image": L("publish_thermal_image")' in evacuation
+    assert 'DeclareLaunchArgument(\n                "publish_image"' in thermal
+    assert 'LaunchConfiguration("publish_image"), value_type=bool' in thermal
+    assert "Thermal Image" not in rviz
+    assert "/thermal/image" not in rviz
+    assert "Thermal Cost Grid" in rviz
+    assert "/thermal_cost_grid" in rviz
+
+
 def test_mode8_script_accepts_ros_launch_sigint_exit_code():
     script = source(RUN_MODE8)
     assert "launch_status != 254" in script
+
+
+def test_mode8_script_raises_only_default_straight_speed():
+    script = source(RUN_MODE8)
+    assert "drive_speed='0.15'" in script
+    assert '"drive_speed:=${drive_speed}"' in script
+    assert "turn_speed:=0.64" in script
 
 
 def test_autonav_has_exactly_one_planned_path_owner_per_selector_profile():
@@ -123,6 +146,17 @@ def test_autonav_has_exactly_one_planned_path_owner_per_selector_profile():
     assert '"waypoint_path_topic": "/waypoint_path"' in planner
     assert "create_publisher(\n            Path, str(value(\"waypoint_path_topic\"))" in planner
     assert "create_publisher(\n            Path, str(value(\"planned_path_topic\"))" not in planner
+
+
+def test_hazard_mode_waypoint_planner_uses_astar_active_reachability_grid():
+    text = source(AUTONAV)
+    declaration = text.split(
+        "'waypoint_planning_grid_topic'", 1
+    )[1].split("DeclareLaunchArgument('astar_accept_goal_pose'", 1)[0]
+    assert "'/planning_grid_active'" in declaration
+    assert "hazard_belief_enabled" in declaration
+    assert "'/planning_grid_hazard'" in declaration
+    assert "hazard_co_enabled" in declaration
 
 
 def test_autonav_runs_existing_follower_and_event_replan_nodes():

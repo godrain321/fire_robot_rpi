@@ -1,4 +1,4 @@
-"""Publish raw MLX90640 temperatures and a short thermal direction arc."""
+"""Publish MLX90640 planning data and an optional display image."""
 
 from __future__ import annotations
 
@@ -127,6 +127,7 @@ class Mlx90640SensorNode(Node):
         self.declare_parameter("projection_distance_m", 0.15)
         self.declare_parameter("refresh_rate_hz", 8)
         self.declare_parameter("publish_rate_hz", 4.0)
+        self.declare_parameter("publish_image", True)
         # Hardware calibration: the native sensor order is horizontally
         # mirrored relative to physical left/right on the installed camera.
         self.declare_parameter("flip_horizontal", True)
@@ -145,6 +146,7 @@ class Mlx90640SensorNode(Node):
         )
         self.refresh_rate_hz = int(self.get_parameter("refresh_rate_hz").value)
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
+        self.publish_image = bool(self.get_parameter("publish_image").value)
         self.flip_horizontal = bool(self.get_parameter("flip_horizontal").value)
         self.flip_vertical = bool(self.get_parameter("flip_vertical").value)
         self.rotate_180 = bool(self.get_parameter("rotate_180").value)
@@ -156,7 +158,15 @@ class Mlx90640SensorNode(Node):
         self._sensor = NativeMlx90640(
             library_path, self.i2c_address, self.refresh_rate_hz
         )
-        self._image_publisher = self.create_publisher(Image, "/thermal/image", 10)
+        self._image_publisher = None
+        if self.publish_image:
+            self._image_publisher = self.create_publisher(
+                Image, "/thermal/image", 10
+            )
+        else:
+            self.get_logger().info(
+                "Thermal display image disabled; planning outputs remain active"
+            )
         self._column_publisher = self.create_publisher(
             Float32MultiArray, "/thermal/column_max", 10
         )
@@ -206,7 +216,10 @@ class Mlx90640SensorNode(Node):
                 column_max, self.horizontal_fov_deg, self.projection_distance_m
             )
             stamp = self.get_clock().now().to_msg()
-            self._image_publisher.publish(self._make_image(temperatures, stamp))
+            if self._image_publisher is not None:
+                self._image_publisher.publish(
+                    self._make_image(temperatures, stamp)
+                )
             self._column_publisher.publish(self._make_column_max(column_max))
             self._arc_publisher.publish(self._make_point_cloud(points, stamp))
         except Exception as exc:  # keep the timer/node alive after sensor errors

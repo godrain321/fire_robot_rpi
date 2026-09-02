@@ -155,14 +155,19 @@ def generate_launch_description() -> LaunchDescription:
                     "' == 'true' else '/planned_path'"
                 ]),
             ),
-            # Stage 5: when the gas sensor is on, the waypoint planner reads the
-            # gas-inclusive grid (astar_replanner already reads /hazard/final_cost
-            # directly). Off -> the untouched /planning_grid, Stage 1-4 unchanged.
+            # When the hazard-belief pipeline is active, make the waypoint
+            # planner consume the exact blocked/free reachability published by
+            # A*. Using /planning_grid here would inflate already-inflated
+            # dynamic/thermal obstacles a second time and can close a corridor
+            # that ExitEvaluator just proved reachable. Legacy profiles keep
+            # their existing gas-only or combined planning grids.
             DeclareLaunchArgument(
                 'waypoint_planning_grid_topic',
                 default_value=PythonExpression([
-                    "'/planning_grid_hazard' if '", hazard_co_enabled,
-                    "' == 'true' else '/planning_grid'"
+                    "'/planning_grid_active' if '", hazard_belief_enabled,
+                    "' == 'true' else ('/planning_grid_hazard' if '",
+                    hazard_co_enabled,
+                    "' == 'true' else '/planning_grid')"
                 ]),
             ),
             DeclareLaunchArgument('astar_accept_goal_pose', default_value='true'),

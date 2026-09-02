@@ -214,7 +214,11 @@ def route_activation_decision(plan, *, activate, current_revision):
         return "SELECTED_NOT_ACTIVATED", False
     if current_revision is None:
         return "HAZARD_REVISION_NOT_READY", False
-    if int(current_revision) != plan.hazard_revision:
+    # A newer revision is safe to activate: the selected goal is handed to A*
+    # and the event-replanning supervisor, both of which consume the latest
+    # costmap. Reject only when the manager itself has not caught up to the
+    # coherent revision used by the exit evaluation.
+    if int(current_revision) < plan.hazard_revision:
         return "EVALUATION_STALE", False
     if plan.selected_approach_position_world is None:
         return "SELECTED_APPROACH_MISSING", False

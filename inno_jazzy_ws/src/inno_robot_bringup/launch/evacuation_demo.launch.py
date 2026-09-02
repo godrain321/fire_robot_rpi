@@ -62,6 +62,7 @@ def generate_launch_description():
         DeclareLaunchArgument("turn_speed", default_value="0.35"),
         DeclareLaunchArgument("use_serial", default_value="true"),
         DeclareLaunchArgument("use_thermal_sensor", default_value="false"),
+        DeclareLaunchArgument("publish_thermal_image", default_value="true"),
         DeclareLaunchArgument(
             "temperature_cost_scale_max_c", default_value="60.0"
         ),
@@ -87,6 +88,14 @@ def generate_launch_description():
         DeclareLaunchArgument("waypoint_planning_enabled", default_value="true"),
         DeclareLaunchArgument("evacuation_demo_auto_start", default_value="false"),
         DeclareLaunchArgument("use_camera_mode4", default_value="false"),
+        DeclareLaunchArgument(
+            "yolo_only_during_mode4_observation", default_value="false"
+        ),
+        DeclareLaunchArgument("moving_survivor_enabled", default_value="false"),
+        DeclareLaunchArgument("moving_priority_enabled", default_value="true"),
+        DeclareLaunchArgument(
+            "stationary_combined_inspection_enabled", default_value="false"
+        ),
         DeclareLaunchArgument("use_mode3_audio", default_value="true"),
         DeclareLaunchArgument(
             "mode3_audio_directory", default_value="~/fire_robot_audio"
@@ -110,6 +119,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "enable_cost_layer": "true",
+            "publish_image": L("publish_thermal_image"),
             "temperature_cost_scale_max_c": L("temperature_cost_scale_max_c"),
             "blocked_temperature_c": L("temperature_blocked_c"),
         }.items(),
@@ -195,6 +205,9 @@ def generate_launch_description():
             ),
             "yolo_model_path": L("yolo_model_path"),
             "yolo_confidence": L("yolo_confidence"),
+            "yolo_only_during_mode4_observation": L(
+                "yolo_only_during_mode4_observation"
+            ),
             "start_thermal_viewer": "false",
         }.items(),
     )
@@ -208,9 +221,21 @@ def generate_launch_description():
             "auto_start": ParameterValue(
                 L("evacuation_demo_auto_start"), value_type=bool
             ),
-            # Every red LiDAR candidate follows the already field-tested Mode 3
-            # mmWave classification path; a thermal/camera detector is optional.
-            "moving_survivor_enabled": False,
+            "moving_survivor_enabled": ParameterValue(
+                L("moving_survivor_enabled"), value_type=bool
+            ),
+            "moving_priority_enabled": ParameterValue(
+                L("moving_priority_enabled"), value_type=bool
+            ),
+            "stationary_combined_inspection_enabled": ParameterValue(
+                L("stationary_combined_inspection_enabled"), value_type=bool
+            ),
+            # Thermal Mode 8/9: create the very first route from static and
+            # dynamic obstacles, then enable the accumulated thermal layer as
+            # soon as the follower confirms its first motor-driving state.
+            "initial_route_ignore_thermal": ParameterValue(
+                L("use_thermal_sensor"), value_type=bool
+            ),
         }],
     )
     return LaunchDescription(

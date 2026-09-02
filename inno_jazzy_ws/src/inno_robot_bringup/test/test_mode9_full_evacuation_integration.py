@@ -46,7 +46,7 @@ def test_mode9_includes_mode8_and_periodic_voice_exactly_once():
     assert text.count('IncludeLaunchDescription(') == 2
 
 
-def test_mode9_forwards_every_mode8_public_argument_with_same_default():
+def test_mode9_forwards_mode8_arguments_with_inspection_profile_overrides():
     mode8 = {
         "use_rviz": "true",
         **assigned_dict(MODE8, "_FORWARD"),
@@ -54,7 +54,19 @@ def test_mode9_forwards_every_mode8_public_argument_with_same_default():
     mode9 = {
         **assigned_dict(MODE9, "_MODE8_ARGUMENTS"),
     }
-    assert mode9 == mode8
+    overrides = {
+        "use_camera_mode4": "true",
+        "yolo_only_during_mode4_observation": "true",
+        "moving_survivor_enabled": "false",
+        "moving_priority_enabled": "false",
+        "stationary_combined_inspection_enabled": "true",
+    }
+    assert {name: mode9[name] for name in overrides} == overrides
+    assert {
+        name: value for name, value in mode9.items() if name not in overrides
+    } == {
+        name: value for name, value in mode8.items() if name not in overrides
+    }
     assert assigned_dict_expressions(MODE9, "_MODE8_PATH_ARGUMENTS") == (
         assigned_dict_expressions(MODE8, "_FORWARD_PATHS")
     )
@@ -88,6 +100,14 @@ def test_mode9_reuses_mode8_rviz_and_thermal_policy_unchanged():
     assert '"event_replanning_enabled": "true"' in mode8
     assert '"exit_switching_enabled": "true"' in mode8
     assert '"waypoint_planning_enabled": "true"' in mode8
+
+
+def test_mode9_enables_only_stationary_combined_camera_inspection():
+    text = source(MODE9)
+    assert '"stationary_combined_inspection_enabled": "true"' in text
+    assert '"moving_priority_enabled": "false"' in text
+    assert '"moving_survivor_enabled": "false"' in text
+    assert '"yolo_only_during_mode4_observation": "true"' in text
 
 
 def test_run_mode9_uses_wrapper_and_forwards_user_arguments():

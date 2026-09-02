@@ -35,3 +35,6 @@ thermal_cost_layer:
     inflation_radius_m: 0.0
     publish_rate_hz: 4.0
     tf_timeout_sec: 0.2
+    # Full Mode 8 can deliver /tf a fraction of a second after a thermal frame.
+    # Use only a nearby latest transform; never accept genuinely stale poses.
+    latest_tf_fallback_tolerance_sec: 1.0
