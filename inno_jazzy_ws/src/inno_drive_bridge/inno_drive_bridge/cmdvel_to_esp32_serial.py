@@ -6,7 +6,10 @@ import rclpy
 import serial
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from sensor_msgs.msg import Imu, Range
 from std_msgs.msg import Float32, Int32, Int64MultiArray, String
+
+from .ultrasonic_protocol import parse_ultrasonic_packet
 
 
 class CmdVelToEsp32Serial(Node):
@@ -55,6 +58,15 @@ class CmdVelToEsp32Serial(Node):
         self.ticks_publisher = self.create_publisher(
             Int64MultiArray, '/wheel_ticks', 10
         )
+        self.physical_ticks_publisher = self.create_publisher(
+            Int64MultiArray, '/wheel_encoder_ticks', 10
+        )
+        self.imu_publisher = self.create_publisher(
+            Imu, '/imu/data_raw', 20
+        )
+        self.imu_calibration_publisher = self.create_publisher(
+            String, '/imu/calibration', 10
+        )
         self.left_motor_publisher = self.create_publisher(
             Int32, '/motor/left_steps_per_sec', 10
         )
@@ -67,6 +79,9 @@ class CmdVelToEsp32Serial(Node):
         )
         self.mq135_filtered_publisher = self.create_publisher(
             Float32, '/mq135/filtered_adc', 10
+        )
+        self.ultrasonic_publisher = self.create_publisher(
+            Range, '/ultrasonic/front/range', 10
         )
         self.create_subscription(Twist, '/cmd_vel', self._cmd_vel_callback, 10)
 
@@ -226,6 +241,51 @@ class CmdVelToEsp32Serial(Node):
             self.ticks_publisher.publish(message)
             return
 
+        if message_type == 'ENC_PHYS' and len(fields) >= 6:
+            try:
+                left_count = int(fields[2])
+                right_count = int(fields[3])
+            except ValueError:
+                self.get_logger().warning(
+                    f'Malformed ENC_PHYS message: {line}'
+                )
+                return
+            self.physical_ticks_publisher.publish(
+                Int64MultiArray(data=[left_count, right_count])
+            )
+            return
+
+        if message_type == 'IMU' and len(fields) == 5:
+            try:
+                angular_z = float(fields[2])
+                system_calibration = int(fields[3])
+                gyro_calibration = int(fields[4])
+            except ValueError:
+                self.get_logger().warning(f'Malformed IMU message: {line}')
+                return
+            if (not math.isfinite(angular_z)
+                    or system_calibration not in range(4)
+                    or gyro_calibration not in range(4)):
+                self.get_logger().warning(f'Malformed IMU message: {line}')
+                return
+            reading = Imu()
+            reading.header.stamp = self.get_clock().now().to_msg()
+            reading.header.frame_id = 'imu_link'
+            reading.orientation_covariance[0] = -1.0
+            reading.angular_velocity.z = angular_z
+            # A BNO055 gyro calibration below 2 is not accepted for blackout.
+            # Mode 11 follows the Imu convention and rejects -1 covariance.
+            if gyro_calibration < 2:
+                reading.angular_velocity_covariance[0] = -1.0
+            # Zero covariance otherwise means unknown covariance, not absent.
+            reading.linear_acceleration_covariance[0] = -1.0
+            self.imu_publisher.publish(reading)
+            self.imu_calibration_publisher.publish(String(
+                data=(f'system={system_calibration},'
+                      f'gyro={gyro_calibration}')
+            ))
+            return
+
         if message_type == 'GAS' and len(fields) == 4:
             # GAS,<millis>,<raw_adc>,<filtered_adc> from the ESP32 MQ-135 read.
             try:
@@ -236,6 +296,23 @@ class CmdVelToEsp32Serial(Node):
                 return
             self.mq135_raw_publisher.publish(Int32(data=raw_adc))
             self.mq135_filtered_publisher.publish(Float32(data=filtered_adc))
+            return
+
+        if message_type == 'US':
+            try:
+                distance_m = parse_ultrasonic_packet(line)
+            except ValueError:
+                self.get_logger().warning(f'Malformed US message: {line}')
+                return
+            reading = Range()
+            reading.header.stamp = self.get_clock().now().to_msg()
+            reading.header.frame_id = 'ultrasonic_front_link'
+            reading.radiation_type = Range.ULTRASOUND
+            reading.field_of_view = math.radians(15.0)
+            reading.min_range = 0.02
+            reading.max_range = 4.0
+            reading.range = distance_m
+            self.ultrasonic_publisher.publish(reading)
             return
 
         if message_type == 'ENC_ABS' and len(fields) >= 8:

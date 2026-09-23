@@ -13,15 +13,17 @@ C4001 mmWave 사람 판별, Camera Module 3 YOLO 요구조자 판별을 하나�
 | 2 | `2` → waypoint 입력 | 모드 1 장치 + LiDAR, AMCL, 지도 | 지정한 `w1,w5,...`를 입력 순서대로 단계주행 |
 | 3 | `3` → `Space` | 모드 2 장치 + C4001 mmWave | 가장 가까운 동적장애물 2.0m 앞에서 사람 여부 판별 |
 | 4 | `4` → `Space` | 모드 2 장치 + Camera Module 3, YOLO | 카메라 바운딩박스와 LiDAR 점을 결합해 요구조자 판별 |
-| 5 | 전용 launch 실행 즉시 | 모드 2·3 장치 + MLX90640 | 출구를 실제 순차 탐색하고 장애물을 2m에서 mmWave 검사한 뒤 안전 경로로 대피 |
+| 5 | `./run_mode5.sh` 후 `5` | 모드 2·3 장치, 카메라 선택 | 출구를 실제 순차 탐색하고 장애물을 mmWave·카메라로 검사한 뒤 안전 경로로 대피 |
 | 6 | 전용 launch 실행 즉시 (`./run_mode6.sh`) | 모드 1 장치 + LiDAR, AMCL, 지도 + MLX90640 | 열화상 카메라 단독 벤치 테스트. 키보드 수동주행 중 RViz에 `/thermal_cost_grid`(열화상 cost)를 표시한다. hazard belief·gas·planner·replanning 없음 |
-| 7 | 전용 launch 실행 즉시 (`./run_mode7.sh`) | 모드 2 장치 + MLX90640 | 열화상 hazard cost만으로 자율주행. 모드 5와 같은 waypoint + A\* + 재계획을 쓰되 gas 레이어(`hazard_co_enabled`)는 끈다. 출구 평가·전환·evacuation manager·mmWave·카메라 없음 |
-| 8 | 전용 launch 실행 즉시 (`./run_mode8.sh`) | 모드 5 장치 전체 + MLX90640 | **모드 5 전체 임무 + 열화상 costmap 통합**. 모드 5(`evacuation_demo.launch.py`)를 `use_thermal_sensor:=true`로 실행하고 열화상용 RViz를 붙인 통합 테스트 프로파일. 임무 상태머신·출구 평가/전환·요구조자 탐색·gas 설정은 모드 5 그대로 |
-| 7 | 전용 launch 실행 즉시 (`./run_mode7.sh`) | 모드 2 장치 + MLX90640 | 열화상 카메라 hazard cost만으로 자율주행. 모드 5와 동일한 waypoint + A\* + Stage 6 재계획을 쓰되 hazard belief의 gas 레이어는 끈다(`hazard_co_enabled:=false`). 출구 평가·전환·evacuation manager·mmWave·카메라 없음. 키보드 수동 개입 가능 |
+| 7 | `./run_mode7.sh` 후 `5` 또는 `/mode7/start` | LiDAR + MLX90640 | 열화상 위험도를 반영해 출구를 선택하고 주행한다. 가스·사람 검사는 끈다 |
+| 8 | `./run_mode8.sh` 후 `5` | 모드 5 장치 + MLX90640 | 모드 5 전체 대피 임무에 열화상 costmap을 추가한다 |
+| 9 | `./run_mode9.sh` 후 `5` | 모드 8 장치 + USB 오디오 | 모드 8에 주기적 대피 음성 안내를 추가한다 |
+| 10 | `./run_mode10.sh` | ESP32 + HC-SR04 + LiDAR | 초음파 거리를 표시하고 50cm 미만 1초 지속 시 LiDAR가 확인한 쪽으로 저속 회전한다. [배선·시험](docs/mode10_hcsr04_wiring_and_test.md) |
+| 11 | `./run_mode11.sh` 또는 `./run_mode11_odom.sh` 후 `P` | LiDAR + BNO055 + 좌우 AS5048A | NORMAL RF2O 주행 중 `P`로 LiDAR 위치추정을 차단하고 Encoder+IMU fallback으로 연속 전환한다. 지도 없이 odom 기준 RViz Path도 확인할 수 있다. [센서 배선](docs/mode11_bno055_as5048a_wiring.md) · [Humble 시험](docs/mode11_humble_blackout.md) |
 
-모든 입력은 통합 launch를 실행한 터미널에서 받는다. 모드를 바꾸면 진행 중인
+모드 1~5의 입력은 통합 launch를 실행한 터미널에서 받는다. 모드를 바꾸면 진행 중인
 자율주행을 먼저 취소하고 속도를 0으로 만든다. 자율주행 중에는 다음 공통 키를
-사용한다.
+사용한다. 모드 10은 별도 실행 프로필이며 정지 서비스와 Ctrl+C로 종료한다.
 
 | 키 | 동작 |
 |---|---|

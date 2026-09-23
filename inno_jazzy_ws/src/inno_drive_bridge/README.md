@@ -96,6 +96,9 @@ ros2 topic echo /motor/left_steps_per_sec
 ros2 topic echo /motor/right_steps_per_sec
 ros2 topic echo /esp32/status
 ros2 topic echo /wheel_ticks
+ros2 topic echo /wheel_encoder_ticks
+ros2 topic echo /imu/data_raw
+ros2 topic echo /imu/calibration
 ros2 topic echo /wheel_odom
 ros2 topic echo /wheel_path
 ```
@@ -128,11 +131,17 @@ ESP32에서 Pi로 받는 형식은 다음과 같다.
 ```text
 ACK,<seq>
 STAT,<millis>,<state>,<left_sps>,<right_sps>
-ENC,<millis>,<left_count>,<right_count>
+ENC,<millis>,<left_virtual_count>,<right_virtual_count>
+ENC_PHYS,<millis>,<left_encoder_count>,<right_encoder_count>,<left_raw>,<right_raw>
+IMU,<millis>,<gyro_z_rad_s>,<system_cal>,<gyro_cal>
 ERR,<message>
 ```
 
-ESP32의 `ENC` count는 전진 시 증가하고 후진 시 감소하는 누적 signed count여야 한다. 실제 encoder가 없으면 발생시킨 signed step count를 같은 형식으로 보낸다. 현재 물리적 방향 보정은 ESP32 펌웨어의 `INVERT_LEFT_DIR=true`에서 처리하므로 ROS의 `left_sign`, `right_sign`은 모두 `1`로 유지한다. 펌웨어와 ROS에서 같은 방향을 중복 반전하지 않는다.
+`ENC`는 발생시킨 모터 STEP 누적값이고 `/wheel_ticks`로 유지된다. 좌우 AS5048A의
+실제 측정값은 `ENC_PHYS`이며 `/wheel_encoder_ticks`로 발행된다. 방향은 Mode 11의
+`left_encoder_sign`, `right_encoder_sign`으로 한 번만 보정한다. BNO055 `IMU`는
+`/imu/data_raw.angular_velocity.z`로 발행되며 gyro 보정 단계가 2 미만이면 Mode 11이
+사용하지 않도록 unavailable covariance를 설정한다.
 
 ## RViz 확인
 

@@ -22,6 +22,7 @@ class KeyboardCmdVelDemo(Node):
         self.declare_parameter('angular_speed', 0.35)
         self.declare_parameter('publish_rate_hz', 10.0)
         self.declare_parameter('cmd_vel_topic', '/cmd_vel_keyboard')
+        self.declare_parameter('mode11_blackout_key', False)
 
         self.linear_speed = float(self.get_parameter('linear_speed').value)
         self.angular_speed = float(self.get_parameter('angular_speed').value)
@@ -61,6 +62,13 @@ class KeyboardCmdVelDemo(Node):
         self.inspection_command_publisher = self.create_publisher(
             String, '/obstacle_inspection_command', 10
         )
+        self.mode11_blackout_key = bool(
+            self.get_parameter('mode11_blackout_key').value
+        )
+        self.blackout_publisher = (
+            self.create_publisher(Empty, '/mode11/blackout_request', 10)
+            if self.mode11_blackout_key else None
+        )
         self.drive_mode = 1
         self.create_subscription(
             Int32, '/drive_mode', self._external_drive_mode, 10
@@ -84,6 +92,8 @@ class KeyboardCmdVelDemo(Node):
             'SPACE=start/next, '
             'c=cancel mission, w/x/a/d/s, q=quit'
         )
+        if self.mode11_blackout_key:
+            self.get_logger().info('[MODE11] P=LiDAR blackout request')
 
     def _write_terminal(self, text):
         try:
@@ -194,6 +204,11 @@ class KeyboardCmdVelDemo(Node):
             self._poll_waypoint_input(key)
             return
         key = key.lower()
+
+        if key == 'p' and self.mode11_blackout_key:
+            self.blackout_publisher.publish(Empty())
+            self.get_logger().info('[MODE11] P pressed')
+            return
 
         command = Twist()
         label = None

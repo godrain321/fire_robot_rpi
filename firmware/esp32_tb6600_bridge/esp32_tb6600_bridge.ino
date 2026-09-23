@@ -1,5 +1,6 @@
 #include <AccelStepper.h>
 #include <SPI.h>
+#include <Wire.h>
 
 /*
   ESP32 -> dual TB6600 bridge (1/8 microstep)
@@ -11,7 +12,9 @@
   Pi -> ESP32: M,<seq>,<left_sps>,<right_sps> | STOP,<seq> | PING,<seq> | ZERO,<seq>
   ESP32 -> Pi: ACK,<seq> | STAT,<ms>,<state>,<left_sps>,<right_sps>
                   | ENC,<ms>,<generated_left_steps>,<generated_right_steps>
-                  | ENC_ABS,<ms>,<angle_deg>,<turns>,<distance_m>
+                  | ENC_PHYS,<ms>,<left_count>,<right_count>,<left_raw>,<right_raw>
+                  | IMU,<ms>,<gyro_z_rad_s>,<system_cal>,<gyro_cal>
+                  | US,<ms>,<distance_cm>,<valid>
 */
 
 #define L_STEP 25
@@ -21,11 +24,20 @@
 #define R_DIR 12
 #define R_EN 13
 
-// AS5048A SPI bus (single encoder)
+// Two AS5048A wheel encoders share SPI and use separate chip-select pins.
 #define ENC_SCK 18
 #define ENC_MOSI 23
 #define ENC_MISO 19
 #define ENC_LEFT_CS 17
+#define ENC_RIGHT_CS 16
+
+// CJMCU-055: ATX=SDA, LRX=SCL, and the board I2C select pin is wired to GND.
+#define IMU_SDA 21
+#define IMU_SCL 22
+
+// HC-SR04: ECHO must pass through a 5 V -> 3.3 V voltage divider.
+#define US_TRIG 32
+#define US_ECHO 33
 
 const bool ENABLE_ACTIVE_LOW = true;
 const bool INVERT_LEFT_DIR = false;
@@ -47,14 +59,27 @@ const int32_t AS5048A_COUNTS_PER_REV = 16384;
 const int32_t AS5048A_HALF_COUNTS = AS5048A_COUNTS_PER_REV / 2;
 const unsigned long ENCODER_SAMPLE_PERIOD_US = 10000;  // 100 Hz
 const uint32_t ENCODER_SPI_HZ = 1000000;               // reliable starting speed
+const unsigned long IMU_SAMPLE_PERIOD_MS = 20;          // 50 Hz
+const unsigned long US_PERIOD_MS = 100;
+const unsigned long US_TIMEOUT_US = 30000;
 
-// User-requested wheel diameter: 10 mm.
-// If the actual wheel is 10 cm, change this value to 100.0F.
-const float WHEEL_DIAMETER_MM = 10.0F;
-const float WHEEL_CIRCUMFERENCE_M = PI * (WHEEL_DIAMETER_MM / 1000.0F);
+// Keep raw wheel directions here. Direction correction is a Mode 11 launch
+// parameter, so changing wheel installation does not require reflashing.
+const int ENCODER_LEFT_SIGN = 1;
+const int ENCODER_RIGHT_SIGN = 1;
 
-// Set to -1 only if the remaining encoder decreases while the robot moves forward.
-const int ENCODER_SIGN = 1;
+// BNO055 page-0 registers and values used by this firmware.
+const uint8_t BNO055_ADDRESS = 0x28;  // ADR/COM3 low; use 0x29 when held high.
+const uint8_t BNO055_CHIP_ID = 0x00;
+const uint8_t BNO055_GYRO_Z_LSB = 0x18;
+const uint8_t BNO055_CALIB_STAT = 0x35;
+const uint8_t BNO055_UNIT_SEL = 0x3B;
+const uint8_t BNO055_OPR_MODE = 0x3D;
+const uint8_t BNO055_PWR_MODE = 0x3E;
+const uint8_t BNO055_SYS_TRIGGER = 0x3F;
+const uint8_t BNO055_ID_VALUE = 0xA0;
+const uint8_t BNO055_MODE_CONFIG = 0x00;
+const uint8_t BNO055_MODE_NDOF = 0x0C;
 
 AccelStepper leftMotor(AccelStepper::DRIVER, L_STEP, L_DIR);
 AccelStepper rightMotor(AccelStepper::DRIVER, R_STEP, R_DIR);
@@ -70,11 +95,74 @@ String driveState = "BOOT";
 
 SPISettings encoderSpiSettings(ENCODER_SPI_HZ, MSBFIRST, SPI_MODE1);
 unsigned long lastEncoderSampleUs = 0;
-bool encoderReady = false;
-uint16_t rawAngle = 0;
-uint16_t previousRaw = 0;
-int64_t cumulativeCounts = 0;
-uint32_t encoderErrors = 0;
+struct WheelEncoderState {
+  uint16_t rawAngle;
+  uint16_t previousRaw;
+  int64_t cumulativeCounts;
+  uint32_t errors;
+  bool ready;
+};
+
+WheelEncoderState leftEncoder = {0, 0, 0, 0, false};
+WheelEncoderState rightEncoder = {0, 0, 0, 0, false};
+bool imuReady = false;
+float gyroZRadPerSec = 0.0F;
+uint8_t imuSystemCalibration = 0;
+uint8_t imuGyroCalibration = 0;
+uint32_t imuErrors = 0;
+unsigned long lastImuSampleMs = 0;
+volatile unsigned long echoRiseUs = 0;
+volatile unsigned long echoPulseUs = 0;
+volatile bool echoComplete = false;
+bool ultrasonicWaiting = false;
+unsigned long lastUltrasonicTriggerMs = 0;
+unsigned long ultrasonicTriggerUs = 0;
+
+void IRAM_ATTR onUltrasonicEcho() {
+  if (digitalRead(US_ECHO) == HIGH) {
+    echoRiseUs = micros();
+  } else if (echoRiseUs != 0) {
+    echoPulseUs = micros() - echoRiseUs;
+    echoComplete = true;
+    echoRiseUs = 0;
+  }
+}
+
+void updateUltrasonic() {
+  const unsigned long nowMs = millis();
+  if (ultrasonicWaiting) {
+    unsigned long pulseUs = 0;
+    bool complete = false;
+    noInterrupts();
+    if (echoComplete) {
+      pulseUs = echoPulseUs;
+      echoComplete = false;
+      complete = true;
+    }
+    interrupts();
+    if (complete || micros() - ultrasonicTriggerUs >= US_TIMEOUT_US) {
+      const float distanceCm = pulseUs / 58.0F;
+      const bool valid = complete && distanceCm >= 2.0F && distanceCm <= 400.0F;
+      Serial.printf("US,%lu,%.2f,%d\n", nowMs, valid ? distanceCm : 0.0F,
+                    valid ? 1 : 0);
+      ultrasonicWaiting = false;
+    }
+  }
+  if (!ultrasonicWaiting && nowMs - lastUltrasonicTriggerMs >= US_PERIOD_MS) {
+    lastUltrasonicTriggerMs = nowMs;
+    noInterrupts();
+    echoRiseUs = 0;
+    echoComplete = false;
+    interrupts();
+    digitalWrite(US_TRIG, LOW);
+    delayMicroseconds(2);
+    digitalWrite(US_TRIG, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(US_TRIG, LOW);
+    ultrasonicTriggerUs = micros();
+    ultrasonicWaiting = true;
+  }
+}
 
 void setEnable(bool enabled) {
   const int active = ENABLE_ACTIVE_LOW ? LOW : HIGH;
@@ -207,33 +295,100 @@ int32_t unwrapDelta(uint16_t currentRaw, uint16_t previousRaw) {
   return delta;
 }
 
+bool writeBno055(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(BNO055_ADDRESS);
+  Wire.write(reg);
+  Wire.write(value);
+  return Wire.endTransmission() == 0;
+}
+
+bool readBno055(uint8_t reg, uint8_t *data, size_t length) {
+  Wire.beginTransmission(BNO055_ADDRESS);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom(BNO055_ADDRESS, static_cast<uint8_t>(length)) != length) return false;
+  for (size_t i = 0; i < length; ++i) data[i] = Wire.read();
+  return true;
+}
+
+bool initializeBno055() {
+  Wire.begin(IMU_SDA, IMU_SCL, 400000U);
+  delay(700);  // BNO055 power-on time.
+  uint8_t chipId = 0;
+  if (!readBno055(BNO055_CHIP_ID, &chipId, 1) || chipId != BNO055_ID_VALUE) {
+    return false;
+  }
+  if (!writeBno055(BNO055_OPR_MODE, BNO055_MODE_CONFIG)) return false;
+  delay(25);
+  if (!writeBno055(BNO055_SYS_TRIGGER, 0x00)) return false;
+  if (!writeBno055(BNO055_PWR_MODE, 0x00)) return false;
+  if (!writeBno055(BNO055_UNIT_SEL, 0x00)) return false;  // deg/s gyro units.
+  delay(10);
+  if (!writeBno055(BNO055_OPR_MODE, BNO055_MODE_NDOF)) return false;
+  delay(25);
+  return true;
+}
+
+void updateImu() {
+  const unsigned long nowMs = millis();
+  if (nowMs - lastImuSampleMs < IMU_SAMPLE_PERIOD_MS) return;
+  lastImuSampleMs = nowMs;
+  if (!imuReady) {
+    ++imuErrors;
+    return;
+  }
+  uint8_t data[2] = {0, 0};
+  uint8_t calibration = 0;
+  if (!readBno055(BNO055_GYRO_Z_LSB, data, 2) ||
+      !readBno055(BNO055_CALIB_STAT, &calibration, 1)) {
+    ++imuErrors;
+    return;
+  }
+  const int16_t rawGyroZ = static_cast<int16_t>(
+      static_cast<uint16_t>(data[0]) |
+      (static_cast<uint16_t>(data[1]) << 8));
+  const float gyroZDps = static_cast<float>(rawGyroZ) / 16.0F;
+  gyroZRadPerSec = gyroZDps * PI / 180.0F;
+  imuSystemCalibration = (calibration >> 6) & 0x03;
+  imuGyroCalibration = (calibration >> 4) & 0x03;
+  Serial.printf("IMU,%lu,%.7f,%u,%u\n", nowMs, gyroZRadPerSec,
+                imuSystemCalibration, imuGyroCalibration);
+}
+
+void updateWheelEncoder(uint8_t chipSelectPin, int directionSign,
+                        WheelEncoderState &state) {
+  uint16_t currentRaw = 0;
+  if (!readAs5048aAngle(chipSelectPin, currentRaw)) {
+    ++state.errors;
+    return;
+  }
+  state.rawAngle = currentRaw;
+  if (!state.ready) {
+    state.previousRaw = currentRaw;
+    state.ready = true;
+    return;
+  }
+  const int32_t delta = unwrapDelta(currentRaw, state.previousRaw);
+  state.cumulativeCounts += static_cast<int64_t>(delta) * directionSign;
+  state.previousRaw = currentRaw;
+}
+
 void updateEncoders() {
   const unsigned long nowUs = micros();
   if (nowUs - lastEncoderSampleUs < ENCODER_SAMPLE_PERIOD_US) return;
   lastEncoderSampleUs = nowUs;
 
-  uint16_t currentRaw = 0;
-  if (readAs5048aAngle(ENC_LEFT_CS, currentRaw)) {
-    rawAngle = currentRaw;
-
-    if (!encoderReady) {
-      previousRaw = currentRaw;
-      encoderReady = true;
-    } else {
-      const int32_t delta = unwrapDelta(currentRaw, previousRaw);
-      cumulativeCounts += static_cast<int64_t>(delta) * ENCODER_SIGN;
-      previousRaw = currentRaw;
-    }
-  } else {
-    ++encoderErrors;
-  }
+  updateWheelEncoder(ENC_LEFT_CS, ENCODER_LEFT_SIGN, leftEncoder);
+  updateWheelEncoder(ENC_RIGHT_CS, ENCODER_RIGHT_SIGN, rightEncoder);
 }
 
 void zeroEncoderDistance() {
   // ZERO 명령은 누적 이동거리만 0으로 초기화한다.
   // 절대 각도(rawAngle)는 초기화하지 않는다.
-  cumulativeCounts = 0;
-  if (encoderReady) previousRaw = rawAngle;
+  leftEncoder.cumulativeCounts = 0;
+  rightEncoder.cumulativeCounts = 0;
+  if (leftEncoder.ready) leftEncoder.previousRaw = leftEncoder.rawAngle;
+  if (rightEncoder.ready) rightEncoder.previousRaw = rightEncoder.rawAngle;
 }
 
 void sendTelemetry() {
@@ -252,29 +407,19 @@ void sendTelemetry() {
       INVERT_RIGHT_DIR ? -rightMotor.currentPosition() : rightMotor.currentPosition();
   Serial.printf("ENC,%lu,%ld,%ld\n", millis(), left, right);
 
-  if (encoderReady) {
-    // AS5048A 절대 각도는 launch 시 초기화하지 않고 그대로 출력한다.
-    const float angleDeg =
-        rawAngle * (360.0F / AS5048A_COUNTS_PER_REV);
-
-    const double turns =
-        static_cast<double>(cumulativeCounts) / AS5048A_COUNTS_PER_REV;
-
-    const double distanceM =
-        turns * WHEEL_CIRCUMFERENCE_M;
-
-    Serial.printf(
-      "ENC_ABS,%lu,%.2f,%.6f,%.6f\n",
-      millis(),
-      angleDeg,
-      turns,
-      distanceM
-    );
+  if (leftEncoder.ready && rightEncoder.ready) {
+    Serial.printf("ENC_PHYS,%lu,%lld,%lld,%u,%u\n", millis(),
+                  static_cast<long long>(leftEncoder.cumulativeCounts),
+                  static_cast<long long>(rightEncoder.cumulativeCounts),
+                  leftEncoder.rawAngle, rightEncoder.rawAngle);
   } else {
-    Serial.printf(
-      "ERR,ENCODER_NOT_READY,%lu\n",
-      static_cast<unsigned long>(encoderErrors)
-    );
+    Serial.printf("ERR,ENCODER_NOT_READY,%lu,%lu\n",
+                  static_cast<unsigned long>(leftEncoder.errors),
+                  static_cast<unsigned long>(rightEncoder.errors));
+  }
+  if (!imuReady) {
+    Serial.printf("ERR,IMU_NOT_READY,%lu\n",
+                  static_cast<unsigned long>(imuErrors));
   }
 }
 
@@ -323,14 +468,23 @@ void setup() {
   leftMotor.setMinPulseWidth(5); rightMotor.setMinPulseWidth(5);
 
   pinMode(ENC_LEFT_CS, OUTPUT);
+  pinMode(ENC_RIGHT_CS, OUTPUT);
   digitalWrite(ENC_LEFT_CS, HIGH);
+  digitalWrite(ENC_RIGHT_CS, HIGH);
   SPI.begin(ENC_SCK, ENC_MISO, ENC_MOSI, -1);
+  pinMode(US_TRIG, OUTPUT);
+  digitalWrite(US_TRIG, LOW);
+  pinMode(US_ECHO, INPUT);
+  attachInterrupt(digitalPinToInterrupt(US_ECHO), onUltrasonicEcho, CHANGE);
+  imuReady = initializeBno055();
   delay(20);
 
   emergencyStop();
   lastCommandMs = lastTelemetryMs = millis();
   lastRampUs = micros();
   lastEncoderSampleUs = micros() - ENCODER_SAMPLE_PERIOD_US;
+  lastUltrasonicTriggerMs = millis() - US_PERIOD_MS;
+  lastImuSampleMs = millis() - IMU_SAMPLE_PERIOD_MS;
 
   // Prime the encoder before the first telemetry packet.
   for (int i = 0; i < 3; ++i) {
@@ -353,6 +507,8 @@ void loop() {
   leftMotor.runSpeed();
   rightMotor.runSpeed();
   updateEncoders();
+  updateImu();
+  updateUltrasonic();
   if (millis() - lastTelemetryMs >= TELEMETRY_PERIOD_MS) {
     lastTelemetryMs = millis();
     sendTelemetry();

@@ -1,6 +1,6 @@
 # ESP32 TB6600 bridge firmware
 
-대상 보드는 ESP32 DevKit V4의 ESP32-WROOM-32E 모듈이다. 실제 wheel encoder 없이 TB6600에 발생한 STEP pulse 수를 임시 encoder count로 사용한다.
+대상 보드는 ESP32 DevKit V4의 ESP32-WROOM-32E 모듈이다. 기존 가상 STEP count와 함께 좌우 AS5048A 실제 회전 count 및 BNO055 gyro z를 USB serial로 전송한다.
 
 ## 핀 배치
 
@@ -12,6 +12,18 @@
 | Right STEP/PUL | 14 |
 | Right DIR | 12 |
 | Right ENA | 13 |
+| HC-SR04 TRIG | 32 |
+| HC-SR04 ECHO (1kΩ/2kΩ 전압 분배 후) | 33 |
+| AS5048A 공용 CLK / MISO / MOSI | 18 / 19 / 23 |
+| AS5048A LEFT nCS / RIGHT nCS | 17 / 16 |
+| AS5048A VDD5V | ESP32 5V/VIN |
+| BNO055 ATX(SDA) / LRX(SCL) | 21 / 22 |
+| BNO055 VCC / I2C 선택 핀 | ESP32 3V3 / GND |
+
+첨부된 AS5048A 보드의 SPI 헤더는 `GND, nCS, CLK, MOSI, MISO, VDD5V, GND, GND`이고,
+CJMCU-055 BNO055는 `ATX=SDA`, `LRX=SCL`로 사용하며 `I2C` 핀을 GND에 연결한다.
+HC-SR04는 5V로 공급하고 ECHO의 5V 신호는 ESP32 GPIO33에 직접 넣지 않는다.
+모드 10 배선과 시험 순서는 [문서](../../docs/mode10_hcsr04_wiring_and_test.md)를 따른다. Mode 11 센서 배선과 시험은 [문서](../../docs/mode11_bno055_as5048a_wiring.md)를 따른다.
 
 GPIO12는 ESP32 strapping pin이다. TB6600 연결 상태 때문에 업로드 또는 부팅이 불안정하면 Right DIR 배선을 GPIO32 또는 GPIO33으로 옮기고 펌웨어의 `R_DIR`도 변경한다.
 
@@ -75,15 +87,20 @@ ZERO,6
 `MAX_STEP_ACCEL`이 급격한 STEP 주파수 변화를 ramp 처리한다. 너무 둔하면 값을 조금
 올리고, 꺾을 때 충격이 남으면 내린다.
 
-## 엔코더에 관한 중요한 구분
+## 엔코더와 IMU 텔레메트리
 
-`ENC`는 ESP32가 **발생시킨 step 수**다. 실제 AS5048A 측정값이 아니므로 탈조와
-미끄러짐을 알 수 없다. 불안정하게 설치된 엔코더가 주행을 조기에 끝내는 문제를 막기
-위해 오늘의 waypoint 주행은 이 값을 완료 조건으로 사용하지 않고 LiDAR TF를 쓴다.
-AS5048A를 기계적으로 고정한 뒤에는 별도 검증을 거쳐 센서 odometry 입력을 추가한다.
+`ENC`는 ESP32가 **발생시킨 step 수**라 탈조와 미끄러짐을 알 수 없다. Mode 11은 이를
+사용하지 않고 좌우 AS5048A에서 읽은 `ENC_PHYS`를 `/wheel_encoder_ticks`로 발행한다.
+BNO055의 gyro z는 `IMU` 패킷으로 보내 `/imu/data_raw`가 된다. 두 AS5048A 중 하나라도
+준비되지 않거나 BNO055 gyro 보정 단계가 2 미만이면 Mode 11 BLACKOUT 전환은 거부된다.
 
-## 모드의 위치
+## 키보드 주행과 모드의 위치
 
-펌웨어 안에 고정 거리 waypoint나 `1/2` 모드는 없다. `1`(키보드)과 `2`(자율)는 ROS의
-`cmd_vel_mode_mux`가 안전하게 선택한다. ESP32가 ROS 위치 추정과 별도의 waypoint를
-실행하면 두 제어기가 충돌하므로 모터 출력만 담당하게 한 것이다.
+키보드는 Raspberry Pi의 `keyboard_cmdvel_demo`가 읽는다. `w/x/a/d/s` 입력은
+`/cmd_vel_keyboard` → `cmd_vel_mode_mux` → `/cmd_vel` → `cmdvel_to_esp32_serial` 순서로
+전달되고, serial bridge가 `M,<seq>,<left_sps>,<right_sps>`를 보낸다. 이 펌웨어는 `M`
+명령을 받아 TB6600용 좌우 STEP/DIR 펄스를 실제로 출력하므로 Mode 11에서도 키보드
+주행이 포함된다. 명령이 500ms 동안 갱신되지 않으면 펌웨어가 모터를 정지한다.
+
+펌웨어 안에 고정 거리 waypoint나 `1/2/11` 모드는 없다. 모드 선택과 `P` BLACKOUT은
+ROS가 처리하고 ESP32는 센서 수집과 안전한 모터 출력만 담당한다.

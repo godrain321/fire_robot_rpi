@@ -1,10 +1,13 @@
 import sys
 import unittest
+from unittest.mock import Mock
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'inno_drive_bridge'))
+from builtin_interfaces.msg import Time
 
-from cmdvel_to_esp32_serial import CmdVelToEsp32Serial  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from inno_drive_bridge.cmdvel_to_esp32_serial import CmdVelToEsp32Serial  # noqa: E402
 
 
 class DummyLogger:
@@ -13,6 +16,9 @@ class DummyLogger:
 
     def warning(self, message):
         self.warnings.append(message)
+
+    def debug(self, _message):
+        pass
 
 
 class DummyPublisher:
@@ -80,6 +86,56 @@ class CmdVelToEsp32SerialParserTest(unittest.TestCase):
 
         self.assertEqual(node.mq135_raw_publisher.messages, [])
         self.assertEqual(node.mq135_filtered_publisher.messages, [])
+
+
+    def _sensor_node(self):
+        node = CmdVelToEsp32Serial.__new__(CmdVelToEsp32Serial)
+        node.logger = DummyLogger()
+        node.physical_ticks_publisher = DummyPublisher()
+        node.imu_publisher = DummyPublisher()
+        node.imu_calibration_publisher = DummyPublisher()
+        node.get_logger = lambda: node.logger
+        stamp = Mock()
+        stamp.to_msg.return_value = Time(sec=123, nanosec=456)
+        clock = Mock()
+        clock.now.return_value = stamp
+        node.get_clock = lambda: clock
+        return node
+
+    def test_physical_encoder_packet_publishes_two_wheel_counts(self):
+        node = self._sensor_node()
+
+        node._parse_line('ENC_PHYS,12345,100,-200,321,654')
+
+        self.assertEqual(
+            list(node.physical_ticks_publisher.messages[-1].data),
+            [100, -200],
+        )
+
+    def test_bno055_packet_publishes_gyro_z_and_calibration(self):
+        node = self._sensor_node()
+
+        node._parse_line('IMU,12345,0.125,2,3')
+
+        imu = node.imu_publisher.messages[-1]
+        self.assertAlmostEqual(imu.angular_velocity.z, 0.125)
+        self.assertEqual(imu.header.frame_id, 'imu_link')
+        self.assertEqual(imu.orientation_covariance[0], -1.0)
+        self.assertEqual(
+            node.imu_calibration_publisher.messages[-1].data,
+            'system=2,gyro=3',
+        )
+
+    def test_uncalibrated_bno055_marks_angular_velocity_unavailable(self):
+        node = self._sensor_node()
+
+        node._parse_line('IMU,12345,0.125,0,1')
+
+        self.assertEqual(
+            node.imu_publisher.messages[-1].angular_velocity_covariance[0],
+            -1.0,
+        )
+
 
 
 if __name__ == '__main__':
