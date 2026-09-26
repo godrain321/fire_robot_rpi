@@ -357,13 +357,13 @@ class EvacuationDemoOrchestrator(Node):
             self._set_status("DISABLED")
         elif self._requested:
             self._set_status("SEARCH_EXITS:STARTING")
-            self._log("모드 5 자동 시작: 등록된 출구의 실제 탐색을 시작합니다.")
+            self._log("통합 Mode 2 자동 시작: 등록된 출구의 실제 탐색을 시작합니다.")
             self._publish_blocked_exits()
             self._publish_follow_hold(False)
             self._select_drive_mode(5)
         else:
-            self._set_status("STOPPED:PRESS_5")
-            self._log("[대기] 키보드에서 숫자 5를 누르면 자동 대피를 시작합니다.")
+            self._set_status("STOPPED:PRESS_2")
+            self._log("[대기] 키보드에서 숫자 2를 누르면 통합 화재대피를 시작합니다.")
 
     def _remember(self, attribute: str, value: str) -> None:
         setattr(self, attribute, str(value))
@@ -371,7 +371,7 @@ class EvacuationDemoOrchestrator(Node):
     def _log(self, text: str) -> None:
         message = str(text)
         self.log_publisher.publish(String(data=message))
-        self.get_logger().info(f"[모드 5] {message}")
+        self.get_logger().info(f"[통합 Mode 2] {message}")
 
     def _set_status(self, value: str) -> None:
         value = str(value)
@@ -379,7 +379,7 @@ class EvacuationDemoOrchestrator(Node):
             return
         self._status_value = value
         self.status_publisher.publish(String(data=value))
-        self.get_logger().info(f"MODE 5 state: {value}")
+        self.get_logger().info(f"통합 Mode 2 내부 상태: {value}")
 
     def _publish_follow_hold(self, hold: bool) -> None:
         hold = bool(hold)
@@ -404,10 +404,10 @@ class EvacuationDemoOrchestrator(Node):
             return
         if mode == 5 and not self._requested:
             started, reason = self._request_start(
-                "숫자 5 입력: 등록된 출구의 실제 탐색을 시작합니다."
+                "숫자 2 입력: 등록된 출구의 실제 탐색을 시작합니다."
             )
             if not started:
-                self._log(f"모드 5를 시작할 수 없습니다: {reason}")
+                self._log(f"통합 Mode 2를 시작할 수 없습니다: {reason}")
             return
         if self._requested and mode != self._expected_drive_mode:
             self._requested = False
@@ -416,7 +416,7 @@ class EvacuationDemoOrchestrator(Node):
             self.cancel_publisher.publish(Empty())
             self._publish_follow_hold(False)
             self._set_status("STOPPED:MODE_CHANGED")
-            self._log(f"사용자가 주행 모드를 {mode}번으로 변경하여 모드 5를 정지합니다.")
+            self._log(f"사용자가 주행 모드를 {mode}번으로 변경하여 통합 Mode 2를 정지합니다.")
 
     def _reset_exploration(self) -> None:
         self.checked_exit_ids.clear()
@@ -475,7 +475,7 @@ class EvacuationDemoOrchestrator(Node):
 
     def _start_service(self, _request, response):
         response.success, response.message = self._request_start(
-            "모드 5 시작 명령 수신: 출구 탐색을 처음부터 시작합니다."
+            "통합 Mode 2 시작 명령 수신: 출구 탐색을 처음부터 시작합니다."
         )
         return response
 
@@ -489,7 +489,7 @@ class EvacuationDemoOrchestrator(Node):
         self._expected_drive_mode = 1
         self.mode_publisher.publish(Int32(data=1))
         self._set_status("STOPPED:STOP_SERVICE")
-        self._log("모드 5 정지 명령 수신: 로봇을 정지하고 모드 1로 복귀합니다.")
+        self._log("통합 Mode 2 정지 명령 수신: 로봇을 정지하고 Mode 1로 복귀합니다.")
         response.success = True
         response.message = "MODE_5_STOPPED"
         return response

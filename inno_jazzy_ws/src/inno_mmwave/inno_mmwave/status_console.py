@@ -12,16 +12,14 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import Image, LaserScan, PointCloud2
-from std_msgs.msg import Bool, Float32, Int64MultiArray, String
+from std_msgs.msg import Bool, Float32, Int32, Int64MultiArray, String
 from tf2_ros import Buffer, TransformListener
 
 
 MODE_TITLES = {
-    1: '수동주행',
-    2: '웨이포인트 주행',
-    3: 'mmWave 사람 판별',
-    4: '카메라 요구조자 판별',
-    5: '자동 화재 대피',
+    1: '키보드 수동주행',
+    2: '통합 화재대피 주행',
+    3: '안내 음성 + 제자리 1회전',
 }
 FILTERED_PRESENCE_TOPIC = '/mmwave/human_presence'
 FILTERED_DISTANCE_TOPIC = '/mmwave/calibrated_distance_m'
@@ -223,6 +221,7 @@ class StatusConsole(Node):
         }
         self._ready_printed = False
         self._mode: Optional[int] = None
+        self._operator_mode_received = False
         self._waypoint_state: Optional[str] = None
         self._follower_state: Optional[str] = None
         self._sensor_state: Optional[str] = None
@@ -240,6 +239,9 @@ class StatusConsole(Node):
         transient.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.create_subscription(
             String, '/drive_mode_status', self._on_drive_mode, 10
+        )
+        self.create_subscription(
+            Int32, '/operator_mode', self._on_operator_mode, transient
         )
         self.create_subscription(
             Twist, '/cmd_vel_keyboard', self._on_manual_command, 10
@@ -327,36 +329,39 @@ class StatusConsole(Node):
         self._write(title)
         if mode == 1:
             self._write('[조작] W=전진 X=후진 A=좌회전 D=우회전 S=정지')
-            self._write(
-                '[모드 선택] 2=웨이포인트 3=mmWave 4=카메라 '
-                '5=자동 대피'
-            )
+            self._write('[모드 선택] 2=통합 화재대피 3=안내 음성+제자리 1회전')
         elif mode == 2:
             self._write(
-                '[입력] 이동할 웨이포인트를 쉼표로 구분해 입력하세요.'
+                '[자동] 출구 선택·열/가스 위험 회피·mmWave/카메라 판별·'
+                '초음파 회피·음성 안내를 통합 실행합니다.'
             )
+            self._write('[위치추정] P=RF2O blackout 후 Encoder+IMU 전환')
         elif mode == 3:
             self._write(
-                '[검사] 선택한 장애물의 최신 LiDAR 위치가 로봇에서 '
-                '2.5m 이내일 때 mmWave로 판별합니다.'
-            )
-        elif mode == 4:
-            distance = '2.0m' if self.mode5_enabled else '1.5m'
-            self._write(
-                f'[검사] 실제 정지거리 {distance}에서 '
-                '카메라와 LiDAR로 판별합니다.'
-            )
-        elif mode == 5:
-            self._write(
-                '[자동] 출구 선택·장애물 접근·생체 판별·출구 변경 상태를 '
-                '실시간으로 표시합니다.'
+                '[시연] 안내 음성과 1.0 rad/s 제자리 1회전을 동시에 시작합니다.'
             )
 
+    def _on_operator_mode(self, message: Int32) -> None:
+        mode = int(message.data)
+        if mode not in MODE_TITLES:
+            return
+        self._operator_mode_received = True
+        if mode == self._mode:
+            return
+        self._mode = mode
+        self._manual_command = None
+        self._print_mode(mode)
+
     def _on_drive_mode(self, message: String) -> None:
+        # /drive_mode changes internally between 5/3/4 during integrated Mode 2.
+        # Once /operator_mode is available it is the only user-facing mode.
+        if self._operator_mode_received:
+            return
         try:
-            mode = int(message.data.strip().split(':', 1)[0])
+            internal = int(message.data.strip().split(':', 1)[0])
         except (TypeError, ValueError):
             return
+        mode = 2 if internal in (2, 4, 5) else internal
         if mode not in MODE_TITLES or mode == self._mode:
             return
         self._mode = mode
@@ -413,7 +418,7 @@ class StatusConsole(Node):
         if self._mode != 2 or detected == previous:
             return
         if detected:
-            self._write('[동적장애물] 감지 — 모드 2에서는 회피하지 않고 계속 주행')
+            self._write('[동적장애물] 감지 — 안전 경로 재평가 및 회피 준비')
         elif previous:
             self._write('[동적장애물] 해제')
 
@@ -422,7 +427,7 @@ class StatusConsole(Node):
         if not state or state == self._mode3_state:
             return
         self._mode3_state = state
-        if self._mode == 3:
+        if self._mode == 2:
             text = mode3_log_text(state)
             if text:
                 self._write(text)
@@ -432,7 +437,7 @@ class StatusConsole(Node):
         if not state or state == self._mode4_state:
             return
         self._mode4_state = state
-        if self._mode == 4:
+        if self._mode == 2:
             text = mode4_log_text(state)
             if text:
                 self._write(text)
@@ -442,7 +447,7 @@ class StatusConsole(Node):
         if not text or text == self._mode5_log:
             return
         self._mode5_log = text
-        self._write(f'[모드 5] {text}')
+        self._write(f'[통합 Mode 2] {text}')
 
     def _on_sensor_state(self, message: String) -> None:
         state = message.data.strip().upper()
@@ -464,10 +469,10 @@ class StatusConsole(Node):
         present = bool(message.data)
         previous = self._presence
         self._presence = present
-        if self._mode not in (3, 5) or present == previous:
+        if self._mode != 2 or present == previous:
             return
         if (
-            self._mode == 3
+            self._mode == 2
             and str(self._mode3_state).upper() != 'MODE3_MMWAVE_OBSERVING'
         ):
             return

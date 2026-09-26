@@ -21,8 +21,11 @@ from inno_mmwave.status_console import (  # noqa: E402
 def test_console_uses_filtered_target_topics() -> None:
     assert FILTERED_PRESENCE_TOPIC == '/mmwave/human_presence'
     assert FILTERED_DISTANCE_TOPIC == '/mmwave/calibrated_distance_m'
-    assert MODE_TITLES[3] == 'mmWave 사람 판별'
-    assert MODE_TITLES[4] == '카메라 요구조자 판별'
+    assert MODE_TITLES == {
+        1: '키보드 수동주행',
+        2: '통합 화재대피 주행',
+        3: '안내 음성 + 제자리 1회전',
+    }
 
 
 def test_detection_distance_is_reported_to_one_decimal_metre() -> None:

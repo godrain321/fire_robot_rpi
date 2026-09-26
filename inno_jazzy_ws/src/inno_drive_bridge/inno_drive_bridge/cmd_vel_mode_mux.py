@@ -15,6 +15,7 @@ class CmdVelModeMux(Node):
         super().__init__('cmd_vel_mode_mux')
         self.declare_parameter('input_timeout_sec', 0.35)
         self.declare_parameter('publish_rate_hz', 20.0)
+        self.declare_parameter('output_topic', '/cmd_vel')
         self.timeout = float(self.get_parameter('input_timeout_sec').value)
         rate = float(self.get_parameter('publish_rate_hz').value)
         if self.timeout <= 0.0 or rate <= 0.0:
@@ -22,7 +23,10 @@ class CmdVelModeMux(Node):
         self.mode = 1
         self.commands = {1: Twist(), 2: Twist()}
         self.received = {1: 0.0, 2: 0.0}
-        self.output = self.create_publisher(Twist, '/cmd_vel', 10)
+        output_topic = str(self.get_parameter('output_topic').value).strip()
+        if not output_topic:
+            raise ValueError('output_topic must not be empty')
+        self.output = self.create_publisher(Twist, output_topic, 10)
         self.status = self.create_publisher(String, '/drive_mode_status', 10)
         self.create_subscription(
             Twist,

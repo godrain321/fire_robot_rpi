@@ -1,4 +1,4 @@
-"""Saved PGM/YAML localization using LiDAR RF2O odometry and AMCL."""
+"""Saved-map localization with configurable RF2O/AMCL TF ownership."""
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -18,6 +18,11 @@ def generate_launch_description():
         DeclareLaunchArgument('start_lidar', default_value='true'),
         DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB1'),
         DeclareLaunchArgument('serial_baudrate', default_value='460800'),
+        DeclareLaunchArgument('localization_scan_topic', default_value='/scan'),
+        DeclareLaunchArgument('rf2o_publish_tf', default_value='true'),
+        DeclareLaunchArgument('amcl_tf_broadcast', default_value='false'),
+        DeclareLaunchArgument('use_amcl_tf_bridge', default_value='true'),
+        DeclareLaunchArgument('use_localization_path', default_value='true'),
         DeclareLaunchArgument(
             'map_yaml',
             default_value=project_path('maps', 'inno_map_raw.yaml'),
@@ -42,7 +47,13 @@ def generate_launch_description():
     rf2o = Node(
         package='rf2o_laser_odometry', executable='rf2o_laser_odometry_node',
         name='rf2o_laser_odometry', output='screen',
-        parameters=[share + '/config/rf2o.yaml'],
+        parameters=[share + '/config/rf2o.yaml', {
+            'laser_scan_topic': L('localization_scan_topic'),
+            'odom_topic': '/odom_rf2o',
+            'publish_tf': ParameterValue(L('rf2o_publish_tf'), value_type=bool),
+            'base_frame_id': 'base_link',
+            'odom_frame_id': 'odom',
+        }],
         arguments=['--ros-args', '--log-level', 'warn'],
         condition=IfCondition(L('start_lidar')),
     )
@@ -55,6 +66,10 @@ def generate_launch_description():
         parameters=[
             L('amcl_params'),
             {
+                'scan_topic': L('localization_scan_topic'),
+                'tf_broadcast': ParameterValue(
+                    L('amcl_tf_broadcast'), value_type=bool
+                ),
                 'set_initial_pose': ParameterValue(
                     L('set_initial_pose'), value_type=bool
                 ),
@@ -69,17 +84,22 @@ def generate_launch_description():
                 ),
             },
         ],
+        remappings=[('scan', L('localization_scan_topic'))],
     )
     lifecycle = Node(
         package='inno_robot_bringup', executable='lifecycle_autostart',
         name='lifecycle_autostart_localization', output='screen',
         parameters=[{'node_names': ['map_server', 'amcl']}],
     )
-    trail = Node(package='inno_robot_bringup', executable='tf_to_path',
-                 name='lidar_path', output='screen')
+    trail = Node(
+        package='inno_robot_bringup', executable='tf_to_path',
+        name='lidar_path', output='screen',
+        condition=IfCondition(L('use_localization_path')),
+    )
     tf_bridge = Node(
         package='inno_robot_bringup', executable='amcl_pose_tf_bridge',
         name='amcl_pose_tf_bridge', output='screen',
+        condition=IfCondition(L('use_amcl_tf_bridge')),
     )
     return LaunchDescription(
         args + [lidar, rf2o, map_server, amcl, lifecycle, tf_bridge, trail]

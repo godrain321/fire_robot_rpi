@@ -1,3 +1,5 @@
+"""Three-mode operator keyboard for manual, integrated, and greeting runs."""
+
 import select
 import sys
 import termios
@@ -7,12 +9,24 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
-from std_msgs.msg import Empty, Int32, String
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from std_msgs.msg import Empty, Int32
 
-from .named_waypoint_input import (
-    command_source_for_drive_mode,
-    parse_named_waypoints,
-)
+from .named_waypoint_input import command_source_for_drive_mode
+
+
+# Mode 2 reuses the field-tested evacuation state machine's internal drive
+# source (5). /operator_mode remains the public 1/2/3 interface shown to users.
+OPERATOR_TO_INTERNAL_DRIVE_MODE = {1: 1, 2: 5, 3: 3}
+
+
+def mode_selection_for_key(key):
+    """Return ``(operator_mode, internal_drive_mode)`` for keys 1..3."""
+    try:
+        operator_mode = int(str(key))
+        return operator_mode, OPERATOR_TO_INTERNAL_DRIVE_MODE[operator_mode]
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError('operator mode key must be 1, 2, or 3') from error
 
 
 class KeyboardCmdVelDemo(Node):
@@ -23,12 +37,16 @@ class KeyboardCmdVelDemo(Node):
         self.declare_parameter('publish_rate_hz', 10.0)
         self.declare_parameter('cmd_vel_topic', '/cmd_vel_keyboard')
         self.declare_parameter('mode11_blackout_key', False)
+        # 0 permits P in dedicated Mode 11 profiles; the integrated
+        # profile sets 2 so accidental P presses in Modes 1/3 are ignored.
+        self.declare_parameter('blackout_operator_mode', 0)
 
         self.linear_speed = float(self.get_parameter('linear_speed').value)
         self.angular_speed = float(self.get_parameter('angular_speed').value)
         publish_rate = float(self.get_parameter('publish_rate_hz').value)
         if publish_rate <= 0.0:
             raise ValueError('publish_rate_hz must be greater than zero')
+
         self._owns_input_stream = False
         self._owns_terminal_output = False
         if sys.stdin.isatty():
@@ -53,122 +71,62 @@ class KeyboardCmdVelDemo(Node):
             Twist, str(self.get_parameter('cmd_vel_topic').value), 10
         )
         self.mode_publisher = self.create_publisher(Int32, '/drive_mode', 10)
+        operator_qos = QoSProfile(depth=1)
+        operator_qos.reliability = ReliabilityPolicy.RELIABLE
+        operator_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        self.operator_mode_publisher = self.create_publisher(
+            Int32, '/operator_mode', operator_qos
+        )
         self.autonomy_cancel_publisher = self.create_publisher(
             Empty, '/autonomy_cancel', 10
         )
-        self.waypoint_command_publisher = self.create_publisher(
-            String, '/waypoint_queue_command', 10
-        )
-        self.inspection_command_publisher = self.create_publisher(
-            String, '/obstacle_inspection_command', 10
+        self.mode3_demo_request_publisher = self.create_publisher(
+            Empty, '/mode3/demo_request', 10
         )
         self.mode11_blackout_key = bool(
             self.get_parameter('mode11_blackout_key').value
         )
+        self.blackout_operator_mode = int(
+            self.get_parameter('blackout_operator_mode').value
+        )
+        if self.blackout_operator_mode not in (0, 1, 2, 3):
+            raise ValueError('blackout_operator_mode must be 0, 1, 2, or 3')
         self.blackout_publisher = (
             self.create_publisher(Empty, '/mode11/blackout_request', 10)
             if self.mode11_blackout_key else None
         )
+
+        self.operator_mode = 1
         self.drive_mode = 1
         self.create_subscription(
             Int32, '/drive_mode', self._external_drive_mode, 10
         )
-        self.create_subscription(
-            String, '/waypoint_queue_status', self._waypoint_status, 10
-        )
         self.command = Twist()
-        self._waypoint_collecting = False
-        self._waypoint_buffer = ''
         self._terminal_settings = termios.tcgetattr(self._input_stream)
         tty.setcbreak(self._input_stream.fileno())
 
         self.create_timer(1.0 / publish_rate, self._publish_command)
         self.create_timer(0.02, self._poll_keyboard)
         self.add_on_set_parameters_callback(self._set_speed_parameters)
+        self.operator_mode_publisher.publish(Int32(data=1))
         self.get_logger().info(
-            'Keyboard ready: 1=manual, 2=select named waypoints, '
-            '3=mmWave inspection, 4=camera+LiDAR inspection, '
-            '5=automatic evacuation demo, '
-            'SPACE=start/next, '
-            'c=cancel mission, w/x/a/d/s, q=quit'
+            'Keyboard ready: 1=keyboard drive, 2=integrated fire evacuation, '
+            '3=greeting spin, w/x/a/d/s (Mode 1), P=LiDAR blackout, '
+            'c=cancel, q=quit'
         )
         if self.mode11_blackout_key:
-            self.get_logger().info('[MODE11] P=LiDAR blackout request')
-
-    def _write_terminal(self, text):
-        try:
-            self._terminal_output.write(text)
-            self._terminal_output.flush()
-        except (OSError, ValueError):
-            pass
-
-    def _render_waypoint_prompt(self):
-        self._write_terminal(
-            '\r\033[2K[모드 2] 웨이포인트 입력 (예: w1,w5,w6) > '
-            + self._waypoint_buffer
-        )
-
-    def _begin_waypoint_input(self):
-        self._waypoint_collecting = True
-        self._waypoint_buffer = ''
-        self._write_terminal('\n')
-        self._render_waypoint_prompt()
-
-    def _poll_waypoint_input(self, key):
-        if key in ('\r', '\n'):
-            self._write_terminal('\n')
-            try:
-                labels = parse_named_waypoints(self._waypoint_buffer)
-            except ValueError as error:
-                self.get_logger().warning(f'MODE 2 input rejected: {error}')
-                self._waypoint_buffer = ''
-                self._render_waypoint_prompt()
-                return
-            self._waypoint_collecting = False
-            command = 'MODE2_SET:' + ','.join(labels)
-            self.waypoint_command_publisher.publish(String(data=command))
             self.get_logger().info(
-                'MODE 2 requested: ' + ' -> '.join(labels)
+                '[MODE 2] P=RF2O localization blackout; switch to Encoder+IMU'
             )
-            return
-        if key == '\x1b':
-            self._waypoint_collecting = False
-            self._waypoint_buffer = ''
-            self._write_terminal('\r\033[2K[모드 2] 입력 취소\n')
-            return
-        if key in ('\x7f', '\b'):
-            self._waypoint_buffer = self._waypoint_buffer[:-1]
-            self._render_waypoint_prompt()
-            return
-        if key.isprintable() and len(self._waypoint_buffer) < 1024:
-            self._waypoint_buffer += key.lower()
-            self._render_waypoint_prompt()
-
-    def _waypoint_status(self, message):
-        if not message.data.startswith('MODE2_'):
-            return
-        # The operator console translates these status codes into Korean.
-        # Do not leak the raw internal code directly to /dev/tty.
-        if self._waypoint_collecting:
-            self._render_waypoint_prompt()
 
     def _external_drive_mode(self, message):
-        """Keep emergency keys aware of a launch-selected autonomous mode."""
+        """Track internal mission transitions without changing operator mode."""
         try:
             command_source_for_drive_mode(message.data)
         except ValueError:
             return
-        new_mode = int(message.data)
-        if new_mode == self.drive_mode:
-            return
-        if self._waypoint_collecting and new_mode != 2:
-            self._waypoint_collecting = False
-            self._waypoint_buffer = ''
-            self._write_terminal('\r\033[2K[모드 2] 입력 취소\n')
-        self.drive_mode = new_mode
+        self.drive_mode = int(message.data)
         self.command = Twist()
-        if new_mode == 5:
-            self.get_logger().info('MODE 5: EVACUATION_DEMO selected externally')
 
     def _set_speed_parameters(self, parameters):
         linear_speed = self.linear_speed
@@ -195,92 +153,77 @@ class KeyboardCmdVelDemo(Node):
             )
         return SetParametersResult(successful=True)
 
+    def _select_operator_mode(self, operator_mode):
+        internal_mode = OPERATOR_TO_INTERNAL_DRIVE_MODE[operator_mode]
+        self.autonomy_cancel_publisher.publish(Empty())
+        # Send an explicit zero before every source change.
+        self.command = Twist()
+        self.publisher.publish(self.command)
+        self.operator_mode = operator_mode
+        self.operator_mode_publisher.publish(Int32(data=operator_mode))
+        self.drive_mode = internal_mode
+        self.mode_publisher.publish(Int32(data=internal_mode))
+
+        if operator_mode == 1:
+            self.get_logger().info('[MODE 1] 키보드 수동주행')
+        elif operator_mode == 2:
+            self.get_logger().warning(
+                '[MODE 2] 통합 화재대피 주행 시작 요청: '
+                '센서 준비 확인 후 출구 탐색을 시작합니다.'
+            )
+        else:
+            self.mode3_demo_request_publisher.publish(Empty())
+            self.get_logger().warning(
+                '[MODE 3] 안내 음성과 제자리 1회전 동시 시작'
+            )
+
     def _poll_keyboard(self):
         readable, _, _ = select.select([self._input_stream], [], [], 0.0)
         if not readable:
             return
-        key = self._input_stream.read(1)
-        if self._waypoint_collecting:
-            self._poll_waypoint_input(key)
-            return
-        key = key.lower()
+        key = self._input_stream.read(1).lower()
 
         if key == 'p' and self.mode11_blackout_key:
+            required_mode = getattr(self, 'blackout_operator_mode', 0)
+            current_mode = getattr(self, 'operator_mode', 1)
+            if required_mode and current_mode != required_mode:
+                self.get_logger().warning(
+                    f'P blackout은 Mode {required_mode}에서만 사용할 수 있습니다.'
+                )
+                return
             self.blackout_publisher.publish(Empty())
-            self.get_logger().info('[MODE11] P pressed')
+            self.get_logger().info(
+                '[MODE 2] P pressed: localization blackout requested'
+            )
+            return
+
+        if key in ('1', '2', '3'):
+            operator_mode, _ = mode_selection_for_key(key)
+            self._select_operator_mode(operator_mode)
+            return
+        if key in ('4', '5'):
+            self.get_logger().warning(
+                '운영 모드는 1=키보드, 2=통합 화재대피, 3=안내 회전입니다.'
+            )
+            return
+        if key == ' ':
+            self.get_logger().info(
+                '현재 운영 모드는 Space 입력을 사용하지 않습니다.'
+            )
+            return
+        if key in ('c', 's') and self.operator_mode != 1:
+            cancelled_mode = self.operator_mode
+            self._stop_all_motion()
+            self.get_logger().warning(
+                f'[MODE {cancelled_mode}] 취소: 모터 정지 후 Mode 1 복귀'
+            )
+            return
+        if getattr(self, 'operator_mode', 1) != 1 and key in ('w', 'x', 'a', 'd'):
+            self.get_logger().warning('수동 주행은 먼저 1을 누르세요.')
             return
 
         command = Twist()
         label = None
-        if key in ('1', '2', '3', '4', '5'):
-            previous_mode = self.drive_mode
-            self.autonomy_cancel_publisher.publish(Empty())
-            # Clear any stale planner goal before selecting/reselecting the
-            # autonomous velocity source.
-            if previous_mode == 2 or key == '2':
-                self.waypoint_command_publisher.publish(
-                    String(data='MODE2_CANCEL')
-                )
-            self.drive_mode = int(key)
-            self.command = command
-            self._publish_command()
-            self.mode_publisher.publish(Int32(data=self.drive_mode))
-            if self.drive_mode == 1:
-                label = 'MODE 1: KEYBOARD'
-            elif self.drive_mode == 2:
-                label = 'MODE 2: NAMED WAYPOINT STEP MISSION'
-            elif self.drive_mode == 3:
-                label = 'MODE 3: MMWAVE OBSTACLE INSPECTION'
-            elif self.drive_mode == 4:
-                label = 'MODE 4: CAMERA + LIDAR SURVIVOR INSPECTION'
-            else:
-                label = 'MODE 5: AUTOMATIC EVACUATION DEMO'
-            self.get_logger().info(label)
-            if self.drive_mode == 2:
-                self._begin_waypoint_input()
-            return
-        if key == ' ':
-            if self.drive_mode == 2:
-                self.waypoint_command_publisher.publish(
-                    String(data='MODE2_NEXT')
-                )
-                self.get_logger().info(
-                    'MODE 2 requested next selected waypoint'
-                )
-                return
-            if self.drive_mode in (3, 4):
-                command = f'MODE{self.drive_mode}_START'
-                self.inspection_command_publisher.publish(String(data=command))
-                self.get_logger().info(
-                    f'MODE {self.drive_mode} requested nearest-obstacle inspection'
-                )
-                return
-            if self.drive_mode == 1:
-                self.get_logger().warning(
-                    'Select MODE 2, 3, or 4 before pressing Space.'
-                )
-            return
-        if key == 'c':
-            if self.drive_mode in (2, 3, 4, 5):
-                cancelled_mode = self.drive_mode
-                self._stop_all_motion()
-                self.get_logger().warning(
-                    f'MODE {cancelled_mode} CANCELLED: '
-                    'zero velocity and MODE 1 selected'
-                )
-                return
-            return
-        if key == 's' and self.drive_mode != 1:
-            self._stop_all_motion()
-            self.get_logger().warning(
-                'AUTONOMOUS STOP: zero velocity and MODE 1 selected'
-            )
-            return
-        if self.drive_mode != 1 and key in ('w', 'x', 'a', 'd'):
-            self.get_logger().warning(
-                'Press 1 before using manual drive keys.'
-            )
-            return
         if key == 'w':
             command.linear.x = self.linear_speed
             label = 'FORWARD'
@@ -311,20 +254,18 @@ class KeyboardCmdVelDemo(Node):
         )
 
     def _publish_command(self):
-        if self.drive_mode == 1:
+        if self.operator_mode == 1 and self.drive_mode == 1:
             self.publisher.publish(self.command)
 
     def _stop_all_motion(self):
-        """Select the manual source and publish zero even from auto modes."""
+        """Cancel autonomy and select the manual zero-velocity source."""
         self.autonomy_cancel_publisher.publish(Empty())
-        if self.drive_mode == 2:
-            self.waypoint_command_publisher.publish(
-                String(data='MODE2_CANCEL')
-            )
         self.command = Twist()
         self.publisher.publish(self.command)
-        self.mode_publisher.publish(Int32(data=1))
+        self.operator_mode = 1
+        self.operator_mode_publisher.publish(Int32(data=1))
         self.drive_mode = 1
+        self.mode_publisher.publish(Int32(data=1))
 
     def restore_terminal(self):
         if self._terminal_settings is not None:
@@ -341,9 +282,6 @@ class KeyboardCmdVelDemo(Node):
 
     def destroy_node(self):
         try:
-            # ROS 2's SIGINT handler can invalidate the context before launch
-            # asks this node to clean up. Publishing after that point raises
-            # RCLError and turns a normal shutdown into a process failure.
             if rclpy.ok():
                 self._stop_all_motion()
         finally:

@@ -193,7 +193,7 @@ def test_external_mode5_command_starts_idle_orchestrator():
     assert reset_calls == [True]
     assert statuses == ['SEARCH_EXITS:STARTING']
     assert selected_modes == [5]
-    assert any('숫자 5 입력' in message for message in logs)
+    assert any('숫자 2 입력' in message for message in logs)
 
 
 def test_mmwave_nonperson_at_exit_blocks_it_and_returns_to_mode5():
