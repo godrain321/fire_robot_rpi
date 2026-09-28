@@ -140,6 +140,13 @@ reading clears it to zero. Geometry changes and `/clear_thermal_costs` still
 reset the accumulated map. `observation_timeout_sec` is only used as a fallback
 when `persistent_observations=false`.
 
+`replace_observations_each_frame=false` by default, so navigation and hazard
+profiles retain the behavior above. When it is enabled, every valid thermal
+frame atomically replaces the previous frame's cells. Use it together with
+`persistent_observations=false` and a nonzero `observation_timeout_sec` for a
+live preview: normal frames replace one another immediately, while a stopped
+sensor stream clears the final frame after the timeout.
+
 Sensor-stream liveness is checked separately from belief retention. If no
 `/thermal/arc_points` message arrives for `thermal_data_timeout_sec` (default
 1.0 s), status changes from `ACTIVE` to `THERMAL_DATA_STALE`, but accumulated
@@ -166,7 +173,10 @@ missing `map -> ... -> thermal_camera_link` chain produces
 `WAITING_FOR_TF`; this is a normal waiting state, the node stays alive, publishes
 an all-zero grid once static geometry is known, and continues expiring old
 observations. If source and target frame strings are already equal, no TF lookup
-is needed.
+is needed. With `use_latest_tf_fallback=true`, the node first requests the
+message timestamp and retries with the latest available transform only when the
+first request fails because it would extrapolate into the future. The default is
+`false`, preserving timestamp-exact behavior for existing profiles.
 
 The measured camera mounting transform must be published elsewhere. Command
 format for a temporary measured static transform:

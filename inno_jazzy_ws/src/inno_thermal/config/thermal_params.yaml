@@ -30,8 +30,11 @@ thermal_cost_layer:
     # Match factory_v5 belief mapping: retain the latest value until the same
     # map cell is observed again, geometry changes, or clear service is called.
     persistent_observations: true
+    # Optional live-preview mode: each valid thermal frame replaces the prior one.
+    replace_observations_each_frame: false
     observation_timeout_sec: 2.0  # fallback only when persistence is false
     thermal_data_timeout_sec: 3.0
     inflation_radius_m: 0.0
     publish_rate_hz: 4.0
     tf_timeout_sec: 0.2
+    use_latest_tf_fallback: false

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Final operator profile: 1=manual, 2=integrated evacuation, 3=greeting spin.
+# Standalone sequential Mode 4 is available as: ./run_modes.sh 4
 set -euo pipefail
 
 robot_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="${robot_root}/inno_jazzy_ws"
+if [[ "${1:-}" == '4' || "${1:-}" == 'mode:=4' ]]; then
+  shift
+  exec "${robot_root}/run_mode4.sh" "$@"
+fi
 esp32_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_de2033aed827f0119bb79ad8346f00fe-if00-port0'
 lidar_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_4a5b9018526eef11bff6e0c2c169b110-if00-port0'
 mmwave_port='/dev/ttyAMA0'

@@ -1,0 +1,6 @@
+#!/home/park/Robot_project/fire_robot_rpi/.venv_lora/bin/python
+import sys
+from fontTools.subset import main
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(main())

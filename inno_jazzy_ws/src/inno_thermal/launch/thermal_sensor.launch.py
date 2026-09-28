@@ -30,6 +30,21 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "blocked_temperature_c", default_value="60.0"
             ),
+            DeclareLaunchArgument(
+                "persistent_observations", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "replace_observations_each_frame", default_value="false"
+            ),
+            DeclareLaunchArgument(
+                "observation_timeout_sec", default_value="2.0"
+            ),
+            DeclareLaunchArgument(
+                "thermal_data_timeout_sec", default_value="3.0"
+            ),
+            DeclareLaunchArgument(
+                "use_latest_tf_fallback", default_value="false"
+            ),
             Node(
                 package="inno_thermal",
                 executable="mlx90640_sensor_node",
@@ -50,6 +65,26 @@ def generate_launch_description():
                     "blocked_temperature_c": ParameterValue(
                         LaunchConfiguration("blocked_temperature_c"),
                         value_type=float,
+                    ),
+                    "persistent_observations": ParameterValue(
+                        LaunchConfiguration("persistent_observations"),
+                        value_type=bool,
+                    ),
+                    "replace_observations_each_frame": ParameterValue(
+                        LaunchConfiguration("replace_observations_each_frame"),
+                        value_type=bool,
+                    ),
+                    "observation_timeout_sec": ParameterValue(
+                        LaunchConfiguration("observation_timeout_sec"),
+                        value_type=float,
+                    ),
+                    "thermal_data_timeout_sec": ParameterValue(
+                        LaunchConfiguration("thermal_data_timeout_sec"),
+                        value_type=float,
+                    ),
+                    "use_latest_tf_fallback": ParameterValue(
+                        LaunchConfiguration("use_latest_tf_fallback"),
+                        value_type=bool,
                     ),
                 }],
                 condition=IfCondition(enable_cost_layer),

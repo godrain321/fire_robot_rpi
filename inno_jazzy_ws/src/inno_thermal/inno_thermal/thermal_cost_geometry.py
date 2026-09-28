@@ -205,6 +205,7 @@ class ThermalCostState:
         observation_timeout_sec: float,
         inflation_radius_m: float,
         persistent_observations: bool = False,
+        replace_observations_each_frame: bool = False,
     ):
         if not math.isfinite(observation_timeout_sec) or observation_timeout_sec < 0.0:
             raise ValueError("observation_timeout_sec must be finite and non-negative")
@@ -213,6 +214,9 @@ class ThermalCostState:
         self.timeout_ns = int(round(observation_timeout_sec * 1_000_000_000))
         self.inflation_radius_m = float(inflation_radius_m)
         self.persistent_observations = bool(persistent_observations)
+        self.replace_observations_each_frame = bool(
+            replace_observations_each_frame
+        )
         self.geometry: GridGeometry | None = None
         self.costs = np.zeros((0, 0), dtype=np.int8)
         self.last_observed_ns: dict[tuple[int, int], int] = {}
@@ -232,11 +236,13 @@ class ThermalCostState:
             raise RuntimeError("thermal state has no static grid geometry")
         if now_ns < 0:
             raise ValueError("ROS time must be non-negative")
-        if self.timeout_ns == 0 and not self.persistent_observations:
-            self.clear()
         expanded = inflate_cell_costs(
             frame_costs, self.geometry, self.inflation_radius_m
         )
+        if self.replace_observations_each_frame or (
+            self.timeout_ns == 0 and not self.persistent_observations
+        ):
+            self.clear()
         for (grid_x, grid_y), cost in expanded.items():
             if not (0 <= grid_x < self.geometry.width and 0 <= grid_y < self.geometry.height):
                 continue

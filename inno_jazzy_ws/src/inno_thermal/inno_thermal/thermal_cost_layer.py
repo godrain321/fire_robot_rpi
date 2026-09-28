@@ -41,6 +41,11 @@ def _clean_frame(frame_id: str) -> str:
     return str(frame_id).strip().lstrip("/")
 
 
+def _is_future_extrapolation(error: TransformException) -> bool:
+    message = str(error).lower()
+    return "extrapolat" in message and "future" in message
+
+
 class ThermalCostLayer(Node):
     def __init__(self) -> None:
         super().__init__("thermal_cost_layer")
@@ -57,11 +62,13 @@ class ThermalCostLayer(Node):
             # applied exactly once by inno_autonav's weighted planner.
             "temperature_power": 1.0,
             "persistent_observations": True,
+            "replace_observations_each_frame": False,
             "observation_timeout_sec": 2.0,
             "thermal_data_timeout_sec": 3.0,
             "inflation_radius_m": 0.0,
             "publish_rate_hz": 4.0,
             "tf_timeout_sec": 0.2,
+            "use_latest_tf_fallback": False,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -88,6 +95,9 @@ class ThermalCostLayer(Node):
         self.persistent_observations = bool(
             self.get_parameter("persistent_observations").value
         )
+        self.replace_observations_each_frame = bool(
+            self.get_parameter("replace_observations_each_frame").value
+        )
         observation_timeout_sec = float(
             self.get_parameter("observation_timeout_sec").value
         )
@@ -97,18 +107,23 @@ class ThermalCostLayer(Node):
         inflation_radius_m = float(self.get_parameter("inflation_radius_m").value)
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.tf_timeout_sec = float(self.get_parameter("tf_timeout_sec").value)
+        self.use_latest_tf_fallback = bool(
+            self.get_parameter("use_latest_tf_fallback").value
+        )
         self._validate_parameters(observation_timeout_sec, inflation_radius_m)
 
         self.state = ThermalCostState(
             observation_timeout_sec,
             inflation_radius_m,
             persistent_observations=self.persistent_observations,
+            replace_observations_each_frame=self.replace_observations_each_frame,
         )
         self._static_info = None
         self._static_frame_id = ""
         self._status = None
         self._has_valid_arc = False
         self._last_arc_received_ns = self.get_clock().now().nanoseconds
+        self._latest_tf_fallback_warned = False
 
         transient_qos = QoSProfile(depth=1)
         transient_qos.reliability = ReliabilityPolicy.RELIABLE
@@ -139,7 +154,9 @@ class ThermalCostLayer(Node):
         self.get_logger().info(
             f"thermal cost layer: static={self.static_grid_topic}, "
             f"arc={self.thermal_arc_topic}, output={self.cost_grid_topic}, "
-            f"persistent_observations={self.persistent_observations}"
+            f"persistent_observations={self.persistent_observations}, "
+            f"replace_observations_each_frame={self.replace_observations_each_frame}, "
+            f"use_latest_tf_fallback={self.use_latest_tf_fallback}"
         )
 
     def _validate_parameters(
@@ -259,12 +276,37 @@ class ThermalCostLayer(Node):
                     timeout=Duration(seconds=self.tf_timeout_sec),
                 )
             except TransformException as exc:
-                self.get_logger().warning(
-                    f"thermal TF unavailable ({target_frame} <- {source_frame}): {exc}"
-                )
-                if not self._has_valid_arc:
-                    self._set_status(WAITING_FOR_TF)
-                return
+                if self.use_latest_tf_fallback and _is_future_extrapolation(exc):
+                    try:
+                        transform = self.tf_buffer.lookup_transform(
+                            target_frame,
+                            source_frame,
+                            Time(),
+                            timeout=Duration(seconds=self.tf_timeout_sec),
+                        )
+                    except TransformException as latest_exc:
+                        self.get_logger().warning(
+                            "thermal TF unavailable at message time and latest time "
+                            f"({target_frame} <- {source_frame}): {latest_exc}"
+                        )
+                        if not self._has_valid_arc:
+                            self._set_status(WAITING_FOR_TF)
+                        return
+                    if not self._latest_tf_fallback_warned:
+                        self.get_logger().warning(
+                            "thermal TF message timestamp is ahead of the buffer; "
+                            "using the latest available transform"
+                        )
+                        self._latest_tf_fallback_warned = True
+                else:
+                    self.get_logger().warning(
+                        f"thermal TF unavailable ({target_frame} <- {source_frame}): {exc}"
+                    )
+                    if not self._has_valid_arc:
+                        self._set_status(WAITING_FOR_TF)
+                    return
+            else:
+                self._latest_tf_fallback_warned = False
 
         valid_points = 0
         cell_cost_pairs = []
