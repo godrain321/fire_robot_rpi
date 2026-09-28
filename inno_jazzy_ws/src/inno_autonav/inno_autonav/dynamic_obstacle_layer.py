@@ -1,5 +1,6 @@
 """Confirm new LiDAR endpoints in static-free space as persistent obstacles."""
 
+import json
 import math
 import time
 from typing import Dict, Iterable, List, Set, Tuple
@@ -27,6 +28,41 @@ from .grid_utils import (
 )
 from .tf_utils import TfHelper
 from .evacuation_demo import exit_visualization_records, group_leg_candidates
+
+
+def human_snapshot_records(
+    classified_people, person_track_ids, assistance_people, match_radius_m,
+):
+    """Expose the existing blue/yellow RViz human state without reclassifying."""
+    people = list(classified_people)
+    identifiers = list(person_track_ids)
+    assistance = list(assistance_people)
+    records = []
+    matched_assistance = set()
+    for index, (x, y, _seen_at) in enumerate(people):
+        state = 'CONFIRMED'
+        nearest = None
+        nearest_distance = math.inf
+        for assistance_index, point in enumerate(assistance):
+            distance = math.hypot(float(point[0]) - x, float(point[1]) - y)
+            if distance <= match_radius_m and distance < nearest_distance:
+                nearest = assistance_index
+                nearest_distance = distance
+        if nearest is not None:
+            state = 'ASSIST_CHECK'
+            matched_assistance.add(nearest)
+        identifier = identifiers[index] if index < len(identifiers) else index + 1
+        records.append({
+            'id': str(identifier), 'x': float(x), 'y': float(y), 'state': state,
+        })
+    for index, (x, y) in enumerate(assistance):
+        if index in matched_assistance:
+            continue
+        records.append({
+            'id': f'A{index + 1}', 'x': float(x), 'y': float(y),
+            'state': 'ASSIST_CHECK',
+        })
+    return tuple(records)
 
 
 def grid_from_message(message: OccupancyGrid) -> MapGrid:
@@ -314,6 +350,9 @@ class DynamicObstacleLayer(Node):
         )
         self.marker_publisher = self.create_publisher(
             MarkerArray, '/dynamic_obstacle_markers', grid_qos
+        )
+        self.human_snapshot_publisher = self.create_publisher(
+            String, '/human/tracks', grid_qos
         )
         self.detected_publisher = self.create_publisher(
             Bool, '/dynamic_obstacle_detected', grid_qos
@@ -712,7 +751,23 @@ class DynamicObstacleLayer(Node):
         self._publish_candidates(stamp, clusters, matched_people)
         self._publish_all_candidates(stamp, current_clusters)
         self._publish_motion_candidates(stamp, motion_clusters)
+        self._publish_human_snapshot()
         self._publish_markers(stamp, clusters, matched_people)
+
+    def _publish_human_snapshot(self) -> None:
+        self._ensure_person_tracking_state()
+        records = human_snapshot_records(
+            self.classified_people,
+            self.person_track_ids,
+            getattr(self, 'assistance_people', ()),
+            self.person_match_radius,
+        )
+        payload = json.dumps(
+            {'frame_id': self.map_frame, 'humans': records},
+            separators=(',', ':'),
+            allow_nan=False,
+        )
+        self.human_snapshot_publisher.publish(String(data=payload))
 
     def _publish_motion_candidates(self, stamp, clusters) -> None:
         message = PoseArray()

@@ -7,9 +7,24 @@ from inno_autonav.dynamic_obstacle_layer import (
     build_wall_exclusion_mask,
     cluster_obstacle_indices,
     inflate_sparse_obstacle_indices,
+    human_snapshot_records,
     is_in_forward_avoidance_window,
     match_people_to_clusters,
 )
+
+
+def test_human_snapshot_reuses_track_ids_and_existing_rviz_states():
+    records = human_snapshot_records(
+        [(2.0, 3.0, 1.0), (5.0, 6.0, 1.0)],
+        [7, 8],
+        [(5.1, 6.0)],
+        0.75,
+    )
+
+    assert records == (
+        {'id': '7', 'x': 2.0, 'y': 3.0, 'state': 'CONFIRMED'},
+        {'id': '8', 'x': 5.0, 'y': 6.0, 'state': 'ASSIST_CHECK'},
+    )
 
 
 def test_nearby_scan_cells_form_one_physical_obstacle():

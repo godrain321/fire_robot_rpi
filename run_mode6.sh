@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Mode 6: thermal-camera-only bench test.
-# Keyboard driving + LiDAR/AMCL + MLX90640 thermal stack + RViz thermal cost grid.
+# LiDAR/AMCL + MLX90640 live thermal overlay + RViz. Motor serial is off by default.
 # No hazard belief / gas / planner / replanning.
 set -euo pipefail
 
@@ -9,14 +9,20 @@ robot_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="${robot_root}/inno_jazzy_ws"
 esp32_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_de2033aed827f0119bb79ad8346f00fe-if00-port0'
 lidar_port='/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_4a5b9018526eef11bff6e0c2c169b110-if00-port0'
+use_serial='false'
 launch_args=()
 for argument in "$@"; do
   case "${argument}" in
     esp32_port:=*) esp32_port="${argument#esp32_port:=}" ;;
     lidar_port:=*) lidar_port="${argument#lidar_port:=}" ;;
+    use_serial:=*) use_serial="${argument#use_serial:=}" ;;
     *) launch_args+=("${argument}") ;;
   esac
 done
+if [[ "${use_serial}" != 'true' && "${use_serial}" != 'false' ]]; then
+  printf '[오류] use_serial은 true 또는 false여야 합니다: %s\n' "${use_serial}" >&2
+  exit 2
+fi
 
 cd "${workspace}"
 set +u
@@ -32,7 +38,7 @@ set +e
 stdbuf -oL -eL ros2 launch inno_robot_bringup mode6_thermal_preview.launch.py \
   "esp32_port:=${esp32_port}" \
   "lidar_port:=${lidar_port}" \
-  use_serial:=true \
+  "use_serial:=${use_serial}" \
   use_rviz:=true \
   "${launch_args[@]}"
 launch_status=${PIPESTATUS[0]}

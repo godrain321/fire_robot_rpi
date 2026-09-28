@@ -32,6 +32,54 @@ def test_safe_observation_replaces_prior_high_cost():
     assert (1, 1) not in state.last_observed_ns
 
 
+def test_non_replace_mode_preserves_cells_missing_from_next_frame():
+    state = ThermalCostState(
+        2.0, 0.0, persistent_observations=False,
+        replace_observations_each_frame=False,
+    )
+    state.set_geometry(geometry())
+    state.apply_frame({(1, 1): 80}, 1)
+    state.apply_frame({(2, 2): 70}, 2)
+    assert state.costs[1, 1] == 80
+    assert state.costs[2, 2] == 70
+
+
+def test_replace_mode_keeps_only_latest_frame_cells():
+    state = ThermalCostState(
+        0.75, 0.0, persistent_observations=False,
+        replace_observations_each_frame=True,
+    )
+    state.set_geometry(geometry())
+    state.apply_frame({(1, 1): 80}, 1)
+    state.apply_frame({(2, 2): 70}, 2)
+    assert state.costs[1, 1] == 0
+    assert state.costs[2, 2] == 70
+
+
+def test_replace_mode_clears_same_cell_after_safe_frame():
+    state = ThermalCostState(
+        0.75, 0.0, persistent_observations=False,
+        replace_observations_each_frame=True,
+    )
+    state.set_geometry(geometry())
+    state.apply_frame({(1, 1): 90}, 1)
+    state.apply_frame({(1, 1): 0}, 2)
+    assert state.costs[1, 1] == 0
+    assert (1, 1) not in state.last_observed_ns
+
+
+def test_replace_mode_timeout_clears_last_frame_when_stream_stops():
+    state = ThermalCostState(
+        0.75, 0.0, persistent_observations=False,
+        replace_observations_each_frame=True,
+    )
+    state.set_geometry(geometry())
+    state.apply_frame({(1, 1): 90}, 1_000_000_000)
+    assert state.expire(1_750_000_000) == 0
+    assert state.expire(1_750_000_001) == 1
+    assert state.costs[1, 1] == 0
+
+
 def test_persistent_observation_does_not_expire_and_latest_scan_replaces_it():
     state = ThermalCostState(2.0, 0.0, persistent_observations=True)
     state.set_geometry(geometry())
@@ -121,3 +169,16 @@ def test_thermal_cost_node_keeps_tf_callbacks_on_a_second_executor_thread():
     assert "if not self._has_valid_arc:" in source
     assert "self._has_valid_arc = True" in source
     assert "self._last_arc_received_ns = now_ns" in source
+
+
+def test_thermal_cost_node_uses_timestamp_before_future_only_latest_fallback():
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "inno_thermal"
+        / "thermal_cost_layer.py"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    assert "Time.from_msg(message.header.stamp)" in source
+    assert "self.use_latest_tf_fallback and _is_future_extrapolation(exc)" in source
+    assert "Time()," in source
+    assert '"use_latest_tf_fallback": False' in source

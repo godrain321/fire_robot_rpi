@@ -22,6 +22,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv_lora/
 venv/
 
 # C and C++ build artifacts

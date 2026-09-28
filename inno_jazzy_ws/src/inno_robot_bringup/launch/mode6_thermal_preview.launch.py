@@ -1,9 +1,9 @@
 """Mode 6: thermal-camera-only bench test.
 
-Keyboard driving (drive mode 1) + LiDAR/AMCL localization + the MLX90640 thermal
-stack, with the thermal cost grid shown in RViz. No hazard belief, no gas, no
-planner, no replanning -- this profile exists purely to look at
-``/thermal_cost_grid`` while nudging the robot around by keyboard.
+LiDAR/AMCL localization + the MLX90640 thermal stack, with the latest thermal
+frame projected into a separate map-frame cost grid and shown in RViz. No
+hazard belief, gas, planner, or replanning is started. Serial output is optional
+and disabled by default so this profile can be used as a stationary preview.
 """
 
 from ament_index_python.packages import get_package_share_directory
@@ -26,7 +26,7 @@ def generate_launch_description():
     drive_params = drive + "/config/drive_params.yaml"
 
     args = [
-        DeclareLaunchArgument("use_serial", default_value="true"),
+        DeclareLaunchArgument("use_serial", default_value="false"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("start_lidar", default_value="true"),
         DeclareLaunchArgument("esp32_port", default_value="/dev/ttyUSB0"),
@@ -38,7 +38,7 @@ def generate_launch_description():
             "planning_map_yaml",
             default_value=project_path("maps", "inno_map_nav.yaml"),
         ),
-        DeclareLaunchArgument("set_initial_pose", default_value="true"),
+        DeclareLaunchArgument("set_initial_pose", default_value="false"),
         DeclareLaunchArgument("initial_pose_x", default_value="0.0"),
         DeclareLaunchArgument("initial_pose_y", default_value="0.0"),
         DeclareLaunchArgument("initial_pose_yaw", default_value="0.0"),
@@ -93,7 +93,14 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             thermal + "/launch/thermal_sensor.launch.py"
         ),
-        launch_arguments={"enable_cost_layer": "true"}.items(),
+        launch_arguments={
+            "enable_cost_layer": "true",
+            "persistent_observations": "false",
+            "replace_observations_each_frame": "true",
+            "observation_timeout_sec": "0.75",
+            "thermal_data_timeout_sec": "0.75",
+            "use_latest_tf_fallback": "true",
+        }.items(),
     )
 
     keyboard = Node(

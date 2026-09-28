@@ -28,6 +28,10 @@ def hazard_snapshot_message(belief, fire_probability, *, status):
         "origin_y": float(belief.geometry.origin_y),
         "origin_yaw": float(belief.geometry.origin_yaw),
         "base_cost": float(belief.config.base_cost),
+        "temperature_safe_c": float(belief.config.temperature_safe_c),
+        "temperature_cost_scale_max_c": float(
+            belief.config.temperature_cost_scale_max_c
+        ),
         "temperature_blocked_c": float(belief.config.temperature_blocked_c),
         # Stage 6: the *effective* gas blocked threshold actually used to mark
         # cells lethal (Stage 4). In legacy_ppm mode this is co_blocked_ppm
@@ -79,7 +83,7 @@ def decode_hazard_snapshot_message(message):
     required = {
         "revision", "status", "frame_id", "resolution", "origin_x",
         "origin_y", "origin_yaw", "base_cost", "temperature_blocked_c",
-        "co_blocked_ppm",
+        "temperature_safe_c", "temperature_cost_scale_max_c", "co_blocked_ppm",
     }
     if required - set(metadata):
         raise ValueError("hazard snapshot metadata is incomplete")

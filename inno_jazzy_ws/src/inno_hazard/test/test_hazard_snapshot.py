@@ -25,6 +25,8 @@ def test_snapshot_keeps_all_layers_and_revision_coherent():
     assert metadata["revision"] == belief.revision
     assert metadata["status"] == "ACTIVE"
     assert metadata["resolution"] == 0.05
+    assert metadata["temperature_safe_c"] == 40.0
+    assert metadata["temperature_cost_scale_max_c"] == 60.0
     np.testing.assert_allclose(
         layers["final_cost"], belief.final_cost_map, equal_nan=True
     )
@@ -52,6 +54,8 @@ def test_snapshot_exposes_mode8_50c_block_threshold_and_blocked_layer():
         belief, np.zeros((1, 1)), status="ACTIVE_THERMAL_ONLY"
     )
     metadata, layers = decode_hazard_snapshot_message(message)
+    assert metadata["temperature_safe_c"] == 40.0
+    assert metadata["temperature_cost_scale_max_c"] == 60.0
     assert metadata["temperature_blocked_c"] == 50.0
     assert bool(layers["blocked"][0, 0]) is True
     assert np.isinf(layers["final_cost"][0, 0])
