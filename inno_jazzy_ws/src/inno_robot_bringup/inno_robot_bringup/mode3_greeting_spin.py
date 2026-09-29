@@ -29,17 +29,19 @@ INTRO_TEXT = (
     '안녕하세요 저는 화재대피안내로봇입니다 '
     '안전한출구로 안내해드리겠습니다'
 )
+TURN_ANGLE_DEGREES = 450.0
+TURN_ANGLE_RADIANS = math.radians(TURN_ANGLE_DEGREES)
 
 
 class TimedOneTurn:
-    """Time a single commanded rotation without accumulating timer drift."""
+    """Time the configured 450-degree rotation without timer drift."""
 
     def __init__(self, angular_speed_radps: float):
         speed = abs(float(angular_speed_radps))
         if not math.isfinite(speed) or speed <= 0.0:
             raise ValueError('angular_speed_radps must be positive and finite')
         self.angular_speed = speed
-        self.duration_sec = 2.0 * math.pi / speed
+        self.duration_sec = TURN_ANGLE_RADIANS / speed
         self.started_at: Optional[float] = None
 
     @property
@@ -102,7 +104,7 @@ class Mode3GreetingSpin(Node):
         latched.reliability = ReliabilityPolicy.RELIABLE
         latched.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.velocity_publisher = self.create_publisher(
-            Twist, '/cmd_vel_auto', 10
+            Twist, '/cmd_vel_mode3_demo', 10
         )
         self.status_publisher = self.create_publisher(
             String, '/mode3_demo/status', latched
@@ -118,6 +120,7 @@ class Mode3GreetingSpin(Node):
         )
         self.create_timer(1.0 / publish_rate, self._tick)
         self.operator_mode = 1
+        self._request_pending = False
         self.player_process: Optional[subprocess.Popen] = None
         self._reported_complete = True
         self._publish_status('READY')
@@ -187,21 +190,47 @@ class Mode3GreetingSpin(Node):
 
     def _on_request(self, _message: Empty) -> None:
         if self.operator_mode != 3:
+            # /autonomy_cancel, /operator_mode, and this request use different
+            # DDS topics, so their cross-topic delivery order is undefined.
+            # Wait for the authoritative mode instead of starting a turn that
+            # a delayed, pre-Mode-3 cancel can immediately stop.
+            self._request_pending = True
             self.get_logger().warning(
-                '[MODE 3] operator_mode=3 확인 전 요청 수신; 동작을 시작합니다.'
+                '[MODE 3] 회전 요청 수신; operator_mode=3 동기화 대기'
             )
+            return
+        self._start_demo()
+
+    def _start_demo(self) -> None:
+        self._request_pending = False
         self.velocity_publisher.publish(Twist())
         self.turn.start(time.monotonic())
         self._reported_complete = False
+        # Publish the first turn command before audio-device setup.  amixer or
+        # aplay startup can briefly block this single-threaded executor; the
+        # motor and voice should nevertheless start together.
+        command = Twist()
+        command.angular.z = self.turn.angular_speed
+        self.velocity_publisher.publish(command)
         self._play_intro()
         self._publish_status('RUNNING:VOICE_AND_ONE_TURN')
         self.get_logger().warning(
-            f'[MODE 3] 제자리 1회전 시작: '
+            f'[MODE 3] 제자리 {TURN_ANGLE_DEGREES:.0f}도 회전 시작: '
             f'{self.turn.angular_speed:.2f} rad/s, '
             f'{self.turn.duration_sec:.2f} s'
         )
 
     def _on_cancel(self, _message: Empty) -> None:
+        # Mode selection publishes autonomy_cancel before operator_mode=3 to
+        # stop the previous mission.  If that older cancel arrives late, it
+        # belongs to the previous mode and must not stop the greeting turn.
+        # A real user cancel also publishes operator_mode=1, which is handled
+        # authoritatively by _on_operator_mode below.
+        if self._request_pending or self.operator_mode == 3:
+            return
+        self._cancel_turn()
+
+    def _cancel_turn(self) -> None:
         if self.turn.active:
             self.turn.cancel()
             self._reported_complete = True
@@ -210,8 +239,12 @@ class Mode3GreetingSpin(Node):
 
     def _on_operator_mode(self, message: Int32) -> None:
         self.operator_mode = int(message.data)
-        if self.operator_mode != 3 and self.turn.active:
-            self._on_cancel(Empty())
+        if self.operator_mode == 3:
+            if self._request_pending:
+                self._start_demo()
+            return
+        self._request_pending = False
+        self._cancel_turn()
 
     def _tick(self) -> None:
         angular, finished = self.turn.command(time.monotonic())
@@ -223,7 +256,10 @@ class Mode3GreetingSpin(Node):
             if not self._reported_complete:
                 self._reported_complete = True
                 self._publish_status('COMPLETE:ONE_TURN')
-                self.get_logger().info('[MODE 3] 제자리 1회전 완료, 모터 정지')
+                self.get_logger().info(
+                    f'[MODE 3] 제자리 {TURN_ANGLE_DEGREES:.0f}도 회전 완료, '
+                    '모터 정지'
+                )
         else:
             self._reported_complete = False
 

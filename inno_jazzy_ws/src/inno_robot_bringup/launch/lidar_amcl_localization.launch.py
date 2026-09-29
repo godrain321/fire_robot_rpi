@@ -99,6 +99,16 @@ def generate_launch_description():
     tf_bridge = Node(
         package='inno_robot_bringup', executable='amcl_pose_tf_bridge',
         name='amcl_pose_tf_bridge', output='screen',
+        parameters=[{
+            'set_initial_pose': ParameterValue(
+                L('set_initial_pose'), value_type=bool
+            ),
+            'initial_pose_x': ParameterValue(L('initial_pose_x'), value_type=float),
+            'initial_pose_y': ParameterValue(L('initial_pose_y'), value_type=float),
+            'initial_pose_yaw': ParameterValue(
+                L('initial_pose_yaw'), value_type=float
+            ),
+        }],
         condition=IfCondition(L('use_amcl_tf_bridge')),
     )
     return LaunchDescription(

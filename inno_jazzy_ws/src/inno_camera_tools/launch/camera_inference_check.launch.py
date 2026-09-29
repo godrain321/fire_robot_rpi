@@ -55,9 +55,11 @@ def generate_launch_description():
         output='screen',
         remappings=[('image', L('annotated_image_topic'))],
         parameters=[{'autosize': True}],
+        condition=IfCondition(L('use_image_view')),
     )
     return LaunchDescription([
         DeclareLaunchArgument('start_camera', default_value='true'),
+        DeclareLaunchArgument('use_image_view', default_value='true'),
         DeclareLaunchArgument('camera', default_value='0'),
         DeclareLaunchArgument('width', default_value='1280'),
         DeclareLaunchArgument('height', default_value='720'),

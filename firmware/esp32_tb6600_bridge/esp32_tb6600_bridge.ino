@@ -1,6 +1,9 @@
 #include <AccelStepper.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
 
 /*
   ESP32 -> dual TB6600 bridge (1/8 microstep)
@@ -50,6 +53,13 @@ const unsigned long COMMAND_TIMEOUT_MS = 500;
 const unsigned long TELEMETRY_PERIOD_MS = 200;
 const unsigned long BAUDRATE = 115200;
 const size_t MAX_INPUT_LINE = 96;
+// STEP generation must not share the sensor/telemetry loop.  In particular,
+// skid turns need two uninterrupted pulse trains while SPI, I2C, and UART are
+// busy.  A dedicated task services AccelStepper about every 50 us.
+const uint32_t MOTOR_SERVICE_SLEEP_US = 50;
+const uint32_t MOTOR_TASK_STACK_BYTES = 4096;
+const UBaseType_t MOTOR_TASK_PRIORITY = 2;
+const BaseType_t MOTOR_TASK_CORE = 0;
 
 // AS5048A: 14-bit absolute angle, 16384 counts/revolution.
 const uint16_t AS5048A_ANGLE_REGISTER = 0x3FFF;
@@ -88,10 +98,13 @@ float targetLeftSps = 0.0F;
 float targetRightSps = 0.0F;
 float currentLeftSps = 0.0F;
 float currentRightSps = 0.0F;
-unsigned long lastCommandMs = 0;
+volatile unsigned long lastCommandMs = 0;
 unsigned long lastRampUs = 0;
 unsigned long lastTelemetryMs = 0;
 String driveState = "BOOT";
+SemaphoreHandle_t motorMutex = nullptr;
+TaskHandle_t motorTaskHandle = nullptr;
+volatile bool commandTimeoutReportPending = false;
 
 SPISettings encoderSpiSettings(ENCODER_SPI_HZ, MSBFIRST, SPI_MODE1);
 unsigned long lastEncoderSampleUs = 0;
@@ -171,22 +184,43 @@ void setEnable(bool enabled) {
   digitalWrite(R_EN, enabled ? active : inactive);
 }
 
+void lockMotor() {
+  if (motorMutex != nullptr) xSemaphoreTake(motorMutex, portMAX_DELAY);
+}
+
+void unlockMotor() {
+  if (motorMutex != nullptr) xSemaphoreGive(motorMutex);
+}
+
 float clampSps(float value) {
   return constrain(value, -MAX_STEP_SPEED, MAX_STEP_SPEED);
 }
 
 void setTargets(float left, float right) {
+  lockMotor();
+  // Refresh the watchdog in the same critical section as the new target.  If
+  // the robot was idle for longer than the timeout, the motor task must not
+  // mistake this fresh command for a stale one between two assignments.
+  lastCommandMs = millis();
+  commandTimeoutReportPending = false;
   targetLeftSps = clampSps(left);
   targetRightSps = clampSps(right);
   driveState = (targetLeftSps == 0.0F && targetRightSps == 0.0F) ? "STOP" : "RUN";
+  unlockMotor();
 }
 
-void emergencyStop() {
+void emergencyStopLocked(const char *state) {
   targetLeftSps = targetRightSps = 0.0F;
   currentLeftSps = currentRightSps = 0.0F;
   leftMotor.setSpeed(0.0F);
   rightMotor.setSpeed(0.0F);
-  driveState = "STOP";
+  driveState = state;
+}
+
+void emergencyStop() {
+  lockMotor();
+  emergencyStopLocked("STOP");
+  unlockMotor();
 }
 
 float approach(float current, float target, float maximumDelta) {
@@ -205,6 +239,38 @@ void updateSpeedRamp() {
   currentRightSps = approach(currentRightSps, targetRightSps, maxDelta);
   leftMotor.setSpeed(INVERT_LEFT_DIR ? -currentLeftSps : currentLeftSps);
   rightMotor.setSpeed(INVERT_RIGHT_DIR ? -currentRightSps : currentRightSps);
+}
+
+void motorPulseTask(void *unused) {
+  (void)unused;
+  for (;;) {
+    lockMotor();
+    if (millis() - lastCommandMs > COMMAND_TIMEOUT_MS &&
+        (targetLeftSps != 0.0F || targetRightSps != 0.0F)) {
+      // Keep the safety deadline independent from a blocked sensor/serial
+      // loop.  Reporting is deferred to loop(), but stopping happens here.
+      emergencyStopLocked("FAILSAFE");
+      commandTimeoutReportPending = true;
+    } else {
+      updateSpeedRamp();
+      leftMotor.runSpeed();
+      rightMotor.runSpeed();
+    }
+    unlockMotor();
+
+    // This task is intentionally much faster than the 1600 step/s ceiling,
+    // but still yields so ESP32 system tasks can run on the same core.
+    delayMicroseconds(MOTOR_SERVICE_SLEEP_US);
+    taskYIELD();
+  }
+}
+
+bool takeCommandTimeoutReport() {
+  lockMotor();
+  const bool pending = commandTimeoutReportPending;
+  commandTimeoutReportPending = false;
+  unlockMotor();
+  return pending;
 }
 
 int splitCsv(String line, String fields[], int capacity) {
@@ -392,19 +458,27 @@ void zeroEncoderDistance() {
 }
 
 void sendTelemetry() {
+  lockMotor();
+  const String stateSnapshot = driveState;
+  const float leftSpeedSnapshot = currentLeftSps;
+  const float rightSpeedSnapshot = currentRightSps;
+  const long leftPositionSnapshot = leftMotor.currentPosition();
+  const long rightPositionSnapshot = rightMotor.currentPosition();
+  unlockMotor();
+
   Serial.printf(
     "STAT,%lu,%s,%.1f,%.1f\n",
     millis(),
-    driveState.c_str(),
-    currentLeftSps,
-    currentRightSps
+    stateSnapshot.c_str(),
+    leftSpeedSnapshot,
+    rightSpeedSnapshot
   );
 
   // 기존 모터 스텝 카운트 텔레메트리는 그대로 유지한다.
   const long left =
-      INVERT_LEFT_DIR ? -leftMotor.currentPosition() : leftMotor.currentPosition();
+      INVERT_LEFT_DIR ? -leftPositionSnapshot : leftPositionSnapshot;
   const long right =
-      INVERT_RIGHT_DIR ? -rightMotor.currentPosition() : rightMotor.currentPosition();
+      INVERT_RIGHT_DIR ? -rightPositionSnapshot : rightPositionSnapshot;
   Serial.printf("ENC,%lu,%ld,%ld\n", millis(), left, right);
 
   if (leftEncoder.ready && rightEncoder.ready) {
@@ -429,7 +503,6 @@ void handleLine(String line) {
   fields[0].toUpperCase();
   if (fields[0] == "M" && count == 4) {
     setTargets(fields[2].toFloat(), fields[3].toFloat());
-    lastCommandMs = millis();
     ack(fields[1]);
   } else if (fields[0] == "STOP" && count >= 2) {
     emergencyStop();
@@ -439,8 +512,14 @@ void handleLine(String line) {
     ack(fields[1]);
     sendTelemetry();
   } else if (fields[0] == "ZERO" && count >= 2) {
+    lockMotor();
     leftMotor.setCurrentPosition(0);
     rightMotor.setCurrentPosition(0);
+    // AccelStepper resets speed in setCurrentPosition().  Restore the ramped
+    // speeds so ZERO cannot introduce a visible pause in a turn.
+    leftMotor.setSpeed(INVERT_LEFT_DIR ? -currentLeftSps : currentLeftSps);
+    rightMotor.setSpeed(INVERT_RIGHT_DIR ? -currentRightSps : currentRightSps);
+    unlockMotor();
     zeroEncoderDistance();
     ack(fields[1]);
   } else {
@@ -479,6 +558,10 @@ void setup() {
   imuReady = initializeBno055();
   delay(20);
 
+  motorMutex = xSemaphoreCreateMutex();
+  if (motorMutex == nullptr) {
+    Serial.println("ERR,MOTOR_MUTEX_CREATE_FAILED");
+  }
   emergencyStop();
   lastCommandMs = lastTelemetryMs = millis();
   lastRampUs = micros();
@@ -493,19 +576,29 @@ void setup() {
   }
 
   Serial.println("STAT,0,READY,0,0");
+  if (motorMutex != nullptr) {
+    const BaseType_t created = xTaskCreatePinnedToCore(
+      motorPulseTask,
+      "motor_pulse",
+      MOTOR_TASK_STACK_BYTES,
+      nullptr,
+      MOTOR_TASK_PRIORITY,
+      &motorTaskHandle,
+      MOTOR_TASK_CORE
+    );
+    if (created != pdPASS) {
+      motorTaskHandle = nullptr;
+      emergencyStop();
+      Serial.println("ERR,MOTOR_TASK_CREATE_FAILED");
+    }
+  }
 }
 
 void loop() {
   readSerial();
-  if (millis() - lastCommandMs > COMMAND_TIMEOUT_MS &&
-      (targetLeftSps != 0.0F || targetRightSps != 0.0F)) {
-    emergencyStop();
-    driveState = "FAILSAFE";
+  if (takeCommandTimeoutReport()) {
     Serial.println("ERR,COMMAND_TIMEOUT_STOP");
   }
-  updateSpeedRamp();
-  leftMotor.runSpeed();
-  rightMotor.runSpeed();
   updateEncoders();
   updateImu();
   updateUltrasonic();

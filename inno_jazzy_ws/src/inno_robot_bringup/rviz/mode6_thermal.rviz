@@ -56,7 +56,7 @@ Visualization Manager:
       Draw Behind: false
     - Class: rviz_default_plugins/LaserScan
       Name: RPLIDAR Scan
-      Enabled: true
+      Enabled: false
       Topic:
         Value: /scan
         Reliability Policy: Best Effort
@@ -146,9 +146,9 @@ Visualization Manager:
       Class: rviz_default_plugins/TopDownOrtho
       Name: Top Down
       Angle: 0
-      Scale: 20
-      X: 0
-      Y: 0
+      Scale: 130
+      X: 4.817799091339111
+      Y: -9.854209899902344
 Window Geometry:
   Height: 900
   Width: 1400

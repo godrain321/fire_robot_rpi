@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mode 4: existing Mode 3, then Mode 6 thermal preview + camera YOLO GUI.
+# Mode 4: existing Mode 3, then Mode 6 thermal preview + YOLO in RViz.
 set -euo pipefail
 
 robot_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -118,13 +118,14 @@ if (( mode3_status != 0 )); then
 fi
 
 printf '[MODE 4] Mode 3 완료 확인\n'
-printf '[MODE 4] 2단계: Mode 6 thermal preview와 Camera + YOLO GUI 동시 시작\n'
+printf '[MODE 4] 2단계: Mode 6 thermal preview와 RViz YOLO 화면 동시 시작\n'
 setsid "${robot_root}/run_mode6.sh" \
   "lidar_port:=${lidar_port}" \
   use_serial:=false \
-  set_initial_pose:=false &
+  set_initial_pose:=true \
+  "rviz_config:=${workspace}/install/inno_robot_bringup/share/inno_robot_bringup/rviz/mode4_thermal_camera.rviz" &
 mode6_pid=$!
-setsid "${robot_root}/run_camera_inference_check.sh" &
+setsid "${robot_root}/run_camera_inference_check.sh" use_image_view:=false &
 yolo_pid=$!
 
 completed_pid=''

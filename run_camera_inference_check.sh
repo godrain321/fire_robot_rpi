@@ -6,7 +6,8 @@ ros_setup="${ROS_SETUP_FILE:-/opt/ros/jazzy/setup.bash}"
 camera_setup="${CAMERA_WS_SETUP_FILE:-${project_root}/camera_ws/install/local_setup.bash}"
 robot_setup="${ROBOT_WS_SETUP_FILE:-${project_root}/inno_jazzy_ws/install/local_setup.bash}"
 runtime_root="${CAMERA_RUNTIME_ROOT:-${project_root}/.camera_runtime}"
-model_path="${project_root}/models/yolov8n_best_opencv_640.onnx"
+python_runtime="${CAMERA_PYTHON_RUNTIME:-${runtime_root}/python}"
+model_path="${project_root}/models/yolov8n_best.onnx"
 
 die() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -16,12 +17,8 @@ die() {
 [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]] || \
   die '그래픽 화면이 없습니다. 라즈베리파이 데스크톱에서 실행하세요.'
 [[ -r "${ros_setup}" ]] || die "ROS 2 Jazzy를 찾을 수 없습니다: ${ros_setup}"
-[[ -r "${camera_setup}" ]] || die "카메라 workspace가 빌드되지 않았습니다: ${camera_setup}"
 [[ -r "${robot_setup}" ]] || die "로봇 workspace가 빌드되지 않았습니다: ${robot_setup}"
 [[ -f "${model_path}" ]] || die "YOLO 모델을 찾을 수 없습니다: ${model_path}"
-[[ -e "${runtime_root}/lib/libcamera.so.0.7" ]] || \
-  die "카메라 런타임이 없습니다. ${project_root}/build_rpi_camera_runtime.sh 를 먼저 실행하세요."
-
 camera_found='false'
 for name_file in /sys/bus/i2c/devices/*/name; do
   [[ -r "${name_file}" ]] || continue
@@ -36,13 +33,30 @@ done
 set +u
 # shellcheck disable=SC1090
 source "${ros_setup}"
-# shellcheck disable=SC1090
-source "${camera_setup}"
+# camera_ros is normally installed from the ROS Jazzy apt repository. Keep an
+# independently built camera workspace optional for calibration/development.
+if [[ -r "${camera_setup}" ]]; then
+  # shellcheck disable=SC1090
+  source "${camera_setup}"
+fi
 # shellcheck disable=SC1090
 source "${robot_setup}"
 set -u
 
-export LD_LIBRARY_PATH="${runtime_root}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+ros2 pkg prefix camera_ros >/dev/null 2>&1 || \
+  die 'camera_ros 패키지를 찾을 수 없습니다. ros-jazzy-camera-ros를 설치하세요.'
+ros2 pkg prefix inno_camera_tools >/dev/null 2>&1 || \
+  die 'inno_camera_tools 패키지를 로봇 workspace에서 찾을 수 없습니다.'
+
+if [[ -e "${runtime_root}/lib/libcamera.so.0.7" ]]; then
+  export LD_LIBRARY_PATH="${runtime_root}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+else
+  die "Pi 5 카메라 런타임이 없습니다. ${project_root}/build_rpi_camera_runtime.sh 를 실행하세요."
+fi
+
+[[ -d "${python_runtime}/onnxruntime" ]] || \
+  die "ONNX Runtime을 찾을 수 없습니다: ${python_runtime}"
+export PYTHONPATH="${python_runtime}${PYTHONPATH:+:${PYTHONPATH}}"
 
 exec ros2 launch inno_camera_tools camera_inference_check.launch.py \
   "model_path:=${model_path}" \

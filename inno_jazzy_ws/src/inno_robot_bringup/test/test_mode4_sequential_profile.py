@@ -15,6 +15,10 @@ CAMERA_LAUNCH = (
     SOURCE_ROOT / 'inno_camera_tools' / 'launch'
     / 'camera_inference_check.launch.py'
 )
+PERSON_DETECTOR = (
+    SOURCE_ROOT / 'inno_camera_tools' / 'inno_camera_tools'
+    / 'person_detector.py'
+)
 
 
 def source(path: Path) -> str:
@@ -45,10 +49,16 @@ def test_followup_processes_start_only_after_gate_success():
     gate_wait = script.index('wait -n -p first_stage_pid')
     failure_guard = script.index('if (( mode3_status != 0 ))')
     mode6_start = script.index('"${robot_root}/run_mode6.sh"')
-    yolo_start = script.index('"${robot_root}/run_camera_inference_check.sh" &')
+    yolo_start = script.index('"${robot_root}/run_camera_inference_check.sh"')
     assert gate_wait < failure_guard < mode6_start < yolo_start
     assert 'wait -n -p first_stage_pid' in script
     assert 'wait -n -p completed_pid "${mode6_pid}" "${yolo_pid}"' in script
+
+
+def test_mode4_enables_mode6_automatic_initial_pose():
+    script = source(RUN_MODE4)
+    assert 'set_initial_pose:=true \\\n' in script
+    assert 'set_initial_pose:=false' not in script
 
 
 def test_mode4_owns_child_process_groups_and_cleanup():
@@ -66,7 +76,39 @@ def test_yolo_launch_has_one_camera_and_visible_annotated_output():
     assert camera.count("camera_module_3.launch.py") == 1
     assert "executable='camera_person_detector'" in camera
     assert "executable='image_view'" in camera
+    assert "condition=IfCondition(L('use_image_view'))" in camera
     assert "('image', L('annotated_image_topic'))" in camera
+
+
+def test_mode4_routes_annotated_yolo_image_to_rviz_without_image_view():
+    script = source(RUN_MODE4)
+    rviz = source(BRINGUP / 'rviz' / 'mode4_thermal_camera.rviz')
+    assert 'use_image_view:=false' in script
+    assert 'mode4_thermal_camera.rviz' in script
+    assert 'Name: YOLO Camera' in rviz
+    assert 'Value: /camera/person_detection_image' in rviz
+    assert 'Enabled: true' in rviz
+    assert 'Hide Left Dock: true' in rviz
+    assert 'Hide Right Dock: true' in rviz
+    assert 'QMainWindow State:' in rviz
+    thermal_arc = rviz.split('Name: Thermal Arc Points', 1)[1].split(
+        '- Class:', 1
+    )[0]
+    assert 'Enabled: false' in thermal_arc
+
+
+def test_camera_runner_uses_the_available_dynamic_model_and_local_runtime():
+    runner = source(REPOSITORY / 'run_camera_inference_check.sh')
+    assert 'models/yolov8n_best.onnx' in runner
+    assert 'models/yolov8n_best_opencv_640.onnx' not in runner
+    assert 'python_runtime="${CAMERA_PYTHON_RUNTIME:-${runtime_root}/python}"' in runner
+    assert 'export PYTHONPATH=' in runner
+
+
+def test_annotated_yolo_image_is_published_without_discovery_race():
+    detector = source(PERSON_DETECTOR)
+    assert 'get_subscription_count() == 0' not in detector
+    assert 'self.annotated_publisher.publish(message)' in detector
 
 
 def test_run_modes_routes_explicit_mode4_without_changing_interactive_modes():

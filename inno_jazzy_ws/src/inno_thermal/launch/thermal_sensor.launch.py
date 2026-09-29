@@ -45,12 +45,20 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "use_latest_tf_fallback", default_value="false"
             ),
+            DeclareLaunchArgument(
+                "arc_use_latest_tf", default_value="false"
+            ),
             Node(
                 package="inno_thermal",
                 executable="mlx90640_sensor_node",
                 name="mlx90640_sensor_node",
                 output="screen",
-                parameters=[str(parameters)],
+                parameters=[str(parameters), {
+                    "arc_use_latest_tf": ParameterValue(
+                        LaunchConfiguration("arc_use_latest_tf"),
+                        value_type=bool,
+                    ),
+                }],
             ),
             Node(
                 package="inno_thermal",

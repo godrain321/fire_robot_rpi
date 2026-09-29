@@ -122,6 +122,7 @@ class Mlx90640SensorNode(Node):
         super().__init__("mlx90640_sensor_node")
         self.declare_parameter("i2c_address", 0x33)
         self.declare_parameter("frame_id", "thermal_camera_link")
+        self.declare_parameter("arc_use_latest_tf", False)
         self.declare_parameter("horizontal_fov_deg", 110.0)
         self.declare_parameter("vertical_fov_deg", 75.0)
         self.declare_parameter("projection_distance_m", 0.15)
@@ -136,6 +137,9 @@ class Mlx90640SensorNode(Node):
 
         self.i2c_address = int(self.get_parameter("i2c_address").value)
         self.frame_id = str(self.get_parameter("frame_id").value)
+        self.arc_use_latest_tf = bool(
+            self.get_parameter("arc_use_latest_tf").value
+        )
         self.horizontal_fov_deg = float(
             self.get_parameter("horizontal_fov_deg").value
         )
@@ -208,7 +212,13 @@ class Mlx90640SensorNode(Node):
             stamp = self.get_clock().now().to_msg()
             self._image_publisher.publish(self._make_image(temperatures, stamp))
             self._column_publisher.publish(self._make_column_max(column_max))
-            self._arc_publisher.publish(self._make_point_cloud(points, stamp))
+            arc_stamp = stamp
+            if self.arc_use_latest_tf:
+                # A zero ROS stamp asks TF consumers (including RViz) for the
+                # latest transform. This is useful for stationary live preview,
+                # where a freshly stamped cloud can lead the 20 Hz map TF.
+                arc_stamp = type(stamp)()
+            self._arc_publisher.publish(self._make_point_cloud(points, arc_stamp))
         except Exception as exc:  # keep the timer/node alive after sensor errors
             self.get_logger().error(f"MLX90640 frame read/publish failed; retrying: {exc}")
 
