@@ -32,6 +32,11 @@ def generate_launch_description():
         DeclareLaunchArgument('use_lidar', default_value='true'),
         DeclareLaunchArgument('use_mmwave', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='true'),
+        DeclareLaunchArgument('localization_scan_topic', default_value='/scan'),
+        DeclareLaunchArgument('rf2o_publish_tf', default_value='true'),
+        DeclareLaunchArgument('use_amcl_tf_bridge', default_value='true'),
+        DeclareLaunchArgument('use_localization_path', default_value='true'),
+        DeclareLaunchArgument('cmd_vel_output_topic', default_value='/cmd_vel'),
         DeclareLaunchArgument('assist_check_sec', default_value='10.0'),
         DeclareLaunchArgument('set_initial_pose', default_value='false'),
         DeclareLaunchArgument('auto_localization', default_value='true'),
@@ -110,6 +115,19 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('use_serial', default_value='true'),
         DeclareLaunchArgument('use_camera_mode4', default_value='false'),
+        DeclareLaunchArgument('use_mode3_demo', default_value='true'),
+        DeclareLaunchArgument('mode3_intro_audio_file', default_value='mode3_intro.wav'),
+        DeclareLaunchArgument('mode3_spin_speed_radps', default_value='1.0'),
+        DeclareLaunchArgument('mode11_enabled', default_value='false'),
+        DeclareLaunchArgument('imu_topic', default_value='/imu/data_raw'),
+        DeclareLaunchArgument('encoder_topic', default_value='/wheel_encoder_ticks'),
+        DeclareLaunchArgument('allow_virtual_step_counts', default_value='false'),
+        DeclareLaunchArgument('left_encoder_sign', default_value='1'),
+        DeclareLaunchArgument('right_encoder_sign', default_value='1'),
+        DeclareLaunchArgument('imu_yaw_sign', default_value='1'),
+        DeclareLaunchArgument('wheel_radius_m', default_value='0.04'),
+        DeclareLaunchArgument('encoder_counts_per_rev', default_value='16384'),
+        DeclareLaunchArgument('maximum_encoder_counts_per_sec', default_value='12000.0'),
         DeclareLaunchArgument('use_mode3_audio', default_value='true'),
         DeclareLaunchArgument(
             'mode3_audio_directory', default_value='~/fire_robot_audio'
@@ -144,6 +162,10 @@ def generate_launch_description():
             'initial_pose_x': L('initial_pose_x'),
             'initial_pose_y': L('initial_pose_y'),
             'initial_pose_yaw': L('initial_pose_yaw'),
+            'localization_scan_topic': L('localization_scan_topic'),
+            'rf2o_publish_tf': L('rf2o_publish_tf'),
+            'use_amcl_tf_bridge': L('use_amcl_tf_bridge'),
+            'use_localization_path': L('use_localization_path'),
         }.items(),
     )
     mmwave_bringup = IncludeLaunchDescription(
@@ -239,6 +261,76 @@ def generate_launch_description():
         }],
         condition=IfCondition(L('use_mode3_audio')),
     )
+    mode3_demo = Node(
+        package='inno_robot_bringup',
+        executable='mode3_greeting_spin',
+        name='mode3_greeting_spin',
+        output='screen',
+        emulate_tty=True,
+        parameters=[{
+            'angular_speed_radps': ParameterValue(
+                L('mode3_spin_speed_radps'), value_type=float
+            ),
+            'audio_directory': L('mode3_audio_directory'),
+            'audio_file': L('mode3_intro_audio_file'),
+            'audio_device': L('mode3_audio_device'),
+            'playback_volume_percent': ParameterValue(
+                L('mode3_audio_volume_percent'), value_type=int
+            ),
+        }],
+        condition=IfCondition(L('use_mode3_demo')),
+    )
+    mode11_selector = Node(
+        package='inno_robot_bringup',
+        executable='mode11_localization',
+        name='mode11_localization',
+        output='screen',
+        parameters=[{
+            'imu_topic': L('imu_topic'),
+            'encoder_topic': L('encoder_topic'),
+            'allow_virtual_step_counts': ParameterValue(
+                L('allow_virtual_step_counts'), value_type=bool
+            ),
+            'require_map_alignment': True,
+            'imu_yaw_sign': ParameterValue(L('imu_yaw_sign'), value_type=int),
+            'left_sign': ParameterValue(L('left_encoder_sign'), value_type=int),
+            'right_sign': ParameterValue(L('right_encoder_sign'), value_type=int),
+            'wheel_radius': ParameterValue(L('wheel_radius_m'), value_type=float),
+            'motor_full_steps_per_rev': ParameterValue(
+                L('encoder_counts_per_rev'), value_type=int
+            ),
+            'microsteps': 1,
+            'maximum_steps_per_sec': ParameterValue(
+                L('maximum_encoder_counts_per_sec'), value_type=float
+            ),
+        }],
+        condition=IfCondition(L('mode11_enabled')),
+    )
+    selected_path = Node(
+        package='inno_robot_bringup',
+        executable='tf_to_path',
+        name='selected_localization_path',
+        output='screen',
+        parameters=[{
+            'fixed_frame': 'map',
+            'base_frame': 'base_link',
+            'path_topic': '/lidar_path',
+            'max_points': 10000,
+        }],
+        condition=IfCondition(L('mode11_enabled')),
+    )
+    imu_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='base_to_imu_tf',
+        output='screen',
+        arguments=[
+            '--x', '0.0', '--y', '0.0', '--z', '0.0',
+            '--roll', '0.0', '--pitch', '0.0', '--yaw', '0.0',
+            '--frame-id', 'base_link', '--child-frame-id', 'imu_link',
+        ],
+        condition=IfCondition(L('mode11_enabled')),
+    )
     # autonav_demo also declares ``use_serial``.  Keep the include scoped so
     # its deliberately disabled internal bridge cannot overwrite this launch
     # file's top-level ``use_serial`` value and suppress the ESP32 bridge.
@@ -306,7 +398,7 @@ def generate_launch_description():
     )
     keyboard = Node(
         package='inno_drive_bridge', executable='keyboard_cmdvel_demo',
-        name='keyboard_cmdvel_demo', output='log', emulate_tty=True,
+        name='keyboard_cmdvel_demo', output='screen', emulate_tty=True,
         parameters=[
             drive + '/config/drive_params.yaml',
             {
@@ -316,11 +408,18 @@ def generate_launch_description():
                 'angular_speed': ParameterValue(
                     L('turn_speed'), value_type=float
                 ),
+                'mode11_blackout_key': ParameterValue(
+                    L('mode11_enabled'), value_type=bool
+                ),
+                'blackout_operator_mode': 2,
             },
         ],
     )
-    mux = Node(package='inno_drive_bridge', executable='cmd_vel_mode_mux',
-               name='cmd_vel_mode_mux', output='log')
+    mux = Node(
+        package='inno_drive_bridge', executable='cmd_vel_mode_mux',
+        name='cmd_vel_mode_mux', output='log',
+        parameters=[{'output_topic': L('cmd_vel_output_topic')}],
+    )
     serial = Node(
         package='inno_drive_bridge', executable='cmdvel_to_esp32_serial',
         name='cmdvel_to_esp32_serial', output='log',
@@ -351,7 +450,9 @@ def generate_launch_description():
         args + [
             localization, auto_localization, mmwave_bringup, status_console,
             camera_bringup,
-            person_detector, mode3_audio, navigation, keyboard, mux, serial,
+            person_detector, mode3_audio, mode3_demo,
+            mode11_selector, selected_path, imu_tf,
+            navigation, keyboard, mux, serial,
             waypoint_queue, rviz, thermal_viewer,
         ]
     )

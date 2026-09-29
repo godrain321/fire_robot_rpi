@@ -29,6 +29,7 @@ setup(
             'cmdvel_to_esp32_serial = inno_drive_bridge.cmdvel_to_esp32_serial:main',
             'step_count_to_odom = inno_drive_bridge.step_count_to_odom:main',
             'cmd_vel_mode_mux = inno_drive_bridge.cmd_vel_mode_mux:main',
+            'mode10_ultrasonic_avoidance = inno_drive_bridge.mode10_ultrasonic_avoidance:main',
         ],
     },
 )

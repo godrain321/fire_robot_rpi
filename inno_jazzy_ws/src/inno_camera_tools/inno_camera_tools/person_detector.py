@@ -581,8 +581,6 @@ class PersonDetector(Node):
         return detections
 
     def _publish_annotated(self, source, header, detections) -> None:
-        if self.annotated_publisher.get_subscription_count() == 0:
-            return
         annotated = source.copy()
         for detection in detections:
             top_left = (int(detection.x_min), int(detection.y_min))

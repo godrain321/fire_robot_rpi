@@ -28,6 +28,10 @@ def generate_launch_description():
     args = [
         DeclareLaunchArgument("use_serial", default_value="false"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
+        DeclareLaunchArgument(
+            "rviz_config",
+            default_value=bringup + "/rviz/mode6_thermal.rviz",
+        ),
         DeclareLaunchArgument("start_lidar", default_value="true"),
         DeclareLaunchArgument("esp32_port", default_value="/dev/ttyUSB0"),
         DeclareLaunchArgument("lidar_port", default_value="/dev/ttyUSB1"),
@@ -38,10 +42,12 @@ def generate_launch_description():
             "planning_map_yaml",
             default_value=project_path("maps", "inno_map_nav.yaml"),
         ),
-        DeclareLaunchArgument("set_initial_pose", default_value="false"),
-        DeclareLaunchArgument("initial_pose_x", default_value="0.0"),
-        DeclareLaunchArgument("initial_pose_y", default_value="0.0"),
-        DeclareLaunchArgument("initial_pose_yaw", default_value="0.0"),
+        DeclareLaunchArgument("set_initial_pose", default_value="true"),
+        DeclareLaunchArgument("initial_pose_x", default_value="4.817799091339111"),
+        DeclareLaunchArgument("initial_pose_y", default_value="-9.854209899902344"),
+        DeclareLaunchArgument(
+            "initial_pose_yaw", default_value="-0.4439678115329046"
+        ),
         DeclareLaunchArgument("linear_speed", default_value="0.08"),
         DeclareLaunchArgument("angular_speed", default_value="0.35"),
         # base_link -> thermal_camera_link mounting offset (same names as Mode 5).
@@ -100,6 +106,7 @@ def generate_launch_description():
             "observation_timeout_sec": "0.75",
             "thermal_data_timeout_sec": "0.75",
             "use_latest_tf_fallback": "true",
+            "arc_use_latest_tf": "true",
         }.items(),
     )
 
@@ -132,7 +139,7 @@ def generate_launch_description():
 
     rviz = Node(
         package="rviz2", executable="rviz2", name="mode6_thermal_rviz",
-        arguments=["-d", bringup + "/rviz/mode6_thermal.rviz"],
+        arguments=["-d", L("rviz_config")],
         output="screen", condition=IfCondition(L("use_rviz")),
     )
 
